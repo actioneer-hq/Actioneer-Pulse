@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Local
+localtests/
+.env
+scratch_*.db
+*.db
+
+# Real call audio pulled from S3 (not committed — large + real recordings)
+tests/fixtures/real_calls/
+
+# Design docs (kept local, not committed)
+CONTEXT.md
+CONTRACTS.md
+MODELS.md
+PLAN.md
+vas-contract.md
+*.pdf
