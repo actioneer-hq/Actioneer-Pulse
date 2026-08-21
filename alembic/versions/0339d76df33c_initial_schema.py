@@ -182,7 +182,7 @@ def upgrade() -> None:
     sa.Column('tenant_id', sa.String(length=128), nullable=False),
     sa.Column('kind', sa.String(length=24), nullable=False),
     sa.Column('uri', sa.String(length=1024), nullable=True),
-    sa.Column('peaks', sa.LargeBinary(), nullable=False),
+    sa.Column('peaks', sa.LargeBinary(), nullable=True),
     sa.Column('sha256', sa.String(length=64), nullable=True),
     sa.Column('bytes', sa.Integer(), nullable=True),
     sa.Column('content_type', sa.String(length=64), nullable=True),
