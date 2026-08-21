@@ -282,7 +282,7 @@ class Media(Base):
     tenant_id: Mapped[str] = tenant_col()
     kind: Mapped[str] = mapped_column(String(24), nullable=False)  # audio|artifact_json|peaks|...
     uri: Mapped[str | None] = mapped_column(String(1024))  # gs:// or s3://
-    peaks: Mapped[bytes | None] = mapped_column(LargeBinary)  # int16 min/max, inline
+    peaks: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)  # int16 min/max
     sha256: Mapped[str | None] = mapped_column(String(64))
     bytes: Mapped[int | None] = mapped_column(Integer)
     content_type: Mapped[str | None] = mapped_column(String(64))
