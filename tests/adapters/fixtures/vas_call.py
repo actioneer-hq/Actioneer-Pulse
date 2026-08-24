@@ -11,6 +11,8 @@ MS = 1_000_000
 
 
 def _av(v):
+    if isinstance(v, list):
+        return {"arrayValue": {"values": [_av(x) for x in v]}}
     if isinstance(v, bool):
         return {"boolValue": v}
     if isinstance(v, int):
@@ -28,8 +30,12 @@ def _ns(ms: float) -> str:
     return str(T0 + int(ms * MS))
 
 
+TRACE_ID = "c1c1" * 8  # every real OTLP span carries one; the fixture must too
+
+
 def _span(span_id, parent, name, start_ms, end_ms, attrs, events=None):
     s = {
+        "traceId": TRACE_ID,
         "spanId": span_id,
         "name": name,
         "startTimeUnixNano": _ns(start_ms),

@@ -34,15 +34,15 @@ def _cascade_trace() -> Trace:
     # One endpoint turn. Call clock. STT final 1.0, committed 1.1, llm start 1.1,
     # first token 1.4, tts start 1.5, first audio 1.7. turn window [0.9, 2.2].
     turn = _span("t1", "call", "voice.turn", Stage.TURN, 0.9, 2.2, "c1:1",
-                 attrs={"voice.turn.index": 1, "voice.turn.trigger": "endpoint"})
+                 attrs={"turn.index": 1, "turn.trigger": "endpoint"})
     stt = _span("s-stt", "t1", "stt.finalize", Stage.STT, 0.6, 1.0, "c1:1",
-                attrs={"voice.stt_confidence": 0.67, "voice.stt_language": "hi-IN"})
+                attrs={"stt.confidence": 0.67, "stt.language": "hi-IN"})
     llm = _span("s-llm", "t1", "llm.generate", Stage.LLM, 1.1, 1.9, "c1:1",
                 attrs={"gen_ai.usage.output_tokens": 42},
                 events=[SpanEvent(name="llm.first_token", t=1.4)])
     tts = _span("s-tts", "t1", "tts.synthesize", Stage.TTS, 1.5, 2.2, "c1:1",
-                attrs={"voice.tts_chars": 100, "voice.tts_chars_cut": 16,
-                       "voice.tts_cut_reason": "barge_in"},
+                attrs={"tts.chars": 100, "tts.chars_cut": 16,
+                       "tts.cut_reason": "barge_in"},
                 events=[SpanEvent(name="tts.first_audio", t=1.7)])
     call = _span("call", None, "voice.call", Stage.CALL, 0.0, 3.0, None,
                  events=[SpanEvent(name="turn.committed", t=1.1)])

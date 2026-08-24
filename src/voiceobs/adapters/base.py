@@ -10,9 +10,11 @@ from voiceobs.core.model import Trace
 
 
 class UnsupportedSchema(Exception):
-    """A matched producer sent a schema version the adapter can't handle.
+    """A payload this adapter matched but cannot turn into a Trace — a schema version
+    it can't handle, or a batch with no call in it.
 
-    Ingest maps this to the producer_schema_unsupported trust reason."""
+    Ingest maps this to the producer_schema_unsupported trust reason. Adapters raise
+    it instead of crashing so one bad batch never takes the worker down."""
 
 
 @runtime_checkable

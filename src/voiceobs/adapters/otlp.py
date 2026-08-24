@@ -1,9 +1,12 @@
-"""OTLP/HTTP JSON helpers, dialect-agnostic. Every producer's adapter reuses these.
+"""OTLP/HTTP helpers, dialect-agnostic. Every producer's adapter reuses these.
 
-OTLP JSON is camelCase and boxes each attribute value in an AnyValue wrapper."""
+OTLP JSON is camelCase and boxes each attribute value in an AnyValue wrapper. The
+protobuf wire format maps to the same shape, so `decode_protobuf` is the only place
+that needs to know which one arrived."""
 
 from __future__ import annotations
 
+import base64
 from collections.abc import Iterator
 from typing import Any
 
@@ -58,3 +61,37 @@ def span_events(span: dict) -> list[tuple[str, int, dict[str, Any]]]:
         (e["name"], int(e["timeUnixNano"]), attrs_to_dict(e.get("attributes")))
         for e in span.get("events", [])
     ]
+
+
+# Ids are `bytes` on the wire and JSON-map to base64; everything downstream — and every
+# id already stored — is hex.
+_ID_KEYS = ("traceId", "spanId", "parentSpanId")
+
+
+def decode_protobuf(body: bytes) -> dict:
+    """OTLP/protobuf -> the dict shape OTLP/JSON produces.
+
+    Real producers send protobuf: `OTLPSpanExporter` has no JSON mode. Rejecting it
+    would reject every batch that isn't a hand-written test fixture."""
+    from google.protobuf.json_format import MessageToDict
+    from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+        ExportTraceServiceRequest,
+    )
+
+    msg = ExportTraceServiceRequest()
+    msg.ParseFromString(body)
+    payload = MessageToDict(msg)
+    for rs in payload.get("resourceSpans", []):
+        for scope in rs.get("scopeSpans", []):
+            for span in scope.get("spans", []):
+                _hexify(span)
+                for link in span.get("links", []):
+                    _hexify(link)
+    return payload
+
+
+def _hexify(d: dict) -> None:
+    """base64 id -> hex, in place. Skipping this breaks parent links silently."""
+    for k in _ID_KEYS:
+        if d.get(k):
+            d[k] = base64.b64decode(d[k]).hex()

@@ -1,0 +1,50 @@
+# Local VO: Postgres plus the API. `docker compose up --build`, then point a producer
+# at http://localhost:8000 (the OTLP SDK appends /v1/traces itself).
+#
+# Port 8000, not OTLP's conventional 4318: an otel-collector already owns 4317/4318 on
+# a dev box, and you want both reachable while migrating off it. Override with VO_PORT.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: voiceobs
+      POSTGRES_PASSWORD: voiceobs
+      POSTGRES_DB: voiceobs
+    # NOT 5432: this machine already runs its own Postgres there, and a client aimed at
+    # localhost:5432 silently reaches that one instead ("role voiceobs does not exist").
+    ports: ["${VO_DB_PORT:-5434}:5432"]
+    volumes: ["voiceobs-pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voiceobs -d voiceobs"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  vo:
+    build: .
+    environment:
+      VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
+    ports: ["${VO_PORT:-8000}:8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Same image, different command. Scale it (`--scale worker=3`) and SKIP LOCKED
+  # keeps two workers off the same call.
+  worker:
+    build: .
+    command: ["python", "-m", "voiceobs.worker"]
+    environment:
+      VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
+      VOICEOBS_SKIP_MIGRATE: "1"   # the api container owns migrations
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  voiceobs-pg:
