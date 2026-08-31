@@ -11,11 +11,13 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from voiceobs.adapters import UnsupportedSchema, adapter_for
+from voiceobs.core import analyze_audio
 from voiceobs.core.config import METRIC_VERSION
 from voiceobs.core.join import join
-from voiceobs.core.model import Analysis, CallHeader, Trace
-from voiceobs.db.models import Call, Event, IngestRun, Metric, RawFragment
+from voiceobs.core.model import Analysis, AudioAnalysis, AudioRef, CallHeader, Trace
+from voiceobs.db.models import Call, Event, IngestRun, Media, Metric, RawFragment, Utterance
 from voiceobs.db.models import Turn as DBTurn
+from voiceobs.storage import fetch_bytes
 
 log = logging.getLogger(__name__)
 
@@ -74,11 +76,10 @@ def process(db: Session, call: Call) -> str:
         raise UnsupportedSchema("no adapter matched")
     trace = adapter.to_trace(payload)
 
-    # ponytail: spans only — pipe 2 (audio) does not exist yet. join() already takes
-    # `audio=None`; pass an AudioAnalysis here once media lands.
-    analysis = join(trace, None)
+    audio = _load_audio(db, call)  # None when the WAV never arrived — join degrades
+    analysis = join(trace, audio, t0_offset_s=call.audio_t0_offset_s)
 
-    _persist(db, call, trace, analysis, adapter.version)
+    _persist(db, call, trace, analysis, adapter.version, audio)
 
     reasons = [r.value for r in analysis.trust.reasons]
     run.status = "partial" if reasons else "ok"
@@ -87,13 +88,32 @@ def process(db: Session, call: Call) -> str:
     return run.status
 
 
+def _load_audio(db: Session, call: Call) -> AudioAnalysis | None:
+    """Fetch the WAV and run Layer 1. None if no audio was registered."""
+    media = db.scalar(
+        select(Media).where(Media.call_id == call.id, Media.kind == "audio")
+    )
+    if media is None or not media.uri:
+        return None
+    ref = AudioRef(
+        uri=media.uri, sha256=media.sha256 or "",
+        channels=media.channels or 2, sample_rate=media.sample_rate or 8000,
+        duration_s=call.duration_s or 0.0,
+        channel_map={int(k): v for k, v in (call.channel_map or {}).items()},
+        t0_offset_s=call.audio_t0_offset_s,
+    )
+    return analyze_audio(fetch_bytes(media.uri), ref)
+
+
 def _persist(
-    db: Session, call: Call, trace: Trace, analysis: Analysis, adapter_version: int
+    db: Session, call: Call, trace: Trace, analysis: Analysis, adapter_version: int,
+    audio: AudioAnalysis | None,
 ) -> None:
     # Delete-then-insert: reprocessing must not double rows, and the unique
     # constraints on turn/metric would reject the second run otherwise.
-    for model in (DBTurn, Metric, Event):
+    for model in (DBTurn, Metric, Event, Utterance):
         db.execute(delete(model).where(model.call_id == call.id))
+    db.execute(delete(Media).where(Media.call_id == call.id, Media.kind.like("peaks_%")))
 
     _apply_header(call, trace.header)
     call.unattributed_spans = sum(
@@ -108,6 +128,26 @@ def _persist(
         + [_metric_row(m, call, analysis.metric_version) for m in analysis.metrics]
         + list(_event_rows(trace, call))
     )
+    if audio is not None:
+        db.add_all(_utterance_rows(audio, call, analysis.metric_version))
+        db.add_all(_peaks_rows(audio, call))
+
+
+def _utterance_rows(audio: AudioAnalysis, call: Call, metric_version: int):
+    return [
+        Utterance(
+            call_id=call.id, tenant_id=call.tenant_id, channel=u.channel,
+            t_start_s=u.t_start, t_end_s=u.t_end, metric_version=metric_version,
+        )
+        for u in audio.utterances
+    ]
+
+
+def _peaks_rows(audio: AudioAnalysis, call: Call):
+    return [
+        Media(call_id=call.id, tenant_id=call.tenant_id, kind=f"peaks_{channel}", peaks=data)
+        for channel, data in audio.peaks.items()
+    ]
 
 
 def _cols(model) -> set[str]:

@@ -26,14 +26,35 @@ def _pipecat() -> dict:
     }]}
 
 
+def _unknown() -> dict:
+    """A producer with no voice.* and names no specific adapter claims."""
+    def span(sid, parent, name, start, end):
+        s = {"traceId": "aa" * 16, "spanId": sid, "name": name,
+             "startTimeUnixNano": str(start), "endTimeUnixNano": str(end)}
+        if parent:
+            s["parentSpanId"] = parent
+        return s
+
+    T = 1_700_000_000_000_000_000
+    return {"resourceSpans": [{
+        "resource": {"attributes": [{"key": "service.name",
+                                     "value": {"stringValue": "someframework"}}]},
+        "scopeSpans": [{"spans": [
+            span("01" * 8, None, "session", T, T + 3_000_000_000),
+            span("02" * 8, "01" * 8, "recognize", T, T + 1_000_000_000),
+            span("03" * 8, "01" * 8, "generate", T + 1_000_000_000, T + 2_000_000_000),
+        ]}],
+    }]}
+
+
 def test_unknown_producer_still_parses():
-    payload = _pipecat()
+    payload = _unknown()
     adapter = adapter_for(payload)
     assert adapter.name == "otlp"
 
     trace = adapter.to_trace(payload)
     assert trace.header.call_id == "aa" * 16  # no call id to find, so the trace names it
-    assert trace.header.source == "pipecat"
+    assert trace.header.source == "someframework"
     assert len(trace.spans) == 3
     # nothing recognised, so nothing is guessed at
     assert {s.stage for s in trace.spans} == {Stage.UNKNOWN}
