@@ -13,6 +13,7 @@ from voiceobs.db import Base
 EXPECTED_TABLES = {
     "prompt", "call", "raw_fragment", "event", "utterance", "turn", "metric",
     "metric_def", "media", "ingest_run", "annotation", "label", "tombstone",
+    "transcript", "judge_config", "judgment",
 }
 
 

@@ -14,6 +14,7 @@ from voiceobs.api.deps import session_dep
 from voiceobs.core.config import METRIC_DEFS
 from voiceobs.db.models import Call, Event, Media, Metric, Turn
 from voiceobs.storage import presign
+from voiceobs.transcript import resolve
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1")
@@ -74,6 +75,12 @@ def get_call(call_id: str, db: Session = Depends(session_dep)) -> dict:
             "app_version": call.app_version,
         },
     }
+
+
+@router.get("/calls/{call_id}/transcript")
+def get_transcript(call_id: str, db: Session = Depends(session_dep)) -> dict:
+    """BYO transcript if uploaded, else derived from turn content. Feeds the judge."""
+    return resolve(db, _get_call(db, call_id))
 
 
 @router.get("/metric-defs")

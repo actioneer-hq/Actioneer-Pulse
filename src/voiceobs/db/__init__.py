@@ -8,6 +8,8 @@ from voiceobs.db.models import (
     Call,
     Event,
     IngestRun,
+    JudgeConfig,
+    Judgment,
     Label,
     Media,
     Metric,
@@ -15,6 +17,7 @@ from voiceobs.db.models import (
     Prompt,
     RawFragment,
     Tombstone,
+    Transcript,
     Turn,
     Utterance,
 )
@@ -25,6 +28,8 @@ __all__ = [
     "Call",
     "Event",
     "IngestRun",
+    "JudgeConfig",
+    "Judgment",
     "Label",
     "Media",
     "Metric",
@@ -32,6 +37,7 @@ __all__ = [
     "Prompt",
     "RawFragment",
     "Tombstone",
+    "Transcript",
     "Turn",
     "Utterance",
 ]

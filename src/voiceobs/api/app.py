@@ -7,11 +7,12 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from voiceobs.api import ingest, read
+from voiceobs.api import ingest, judge, read
 
 app = FastAPI(title="Voice Observability")
 app.include_router(ingest.router)
 app.include_router(read.router)
+app.include_router(judge.router)
 
 
 @app.get("/health")
