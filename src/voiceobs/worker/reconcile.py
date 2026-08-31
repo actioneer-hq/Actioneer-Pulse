@@ -73,11 +73,23 @@ def _aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
-def main() -> None:  # pragma: no cover — entrypoint
-    prefix = os.environ["VOICEOBS_RECORDINGS_PREFIX"]
+def _run_once(prefix: str) -> None:  # pragma: no cover
     with session_scope() as db:
-        n = reconcile(db, prefix)
-    log.info("reconciled %d call(s)", n)
+        log.info("reconciled %d call(s)", reconcile(db, prefix))
+
+
+def main() -> None:  # pragma: no cover — entrypoint
+    """One-shot, or a sidecar loop when VOICEOBS_RECONCILE_INTERVAL_S is set."""
+    prefix = os.environ["VOICEOBS_RECORDINGS_PREFIX"]
+    interval = os.getenv("VOICEOBS_RECONCILE_INTERVAL_S")
+    if not interval:
+        _run_once(prefix)
+        return
+    import time
+
+    while True:
+        _run_once(prefix)
+        time.sleep(float(interval))
 
 
 if __name__ == "__main__":  # pragma: no cover

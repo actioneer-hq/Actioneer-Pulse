@@ -72,13 +72,26 @@ export const STAGES: Stage[] = [
   "call", "turn", "speech", "stt", "llm", "tts", "playout", "tool", "net", "unknown",
 ];
 
+export type Audio = {
+  url: string | null;
+  sample_rate: number | null;
+  channels: number | null;
+  duration_s: number | null;
+};
+
+// One consolidated payload — header, turns, metrics, trust, the span tree, waveform
+// peaks (base64 per channel), and a presigned audio URL. One round trip.
 export type CallDetail = {
   call: CallHeader;
   turns: Turn[];
   metrics: { name: string; value: number | string | null; available: boolean }[];
-  trust: { spans_complete: boolean; media_ready: boolean };
+  trust: { spans_complete: boolean; media_ready: boolean; capture_coverage: number[] | {} };
+  spans: Span[];
+  peaks: Record<string, string>;
+  audio: Audio | null;
 };
 
+// The span sub-view Waterfall/Discarded render; built from CallDetail, not fetched.
 export type Trace = {
   call_id: string;
   source: string;
@@ -95,4 +108,3 @@ async function get<T>(path: string): Promise<T> {
 export const listCalls = (limit = 200) =>
   get<{ items: Call[] }>(`/v1/calls?limit=${limit}`).then((d) => d.items);
 export const getCall = (id: string) => get<CallDetail>(`/v1/calls/${id}`);
-export const getTrace = (id: string) => get<Trace>(`/v1/calls/${id}/spans`);

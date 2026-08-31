@@ -73,6 +73,16 @@ _METRICS: tuple[tuple, ...] = (
      "Why agent speech was truncated: barge_in (healthy) vs hangup."),
     ("unattributed_ms", "ms", "numeric", 0, None, DOWN,
      "Turn duration minus the sum of its children — found by subtraction."),
+    # per-side metrics (caller from audio, agent from spans)
+    ("talk_ratio_caller", "ratio", "numeric", 0, 1, FLAT, "Caller speaking fraction."),
+    ("talk_ratio_agent", "ratio", "numeric", 0, 1, FLAT, "Agent speaking fraction."),
+    ("turn_count_caller", "count", "numeric", 0, None, FLAT, "Caller utterance count."),
+    ("turn_count_agent", "count", "numeric", 0, None, FLAT, "Agent turn count (spans)."),
+    # producer-reported latency (span attribute), stored beside the event-derived value
+    ("llm_ttft_reported_ms", "ms", "numeric", 0, None, DOWN,
+     "LLM TTFT as the producer reported it (metrics.ttft attribute)."),
+    ("tts_ttfb_reported_ms", "ms", "numeric", 0, None, DOWN,
+     "TTS TTFB as the producer reported it (metrics.ttfb attribute)."),
 )
 
 METRIC_DEFS: tuple[MetricDef, ...] = tuple(
