@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import pytest
+
 from voiceobs.core.join import join
 from voiceobs.core.model import (
     AudioAnalysis,
@@ -154,6 +156,40 @@ def test_dropped_events_flag_telemetry_truncated():
     analysis = join(trace, _audio(0.0), t0_offset_s=0.0)
     assert TrustReason.TELEMETRY_TRUNCATED in analysis.trust.reasons
     assert analysis.trust.span_dropped_events == 3
+
+
+def test_response_latency_is_span_side_not_audio():
+    # caller stop (stt end) = 1.0, tts first audio = 1.7 -> 700ms, from spans.
+    # Give the audio a DELIBERATELY wrong agent onset; the number must ignore it.
+    audio = AudioAnalysis(
+        utterances=[
+            Utterance(channel="caller", t_start=0.2, t_end=1.0),
+            Utterance(channel="agent", t_start=2.9, t_end=3.0),  # nowhere near 1.7
+        ],
+        coverage={"caller": 0.9, "agent": 0.9},
+    )
+    t = join(_cascade_trace(), audio, t0_offset_s=0.0).turns[0]
+    assert t.response_latency_ms == pytest.approx(700.0)  # 1.7 - 1.0, span-derived
+
+
+def test_agent_talk_ratio_from_spans():
+    # agent TTS span window = [1.5, 2.2] = 0.7s; duration = last audio end (2.4s).
+    # The value comes from the SPAN window, not agent VAD.
+    analysis = join(_cascade_trace(), _audio(0.0), t0_offset_s=0.0)
+    agent = next(m for m in analysis.metrics if m.name == "talk_ratio_agent")
+    assert agent.value == pytest.approx(0.7 / 2.4, abs=0.02)
+
+
+def test_agent_metrics_unavailable_without_agent_spans():
+    # a turn with STT/LLM but no TTS/PLAYOUT span -> no agent window
+    turn = _span("t1", "call", "voice.turn", Stage.TURN, 0.9, 2.0, "c1:1",
+                 attrs={"turn.index": 1})
+    stt = _span("s-stt", "t1", "stt.finalize", Stage.STT, 0.6, 1.0, "c1:1", attrs={})
+    call = _span("call", None, "voice.call", Stage.CALL, 0.0, 3.0, None)
+    trace = Trace(header=_header(), spans=[call, turn, stt])
+    analysis = join(trace, _audio(0.0), t0_offset_s=0.0)
+    bi = next(m for m in analysis.metrics if m.name == "barge_in")
+    assert bi.available is False and bi.reason == "no agent spans"
 
 
 def test_transcript_and_confidence_flow_from_spans():

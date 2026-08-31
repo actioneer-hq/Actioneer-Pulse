@@ -6,13 +6,23 @@ from tests.fixtures.synth import SynthCall
 from voiceobs.core.audio import analyze_audio, padding_intervals_for
 from voiceobs.core.audio.metrics import (
     barge_in_count,
+    caller_turn_stats,
     dead_air_s,
-    response_latencies,
     talk_ratio,
-    turn_stats,
+    utts_to_intervals,
 )
 from voiceobs.core.config import MetricConfig
 from voiceobs.core.model import AudioRef
+
+
+def _sides(aa):
+    """(caller utterances, agent speaking intervals) — the two metric sources.
+
+    Real runs take agent intervals from spans; these pure-audio tests derive them
+    from the agent channel as a stand-in for the metric math."""
+    caller = [u for u in aa.utterances if u.channel == "caller"]
+    agent_iv = utts_to_intervals([u for u in aa.utterances if u.channel == "agent"])
+    return caller, agent_iv
 
 
 def _ref(channel_map=None, duration=10.0) -> AudioRef:
@@ -49,8 +59,9 @@ def test_padding_drops_coverage_but_is_not_dead_air():
     # dead_air must EXCLUDE the padded region (capture problem, not silence)
     pad = padding_intervals_for(audio, ref, "caller")
     assert pad and abs(pad[0][0] - 3.0) < 0.05 and abs(pad[0][1] - 7.0) < 0.05
-    da_with_pad = dead_air_s(aa.utterances, 10.0, min_gap_s=1.0, padding_intervals=pad)
-    da_without = dead_air_s(aa.utterances, 10.0, min_gap_s=1.0)
+    caller, agent_iv = _sides(aa)
+    da_with_pad = dead_air_s(caller, agent_iv, 10.0, min_gap_s=1.0, padding_intervals=pad)
+    da_without = dead_air_s(caller, agent_iv, 10.0, min_gap_s=1.0)
     assert da_with_pad < da_without  # padding excluded shrinks dead air
 
 
@@ -65,19 +76,8 @@ def test_barge_in_measured_on_overlap():
         ],
     )
     aa = analyze_audio(call.build(), _ref(duration=8.0))
-    assert barge_in_count(aa.utterances) == 1
-
-
-def test_response_latency_series():
-    # caller 1.0-2.0, agent responds at 2.5 -> latency 0.5s
-    call = SynthCall(
-        duration_s=6.0,
-        speech=[("caller", 1.0, 2.0, 0.8), ("agent", 2.5, 4.0, 0.8)],
-    )
-    aa = analyze_audio(call.build(), _ref(duration=6.0))
-    lats = response_latencies(aa.utterances)
-    assert len(lats) == 1
-    assert abs(lats[0] - 0.5) < 0.06  # frame-quantised
+    caller, agent_iv = _sides(aa)
+    assert barge_in_count(caller, agent_iv) == 1
 
 
 def test_talk_ratio_and_turn_stats():
@@ -89,13 +89,11 @@ def test_talk_ratio_and_turn_stats():
         ],
     )
     aa = analyze_audio(call.build(), _ref(duration=10.0))
-    tr = talk_ratio(aa.utterances, 10.0)
+    caller, agent_iv = _sides(aa)
+    tr = talk_ratio(caller, agent_iv, 10.0)
     assert abs(tr["caller"] - 0.20) < 0.03  # 2s / 10s
     assert abs(tr["agent"] - 0.40) < 0.03  # 4s / 10s
-    stats = turn_stats(aa.utterances)
-    assert stats["caller"]["count"] == 1
-    assert stats["agent"]["count"] == 1
-    assert abs(stats["agent"]["max_s"] - 4.0) < 0.06
+    assert caller_turn_stats(caller)["count"] == 1
 
 
 def test_channel_map_is_honoured_not_index():
