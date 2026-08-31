@@ -224,6 +224,8 @@ class Turn(Base):
     tts_ttfb_ms: Mapped[float | None] = mapped_column(Float)
     playout_ms: Mapped[float | None] = mapped_column(Float)
     unattributed_ms: Mapped[float | None] = mapped_column(Float)
+    llm_ttft_reported_ms: Mapped[float | None] = mapped_column(Float)  # producer attr
+    tts_ttfb_reported_ms: Mapped[float | None] = mapped_column(Float)
 
     language: Mapped[str | None] = mapped_column(String(16))
     stt_confidence: Mapped[float | None] = mapped_column(Float)

@@ -7,7 +7,7 @@ is right — the contract drifted, so both vocabularies are carried below."""
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 from voiceobs.adapters.base import UnsupportedSchema
 from voiceobs.adapters.generic import OTLPAdapter, _dt
@@ -27,7 +27,7 @@ class VASAdapter(OTLPAdapter):
 
     # Contract names and emitted names both — they drifted, and renaming spans the
     # producer's own dashboards key off is not VO's call to make.
-    stages = {
+    stages: ClassVar[dict[str, Stage]] = {
         "voice.call": Stage.CALL,
         "voice.turn": Stage.TURN,
         "stt.finalize": Stage.STT,  # contract
@@ -42,7 +42,7 @@ class VASAdapter(OTLPAdapter):
         "net.connect": Stage.NET,
     }
 
-    attr_aliases = {
+    attr_aliases: ClassVar[dict[str, str]] = {
         "voice.turn_id": "turn.id",
         "voice.turn.index": "turn.index",
         "voice.turn.trigger": "turn.trigger",
@@ -58,7 +58,7 @@ class VASAdapter(OTLPAdapter):
     }
 
     # VAS labels every content attribute `text`; the span it hangs off says which text.
-    content_keys = {
+    content_keys: ClassVar[dict[Stage, dict[str, str]]] = {
         Stage.STT: {"text": "transcript"},
         Stage.LLM: {"text": "llm_raw"},
         Stage.TTS: {"text": "llm_spoken"},

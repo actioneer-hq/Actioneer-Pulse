@@ -192,6 +192,22 @@ def test_agent_metrics_unavailable_without_agent_spans():
     assert bi.available is False and bi.reason == "no agent spans"
 
 
+def test_reported_latency_stored_alongside_event_derived():
+    # LLM span carries a reported metrics.ttft (seconds); TTS carries metrics.ttfb.
+    spans = []
+    for s in _cascade_trace().spans:
+        if s.stage is Stage.LLM:
+            s = s.model_copy(update={"attrs": {**s.attrs, "metrics.ttft": 0.3}})
+        if s.stage is Stage.TTS:
+            s = s.model_copy(update={"attrs": {**s.attrs, "metrics.ttfb": 0.12}})
+        spans.append(s)
+    t = join(Trace(header=_header(), spans=spans), _audio(0.0), t0_offset_s=0.0).turns[0]
+    # event-derived value still computed (from llm.first_token), and reported stored too
+    assert t.llm_ttft_ms is not None
+    assert t.llm_ttft_reported_ms == pytest.approx(300.0)   # 0.3s -> ms
+    assert t.tts_ttfb_reported_ms == pytest.approx(120.0)
+
+
 def test_transcript_and_confidence_flow_from_spans():
     trace = _cascade_trace()
     # attach content to the stt span
