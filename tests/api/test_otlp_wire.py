@@ -50,7 +50,7 @@ def otlp_body() -> bytes:
 
     call_attrs = {"voice.call_id": "call-pb-1", "voice.tenant_id": "spektra"}
     turn_attrs = {"voice.turn_id": "call-pb-1:1", "voice.turn.index": 1}
-    with tracer.start_as_current_span("voice.call", attributes=call_attrs):
+    with tracer.start_as_current_span("voice.call", attributes=call_attrs):  # noqa: SIM117
         with tracer.start_as_current_span("voice.turn", attributes=turn_attrs) as turn:
             turn.add_event("turn.committed", attributes={"voice.turn_id": "call-pb-1:1"})
             with tracer.start_as_current_span("transcript", attributes={

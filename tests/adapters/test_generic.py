@@ -68,7 +68,7 @@ def test_a_new_producer_is_two_dicts():
     class PipecatAdapter(OTLPAdapter):
         name = "pipecat"
         service_name = "pipecat"
-        stages = {"conversation": Stage.CALL, "stt_service": Stage.STT,
+        stages = {"conversation": Stage.CALL, "stt_service": Stage.STT,  # noqa: RUF012
                   "llm_service": Stage.LLM}
 
     trace = PipecatAdapter().to_trace(_pipecat())

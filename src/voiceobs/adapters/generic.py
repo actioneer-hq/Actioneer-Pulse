@@ -25,7 +25,7 @@ Unmapped attributes still reach `Span.attrs`; they are just not read by the wate
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, ClassVar
 
 from voiceobs.adapters.base import UnsupportedSchema
 from voiceobs.adapters.otlp import (
@@ -52,10 +52,10 @@ class OTLPAdapter:
     version = 1
 
     service_name: str | None = None  # None = match any producer
-    stages: dict[str, Stage] = {}
-    attr_aliases: dict[str, str] = {}
+    stages: ClassVar[dict[str, Stage]] = {}
+    attr_aliases: ClassVar[dict[str, str]] = {}
     content_prefix = "voice.content."
-    content_keys: dict[Stage, dict[str, str]] = {}
+    content_keys: ClassVar[dict[Stage, dict[str, str]]] = {}
     # Set to narrow Span.attrs to an allowlist. None (default) keeps everything.
     keep_prefixes: tuple[str, ...] | None = None
 
