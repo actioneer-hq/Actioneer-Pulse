@@ -1,5 +1,6 @@
-"""Derived Layer-1 metrics over Utterances. channel_map names decide who is
-caller vs agent — never index. join() wraps these into MetricValues."""
+"""Layer-1 metrics. Source of truth per side: the **caller** is observed from audio
+(VAD utterances); the **agent** is read from spans (its speaking windows), because we
+generate the agent and the engine states its timing exactly. join() supplies both."""
 
 from __future__ import annotations
 
@@ -7,87 +8,73 @@ from voiceobs.core.audio import intervals as iv
 from voiceobs.core.model import Utterance
 
 
-def _by_channel(utterances: list[Utterance]) -> dict[str, list[Utterance]]:
-    out: dict[str, list[Utterance]] = {}
-    for u in utterances:
-        out.setdefault(u.channel, []).append(u)
-    for v in out.values():
-        v.sort(key=lambda u: u.t_start)
-    return out
-
-
-def _spans(utts: list[Utterance]) -> list[iv.Interval]:
+def utts_to_intervals(utts: list[Utterance]) -> list[iv.Interval]:
     return iv.merge([(u.t_start, u.t_end) for u in utts])
 
 
-def talk_ratio(utterances: list[Utterance], duration_s: float) -> dict[str, float]:
-    """Per-side speaking fraction of the call, plus overlap fraction."""
+def talk_ratio(
+    caller_utts: list[Utterance], agent_iv: list[iv.Interval], duration_s: float
+) -> dict[str, float]:
+    """caller / agent speaking fractions + overlap. Caller from audio, agent from spans."""
     if duration_s <= 0:
         return {}
-    chans = _by_channel(utterances)
-    per_chan = {ch: _spans(utts) for ch, utts in chans.items()}
-    out = {ch: round(iv.total(sp) / duration_s, 4) for ch, sp in per_chan.items()}
-    if {"caller", "agent"} <= per_chan.keys():
-        overlap = iv.intersect(per_chan["caller"], per_chan["agent"])
-        out["overlap"] = round(iv.total(overlap) / duration_s, 4)
+    caller_iv = utts_to_intervals(caller_utts)
+    out = {
+        "caller": round(iv.total(caller_iv) / duration_s, 4),
+        "agent": round(iv.total(agent_iv) / duration_s, 4),
+        "overlap": round(iv.total(iv.intersect(caller_iv, agent_iv)) / duration_s, 4),
+    }
     return out
 
 
-def barge_in_count(
-    utterances: list[Utterance], caller: str = "caller", agent: str = "agent"
-) -> int:
-    """Caller utterances that start while the agent is speaking."""
-    chans = _by_channel(utterances)
-    agent_iv = _spans(chans.get(agent, []))
-    return sum(
-        any(s < u.t_start < e for s, e in agent_iv) for u in chans.get(caller, [])
-    )
+def barge_in_count(caller_utts: list[Utterance], agent_iv: list[iv.Interval]) -> int:
+    """Caller utterances that start while an agent span says the agent was speaking."""
+    return sum(any(s < u.t_start < e for s, e in agent_iv) for u in caller_utts)
 
 
 def response_latencies(
-    utterances: list[Utterance], caller: str = "caller", agent: str = "agent"
+    caller_utts: list[Utterance], agent_iv: list[iv.Interval]
 ) -> list[float]:
-    """Caller-end -> next-agent-start gaps, only when the agent replies before the
-    caller speaks again."""
-    chans = _by_channel(utterances)
-    caller_utts, agent_utts = chans.get(caller, []), chans.get(agent, [])
+    """caller-utterance-end -> next agent-speaking start, when the agent replies before
+    the caller speaks again."""
+    caller = sorted(caller_utts, key=lambda u: u.t_start)
+    starts = sorted(s for s, _ in agent_iv)
     out: list[float] = []
-    for i, cu in enumerate(caller_utts):
-        next_caller = caller_utts[i + 1].t_start if i + 1 < len(caller_utts) else float("inf")
-        for au in agent_utts:
-            if cu.t_end <= au.t_start < next_caller:
-                out.append(round(au.t_start - cu.t_end, 4))
+    for i, cu in enumerate(caller):
+        next_caller = caller[i + 1].t_start if i + 1 < len(caller) else float("inf")
+        for s in starts:
+            if cu.t_end <= s < next_caller:
+                out.append(round(s - cu.t_end, 4))
                 break
     return out
 
 
 def dead_air_s(
-    utterances: list[Utterance],
+    caller_utts: list[Utterance],
+    agent_iv: list[iv.Interval],
     duration_s: float,
     min_gap_s: float,
     padding_intervals: list[iv.Interval] | None = None,
 ) -> float:
-    """Time in gaps >= min_gap_s where neither channel speaks. Padding (carrier-
-    absent audio) is excluded — a dropped frame is capture, not silence."""
+    """Time in gaps >= min_gap_s where neither side speaks (caller audio + agent spans).
+    Padding (carrier-absent audio) is excluded — a dropped frame is capture, not silence."""
     if duration_s <= 0:
         return 0.0
-    gaps = iv.complement([(u.t_start, u.t_end) for u in utterances], duration_s)
+    speech = iv.merge(utts_to_intervals(caller_utts) + agent_iv)
+    gaps = iv.complement(speech, duration_s)
     if padding_intervals:
         gaps = iv.subtract(gaps, iv.merge(padding_intervals))
     return round(sum(e - s for s, e in gaps if (e - s) >= min_gap_s), 4)
 
 
-def turn_stats(utterances: list[Utterance]) -> dict[str, dict[str, float]]:
-    """Per-channel utterance count, mean and max duration."""
-    out: dict[str, dict[str, float]] = {}
-    for ch, utts in _by_channel(utterances).items():
-        durs = [u.t_end - u.t_start for u in utts]
-        out[ch] = {
-            "count": len(durs),
-            "mean_s": round(sum(durs) / len(durs), 4) if durs else 0.0,
-            "max_s": round(max(durs), 4) if durs else 0.0,
-        }
-    return out
+def caller_turn_stats(caller_utts: list[Utterance]) -> dict[str, float]:
+    """Caller utterance count, mean and max duration (audio side)."""
+    durs = [u.t_end - u.t_start for u in caller_utts]
+    return {
+        "count": len(durs),
+        "mean_s": round(sum(durs) / len(durs), 4) if durs else 0.0,
+        "max_s": round(max(durs), 4) if durs else 0.0,
+    }
 
 
 def percentile(values: list[float], pct: float) -> float | None:

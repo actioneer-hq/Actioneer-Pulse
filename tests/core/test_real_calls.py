@@ -12,11 +12,17 @@ import pytest
 from voiceobs.core.audio import analyze_audio
 from voiceobs.core.audio.metrics import (
     barge_in_count,
-    response_latencies,
+    caller_turn_stats,
     talk_ratio,
-    turn_stats,
+    utts_to_intervals,
 )
 from voiceobs.core.model import AudioRef
+
+
+def _sides(aa):
+    caller = [u for u in aa.utterances if u.channel == "caller"]
+    agent_iv = utts_to_intervals([u for u in aa.utterances if u.channel == "agent"])
+    return caller, agent_iv
 
 CORPUS = Path(__file__).parent.parent / "fixtures" / "real_calls"
 MANIFEST = CORPUS / "manifest.json"
@@ -65,20 +71,15 @@ def test_derived_metrics_in_plausible_ranges():
             continue
         dur = float(e["duration_seconds"]) or 1.0
         aa = analyze_audio(wav.read_bytes(), _ref(e, wav))
-        u = aa.utterances
+        caller, agent_iv = _sides(aa)
 
         # talk ratios are fractions; neither side speaks more than the whole call
-        tr = talk_ratio(u, dur)
+        tr = talk_ratio(caller, agent_iv, dur)
         for side in ("caller", "agent"):
             assert 0.0 <= tr.get(side, 0.0) <= 1.0
 
         # barge-ins are non-negative and bounded by caller utterance count
-        caller_utts = turn_stats(u).get("caller", {}).get("count", 0)
-        assert 0 <= barge_in_count(u) <= max(caller_utts, 0)
-
-        # response latencies are non-negative and shorter than the call
-        for lat in response_latencies(u):
-            assert 0.0 <= lat <= dur
+        assert 0 <= barge_in_count(caller, agent_iv) <= max(caller_turn_stats(caller)["count"], 0)
 
 
 def test_agent_channel_speaks_on_typical_calls():

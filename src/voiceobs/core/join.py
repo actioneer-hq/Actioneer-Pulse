@@ -12,13 +12,13 @@ Degradation is first-class — nothing hard-fails; every gap is a TrustReason.
 
 from __future__ import annotations
 
+from voiceobs.core.audio import intervals as iv
 from voiceobs.core.audio.metrics import (
     barge_in_count,
+    caller_turn_stats,
     dead_air_s,
     percentile,
-    response_latencies,
     talk_ratio,
-    turn_stats,
 )
 from voiceobs.core.config import METRIC_VERSION, MetricConfig
 from voiceobs.core.model import (
@@ -58,9 +58,11 @@ def join(
         for ts in turn_spans
     ]
 
+    agent_iv = _agent_intervals(trace, offset)  # agent-side truth: spans, not VAD
+
     metrics: list[MetricValue] = []
     if audio is not None:
-        metrics.extend(_layer1_metrics(audio, cfg))
+        metrics.extend(_audio_metrics(audio, agent_iv, cfg))
     if has_spans and turn_spans:
         metrics.extend(_layer2_metrics(turns))
 
@@ -105,6 +107,19 @@ def _to_audio(call_t: float | None, offset: float) -> float | None:
     return None if call_t is None else round(call_t - offset, 4)
 
 
+def _agent_intervals(trace: Trace, offset: float) -> list[iv.Interval]:
+    """When the agent was speaking, from spans — the agent-side source of truth.
+
+    Union of TTS/PLAYOUT span windows on the audio clock. Empty when a call has no
+    spans (trace_missing) → agent-side metrics then read unavailable, never guessed."""
+    windows = [
+        (_to_audio(s.t_start, offset), _to_audio(s.t_end, offset))
+        for s in trace.spans
+        if s.stage in (Stage.TTS, Stage.PLAYOUT) and s.t_end is not None
+    ]
+    return iv.merge([(a, b) for a, b in windows if a is not None and b is not None])
+
+
 def _build_turn(
     turn_span: Span, spans: list[Span], utterances: list[Utterance], offset: float
 ) -> Turn:
@@ -129,25 +144,31 @@ def _build_turn(
     if committed is None:  # fall back to the turn span start
         committed = _to_audio(turn_span.t_start, offset)
 
-    # audio-side endpoints for this turn's window (anchored span window)
+    # caller side comes from the isolated caller channel (VAD); agent onset (VAD) is
+    # kept only for the clock-residual trust check, never for the latency numbers.
     win_start = _to_audio(turn_span.t_start, offset) or 0.0
     win_end = _to_audio(turn_span.t_end, offset)
-    caller_end, agent_start = _audio_endpoints(utterances, win_start, win_end)
+    caller_end, agent_vad_start = _audio_endpoints(utterances, win_start, win_end)
+
+    # agent response = when the engine sent first audio (span). caller stop = the end
+    # of speech per spans. response_latency is span-side, per the OTLP-for-agent rule.
+    agent_out = tts_first_audio if tts_first_audio is not None else tts_start
+    caller_stop = speech_end if speech_end is not None else stt_final
 
     # the waterfall (ms); each segment is None unless both endpoints exist.
     # endpointing is the VAD silence hold — how long we waited to be sure the caller
-    # was done. NOT (transcript end -> turn.committed): that fires after the text is
-    # already in hand and only measures the commit decision, a few ms.
-    # See docs/vas-telemetry-semantics.md §3 "Endpointing".
+    # was done. See docs/vas-telemetry-semantics.md §3 "Endpointing".
     endpointing = _ms(speech_end, stt_start)
-    stt_lag = _ms(stt_start, stt_final)  # producing text once the caller had stopped
+    stt_lag = _ms(stt_start, stt_final)
     llm_ttft = _ms(_to_audio(llm_start, offset), llm_first_token)
     assembly = _ms(llm_first_token, tts_start)
     tts_ttfb = _ms(tts_start, tts_first_audio)
-    playout = _ms(tts_first_audio, agent_start)
-    response_latency = _ms(caller_end, agent_start)
+    # playout = sent -> heard (span vs caller-recording); the network tail, reported
+    # but not summed into response_latency, which ends when the engine sent audio.
+    playout = _ms(tts_first_audio, agent_vad_start)
+    response_latency = _ms(caller_stop, agent_out)
 
-    parts = [p for p in (stt_lag, endpointing, llm_ttft, assembly, tts_ttfb, playout) if p]
+    parts = [p for p in (endpointing, stt_lag, llm_ttft, assembly, tts_ttfb) if p]
     total = response_latency
     unattributed = round(total - sum(parts), 1) if total is not None else None
 
@@ -156,13 +177,13 @@ def _build_turn(
         turn_id=tid,
         trigger=trigger,
         audio_start_s=caller_end,
-        audio_end_s=agent_start,
+        audio_end_s=agent_vad_start,
         stt_final_at=stt_final,
         committed_at=committed,
         llm_first_token_at=llm_first_token,
         tts_start_at=tts_start,
         tts_first_audio_at=tts_first_audio,
-        audio_out_start_s=agent_start,
+        audio_out_start_s=agent_vad_start,
         tts_span_present=bool(tts),
         response_latency_ms=response_latency,
         stt_lag_ms=stt_lag,
@@ -229,28 +250,29 @@ def _mv(
     )
 
 
-def _layer1_metrics(audio: AudioAnalysis, cfg: MetricConfig) -> list[MetricValue]:
-    utts = audio.utterances
-    duration = max((u.t_end for u in utts), default=0.0)
+def _audio_metrics(
+    audio: AudioAnalysis, agent_iv: list[iv.Interval], cfg: MetricConfig
+) -> list[MetricValue]:
+    """Caller side from the isolated caller channel; agent side from span windows."""
+    caller = [u for u in audio.utterances if u.channel == "caller"]
+    duration = max([u.t_end for u in audio.utterances] + [e for _, e in agent_iv], default=0.0)
     cov = audio.coverage
-    lats = response_latencies(utts)
-    mono = not ({"caller", "agent"} <= {u.channel for u in utts})
+    ok = bool(agent_iv)  # agent-side metrics need the agent's span windows
 
     out = [
         _mv("capture_coverage", bool(cov), round(min(cov.values()), 4) if cov else None,
             samples=[round(v, 4) for v in cov.values()], reason="no audio"),
-        _mv("response_latency_ms", bool(lats),
-            round(percentile(lats, 90) * 1000, 1) if lats else None,
-            samples=[round(x * 1000, 1) for x in lats], reason="no caller->agent pairs"),
-        _mv("barge_in", not mono, None if mono else barge_in_count(utts), reason="mono"),
-        _mv("dead_air_s", True, dead_air_s(utts, duration, cfg.dead_air_min_s)),
+        _mv("barge_in", ok, barge_in_count(caller, agent_iv), reason="no agent spans"),
+        _mv("dead_air_s", ok,
+            dead_air_s(caller, agent_iv, duration, cfg.dead_air_min_s), reason="no agent spans"),
     ]
 
-    tr = talk_ratio(utts, duration)
-    out += [_mv(f"talk_ratio_{ch}", True, tr[ch]) for ch in ("caller", "agent") if ch in tr]
-    if "overlap" in tr:
-        out.append(_mv("overlap_ratio", True, tr["overlap"]))
-    out += [_mv(f"turn_count_{ch}", True, s["count"]) for ch, s in turn_stats(utts).items()]
+    tr = talk_ratio(caller, agent_iv, duration)
+    out.append(_mv("talk_ratio_caller", bool(tr), tr.get("caller"), reason="no audio"))
+    out.append(_mv("talk_ratio_agent", ok, tr.get("agent"), reason="no agent spans"))
+    out.append(_mv("overlap_ratio", ok, tr.get("overlap"), reason="no agent spans"))
+    out.append(_mv("turn_count_caller", True, caller_turn_stats(caller)["count"]))
+    out.append(_mv("turn_count_agent", ok, len(agent_iv), reason="no agent spans"))
     return out
 
 
@@ -261,7 +283,8 @@ def _layer2_metrics(turns: list[Turn]) -> list[MetricValue]:
     out = [
         _mv(name, bool(s := series(name)), round(percentile(s, 90), 1) if s else None,
             samples=s, reason="no spans carried this segment")
-        for name in ("llm_ttft_ms", "assembly_ms", "tts_ttfb_ms", "unattributed_ms")
+        for name in ("response_latency_ms", "llm_ttft_ms", "assembly_ms",
+                     "tts_ttfb_ms", "unattributed_ms")
     ]
 
     toks = [t.tokens_out for t in turns if t.tokens_out is not None]
@@ -323,7 +346,7 @@ def _trust_report(
         clock_offset_s=offset if audio is not None else None,
         clock_residual_ms=round(sum(residuals) / len(residuals), 1) if residuals else None,
         clock_residual_per_turn_ms=residuals or None,
-        barge_in_agreement=_barge_in_agreement(trace, audio),
+        barge_in_agreement=_barge_in_agreement(trace, audio, offset),
         layers_run=layers_run,
         span_dropped_events=dropped,
         unattributed_spans=unattributed_spans,
@@ -343,16 +366,19 @@ def _clock_residuals(turns: list[Turn]) -> list[float]:
     return out
 
 
-def _barge_in_agreement(trace: Trace, audio: AudioAnalysis | None) -> float | None:
+def _barge_in_agreement(
+    trace: Trace, audio: AudioAnalysis | None, offset: float
+) -> float | None:
+    """Audio-measured barge-ins (caller onset in an agent span window) vs span
+    `bargein` events. Agreement is a trust signal, not one fact."""
     if audio is None:
         return None
-    utts = audio.utterances
-    if not ({"caller", "agent"} <= {u.channel for u in utts}):
+    caller = [u for u in audio.utterances if u.channel == "caller"]
+    agent_iv = _agent_intervals(trace, offset)
+    if not caller or not agent_iv:
         return None
-    audio_bi = barge_in_count(utts)
-    span_bi = sum(
-        1 for s in trace.spans for e in s.events if e.name == "bargein"
-    )
+    audio_bi = barge_in_count(caller, agent_iv)
+    span_bi = sum(1 for s in trace.spans for e in s.events if e.name == "bargein")
     if audio_bi == 0 and span_bi == 0:
         return 1.0
     return round(min(audio_bi, span_bi) / max(audio_bi, span_bi), 4)
