@@ -14,8 +14,9 @@ from sqlalchemy.orm import Session
 
 from voiceobs.adapters import UnsupportedSchema
 from voiceobs.core.config import METRIC_VERSION
-from voiceobs.db.models import Call
+from voiceobs.db.models import Call, JudgeConfig
 from voiceobs.db.session import get_session
+from voiceobs.judge import judge_call
 from voiceobs.worker.process import process
 
 log = logging.getLogger(__name__)
@@ -53,6 +54,16 @@ def claim(db: Session, *, batch: int = BATCH, grace_s: float = GRACE_S) -> list[
     return list(db.scalars(stmt))
 
 
+def _maybe_judge(db: Session, call: Call) -> None:
+    """Judge the call when the tenant has a judge model configured. judge_call never
+    raises — a model failure is recorded, not propagated."""
+    cfg = db.scalar(select(JudgeConfig).where(
+        JudgeConfig.tenant_id == call.tenant_id, JudgeConfig.enabled.is_(True)
+    ))
+    if cfg is not None:
+        judge_call(db, call)
+
+
 def tick(db: Session, **kw) -> int:
     """One pass. Returns how many calls were analysed."""
     calls = claim(db, **kw)
@@ -60,6 +71,7 @@ def tick(db: Session, **kw) -> int:
         try:
             status = process(db, call)
             log.info("analysed %s (%s)", call.external_call_id, status)
+            _maybe_judge(db, call)
         except UnsupportedSchema as e:
             # Permanent: no amount of retrying makes this payload parseable.
             log.warning("unsupported %s: %s", call.external_call_id, e)
