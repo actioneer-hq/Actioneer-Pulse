@@ -365,6 +365,54 @@ class Transcript(Base):
     created_at: Mapped[datetime] = created_col()
 
 
+class JudgeConfig(Base):
+    """Per-tenant BYO judge model — an OpenAI-style endpoint the client owns. One per
+    tenant. api_key stored as-is for V1 (encrypt-at-rest is a follow-up)."""
+
+    __tablename__ = "judge_config"
+    __table_args__ = (UniqueConstraint("tenant_id", name="uq_judge_config_tenant"),)
+
+    id: Mapped[str] = pk()
+    tenant_id: Mapped[str] = tenant_col()
+    base_url: Mapped[str] = mapped_column(String(512), nullable=False)
+    api_key: Mapped[str | None] = mapped_column(String(512))
+    model: Mapped[str] = mapped_column(String(128), nullable=False)
+    params: Mapped[dict | None] = mapped_column(JSON)  # provider-specific passthrough
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = created_col()
+    updated_at: Mapped[datetime] = created_col()
+
+
+class Judgment(Base):
+    """Post-call structured judgment. Disposition is programmatic; the rest is the LLM's
+    output (null when the call was never connected)."""
+
+    __tablename__ = "judgment"
+    __table_args__ = (UniqueConstraint("call_id", name="uq_judgment_call"),)
+
+    id: Mapped[str] = pk()
+    call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
+    tenant_id: Mapped[str] = tenant_col()
+
+    disposition: Mapped[str | None] = mapped_column(String(32))  # programmatic
+    status: Mapped[str] = mapped_column(String(16), default="skipped")  # ok|skipped|failed
+    model: Mapped[str | None] = mapped_column(String(128))
+    error: Mapped[str | None] = mapped_column(Text)
+
+    # LLM fields (null unless connected + judged)
+    sentiment: Mapped[str | None] = mapped_column(String(16))
+    objective_achieved: Mapped[str | None] = mapped_column(String(16))
+    answered_by: Mapped[str | None] = mapped_column(String(16))
+    primary_language: Mapped[str | None] = mapped_column(String(32))
+    secondary_languages: Mapped[list | None] = mapped_column(JSON)
+    script_adherence: Mapped[str | None] = mapped_column(String(16))
+    escalation_requested: Mapped[bool | None] = mapped_column(Boolean)
+    callback_requested: Mapped[bool | None] = mapped_column(Boolean)
+    callback_time: Mapped[str | None] = mapped_column(String(128))
+    summary: Mapped[str | None] = mapped_column(Text)
+    judged_at: Mapped[datetime] = created_col()
+
+
 class Tombstone(Base):
     """Erased calls. Written FIRST in DELETE so a crash mid-erasure leaves an
     un-resurrectable call. Ingest checks it: a straggling re-POST is dropped."""
