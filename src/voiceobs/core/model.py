@@ -134,6 +134,10 @@ class Turn(Frozen):
     tts_ttfb_ms: float | None = None
     playout_ms: float | None = None
     unattributed_ms: float | None = None  # turn duration minus children
+    # producer-reported latency (span attribute), when it hands the number directly
+    # instead of a first-token/first-audio event. Stored alongside for comparison.
+    llm_ttft_reported_ms: float | None = None
+    tts_ttfb_reported_ms: float | None = None
 
     language: str | None = None
     stt_confidence: float | None = None

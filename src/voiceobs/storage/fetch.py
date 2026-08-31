@@ -15,6 +15,18 @@ def fetch_bytes(uri: str) -> bytes:
     raise NotImplementedError(f"unsupported storage scheme: {uri}")
 
 
+def presign(uri: str, expires_s: int = 900) -> str:
+    """Short-lived GET URL the browser streams directly — the API never proxies bytes."""
+    if not uri.startswith("s3://"):
+        raise NotImplementedError(f"unsupported storage scheme: {uri}")
+    import boto3
+
+    bucket, key = _parse_s3(uri)
+    return boto3.client("s3").generate_presigned_url(
+        "get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=expires_s
+    )
+
+
 def list_objects(prefix: str) -> list[tuple[str, datetime]]:
     """(s3://uri, last_modified) for every object under an s3:// prefix."""
     if not prefix.startswith("s3://"):

@@ -111,8 +111,8 @@ def test_claim_waits_out_the_grace_period(client, db_sessionmaker):
 def test_unsupported_producer_is_not_retried_forever(client, db_sessionmaker, monkeypatch):
     client.post("/v1/traces", json=sample_call())
     with db_sessionmaker() as db:
-        from voiceobs.adapters import UnsupportedSchema
         import voiceobs.worker.run as run_mod
+        from voiceobs.adapters import UnsupportedSchema
 
         def boom(*_a, **_kw):
             raise UnsupportedSchema("nope")

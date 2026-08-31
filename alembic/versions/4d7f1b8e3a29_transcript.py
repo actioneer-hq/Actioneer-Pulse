@@ -1,7 +1,7 @@
 """transcript table — BYO transcript, one per call
 
 Revision ID: 4d7f1b8e3a29
-Revises: 2b5d8f3c1e07
+Revises: 3c6e9a4d2f18
 """
 
 from collections.abc import Sequence
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "4d7f1b8e3a29"
-down_revision: str | Sequence[str] | None = "2b5d8f3c1e07"
+down_revision: str | Sequence[str] | None = "3c6e9a4d2f18"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

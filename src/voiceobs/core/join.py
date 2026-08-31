@@ -172,6 +172,11 @@ def _build_turn(
     total = response_latency
     unattributed = round(total - sum(parts), 1) if total is not None else None
 
+    # producer-reported latency (seconds -> ms): Pipecat/LiveKit hand the number as a
+    # span attribute instead of a first-token/first-audio event. Store it too.
+    llm_ttft_reported = _sec_to_ms(llm[0].attrs.get("metrics.ttft")) if llm else None
+    tts_ttfb_reported = _sec_to_ms(tts[0].attrs.get("metrics.ttfb")) if tts else None
+
     return Turn(
         turn_index=_turn_index(turn_span),
         turn_id=tid,
@@ -193,6 +198,8 @@ def _build_turn(
         tts_ttfb_ms=tts_ttfb,
         playout_ms=playout,
         unattributed_ms=unattributed,
+        llm_ttft_reported_ms=llm_ttft_reported,
+        tts_ttfb_reported_ms=tts_ttfb_reported,
         language=stt[0].attrs.get("stt.language") if stt else None,
         stt_confidence=_f(stt[0].attrs.get("stt.confidence")) if stt else None,
         tokens_in=_i(llm[0].attrs.get("gen_ai.usage.input_tokens")) if llm else None,
@@ -284,7 +291,8 @@ def _layer2_metrics(turns: list[Turn]) -> list[MetricValue]:
         _mv(name, bool(s := series(name)), round(percentile(s, 90), 1) if s else None,
             samples=s, reason="no spans carried this segment")
         for name in ("response_latency_ms", "llm_ttft_ms", "assembly_ms",
-                     "tts_ttfb_ms", "unattributed_ms")
+                     "tts_ttfb_ms", "unattributed_ms",
+                     "llm_ttft_reported_ms", "tts_ttfb_reported_ms")
     ]
 
     toks = [t.tokens_out for t in turns if t.tokens_out is not None]
@@ -389,6 +397,11 @@ def _f(v: object) -> float | None:
         return float(v)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
+
+
+def _sec_to_ms(v: object) -> float | None:
+    f = _f(v)
+    return round(f * 1000.0, 1) if f is not None else None
 
 
 def _i(v: object) -> int | None:
