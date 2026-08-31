@@ -21,6 +21,7 @@ from voiceobs.db.models import (
     Call,
     Event,
     IngestRun,
+    Judgment,
     Label,
     Media,
     Metric,
@@ -150,7 +151,7 @@ def erase_call(
     call = _get_call(db, call_id)
     db.add(Tombstone(tenant_id=call.tenant_id, call_id=call_id, deleted_by="api"))
     for model in (Turn, Event, Metric, Utterance, Media, RawFragment, IngestRun,
-                  Annotation, Label, Transcript):
+                  Annotation, Label, Transcript, Judgment):
         db.execute(delete(model).where(model.call_id == call.id))
     db.delete(call)
     return {"status": "erased"}
