@@ -20,3 +20,10 @@ class ArtifactIn(BaseModel):
 class PromptIn(BaseModel):
     template_sha256: str
     text: str
+
+
+class TranscriptIn(BaseModel):
+    format: str = "text"  # text | jsonl | ...
+    text: str | None = None  # inline, or...
+    uri: str | None = None  # ...a pointer to fetch
+    source: str = "byo"

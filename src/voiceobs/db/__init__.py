@@ -15,6 +15,7 @@ from voiceobs.db.models import (
     Prompt,
     RawFragment,
     Tombstone,
+    Transcript,
     Turn,
     Utterance,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "Prompt",
     "RawFragment",
     "Tombstone",
+    "Transcript",
     "Turn",
     "Utterance",
 ]

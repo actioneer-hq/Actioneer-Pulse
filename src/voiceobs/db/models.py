@@ -346,6 +346,23 @@ class Label(Base):
     created_at: Mapped[datetime] = created_col()
 
 
+class Transcript(Base):
+    """BYO transcript for a call. One per call (re-upload replaces). When present it
+    overrides the transcript derived from turn content; feeds the post-call judge."""
+
+    __tablename__ = "transcript"
+    __table_args__ = (UniqueConstraint("call_id", name="uq_transcript_call"),)
+
+    id: Mapped[str] = pk()
+    call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
+    tenant_id: Mapped[str] = tenant_col()
+    source: Mapped[str] = mapped_column(String(32), default="byo")
+    format: Mapped[str | None] = mapped_column(String(24))  # text | jsonl | ...
+    content: Mapped[str | None] = mapped_column(Text)  # inline transcript
+    uri: Mapped[str | None] = mapped_column(String(1024))  # or a pointer to fetch
+    created_at: Mapped[datetime] = created_col()
+
+
 class Tombstone(Base):
     """Erased calls. Written FIRST in DELETE so a crash mid-erasure leaves an
     un-resurrectable call. Ingest checks it: a straggling re-POST is dropped."""

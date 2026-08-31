@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from voiceobs.adapters.otlp import attrs_to_dict, decode_protobuf
 from voiceobs.api.deps import now, session_dep
-from voiceobs.api.schemas import ArtifactIn, PromptIn
+from voiceobs.api.schemas import ArtifactIn, PromptIn, TranscriptIn
 from voiceobs.db.models import (
     Annotation,
     Call,
@@ -27,6 +27,7 @@ from voiceobs.db.models import (
     Prompt,
     RawFragment,
     Tombstone,
+    Transcript,
     Turn,
     Utterance,
 )
@@ -122,6 +123,22 @@ def register_prompt(
     return {"status": "created"}
 
 
+@router.post("/calls/{call_id}/transcript")
+def upload_transcript(
+    call_id: str, body: TranscriptIn, db: Session = Depends(session_dep)
+) -> dict:
+    """BYO transcript — one per call, re-upload replaces. Overrides the derived one."""
+    call = _get_call(db, call_id)
+    row = db.scalar(select(Transcript).where(Transcript.call_id == call.id))
+    if row is None:
+        row = Transcript(call_id=call.id, tenant_id=call.tenant_id)
+        db.add(row)
+    row.source, row.format, row.content, row.uri = (
+        body.source, body.format, body.text, body.uri
+    )
+    return {"status": "ok"}
+
+
 @router.delete("/calls/{call_id}")
 def erase_call(
     call_id: str,
@@ -133,7 +150,7 @@ def erase_call(
     call = _get_call(db, call_id)
     db.add(Tombstone(tenant_id=call.tenant_id, call_id=call_id, deleted_by="api"))
     for model in (Turn, Event, Metric, Utterance, Media, RawFragment, IngestRun,
-                  Annotation, Label):
+                  Annotation, Label, Transcript):
         db.execute(delete(model).where(model.call_id == call.id))
     db.delete(call)
     return {"status": "erased"}
