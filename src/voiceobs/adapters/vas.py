@@ -1,132 +1,96 @@
-"""VAS adapter — the `voice-cascade` OTLP dialect -> normalized Trace.
+"""VAS adapter — the `voice-cascade` dialect. Names only; the machinery is OTLPAdapter.
 
-Built against vas-contract.md (inventory + schema-v1 queue). Attribute classing is
-by prefix at the edge: voice.content.* -> Span.content, an allowlist -> Span.attrs,
-everything sensitive dropped."""
+Span and attribute meanings: docs/vas-telemetry-semantics.md (generated from the
+producer's source). Where that document and `vas-contract.md` disagree, the document
+is right — the contract drifted, so both vocabularies are carried below."""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import logging
 from typing import Any
 
 from voiceobs.adapters.base import UnsupportedSchema
-from voiceobs.adapters.otlp import (
-    attrs_to_dict,
-    iter_spans,
-    span_end_ns,
-    span_events,
-    span_start_ns,
-)
-from voiceobs.core.model import CallHeader, Span, SpanEvent, Stage, Trace
+from voiceobs.adapters.generic import OTLPAdapter, _dt
+from voiceobs.adapters.otlp import attrs_to_dict, span_end_ns, span_start_ns
+from voiceobs.core.model import CallHeader, Stage
+
+log = logging.getLogger(__name__)
 
 SERVICE_NAME = "voice-cascade"
-
-_STAGE_BY_NAME: dict[str, Stage] = {
-    "voice.call": Stage.CALL,
-    "voice.turn": Stage.TURN,
-    "stt.finalize": Stage.STT,
-    "llm.generate": Stage.LLM,
-    "tts.synthesize": Stage.TTS,
-    "tool.execute": Stage.TOOL,
-    "tool.claim": Stage.TOOL,
-    "tool.http": Stage.TOOL,
-    "net.connect": Stage.NET,
-}
-
-_CONTENT_PREFIX = "voice.content."
-_DROP = {
-    "transcript", "text", "gen_ai.prompt", "gen_ai.completion",
-    "exception.message", "exception.stacktrace",
-}
+MAX_SCHEMA = 1
 
 
-def _keep(key: str) -> bool:
-    """Shape allowlist (CONTRACTS.md §7). Content/PII handled separately."""
-    if key in _DROP or key.startswith("gen_ai.") and key.endswith(".messages"):
-        return False
-    if key in ("gen_ai.provider.name", "gen_ai.request.model", "metrics.ttfb"):
-        return True
-    if key.startswith(_CONTENT_PREFIX):
-        return False
-    return key.startswith(("gen_ai.usage.", "voice.", "turn.", "lk."))
-
-
-def _class_attrs(flat: dict[str, Any]) -> tuple[dict, dict[str, str]]:
-    """Split a flat attribute dict into (shape attrs, content by suffix)."""
-    attrs, content = {}, {}
-    for k, v in flat.items():
-        if k.startswith(_CONTENT_PREFIX):
-            content[k[len(_CONTENT_PREFIX):]] = v
-        elif _keep(k):
-            attrs[k] = v
-    return attrs, content
-
-
-def _dt(ns: int) -> datetime:
-    return datetime.fromtimestamp(ns / 1e9, tz=UTC)
-
-
-class VASAdapter:
+class VASAdapter(OTLPAdapter):
     name = "vas"
     version = 1
+    service_name = SERVICE_NAME
 
-    def matches(self, payload: dict) -> bool:
-        return any(
-            res.get("service.name") == SERVICE_NAME for res, _ in iter_spans(payload)
-        )
+    # Contract names and emitted names both — they drifted, and renaming spans the
+    # producer's own dashboards key off is not VO's call to make.
+    stages = {
+        "voice.call": Stage.CALL,
+        "voice.turn": Stage.TURN,
+        "stt.finalize": Stage.STT,  # contract
+        "transcript": Stage.STT,  # emitted
+        "caller.speech": Stage.SPEECH,
+        "llm.generate": Stage.LLM,
+        "tts.synthesize": Stage.TTS,
+        "agent.playout": Stage.PLAYOUT,
+        "tool.execute": Stage.TOOL,
+        "tool.claim": Stage.TOOL,
+        "tool.http": Stage.TOOL,
+        "net.connect": Stage.NET,
+    }
 
-    def to_trace(self, payload: dict) -> Trace:
-        spans_raw = list(iter_spans(payload))
-        resource = spans_raw[0][0] if spans_raw else {}
-        if int(resource.get("voice.schema_version") or 0) < 1:
-            raise UnsupportedSchema("voice-cascade requires schema_version >= 1")
+    attr_aliases = {
+        "voice.turn_id": "turn.id",
+        "voice.turn.index": "turn.index",
+        "voice.turn.trigger": "turn.trigger",
+        "voice.interrupted": "turn.interrupted",  # contract
+        "voice.abandoned": "turn.abandoned",  # contract
+        "voice.stt_language": "stt.language",
+        "voice.stt_confidence": "stt.confidence",
+        "voice.stopped": "llm.finish_reason",  # emitted
+        "voice.finish_reason": "llm.finish_reason",  # contract
+        "voice.tts_chars": "tts.chars",
+        "voice.tts_chars_cut": "tts.chars_cut",
+        "voice.tts_cut_reason": "tts.cut_reason",
+    }
 
-        root = self._root(spans_raw)
-        t0 = span_start_ns(root)
+    # VAS labels every content attribute `text`; the span it hangs off says which text.
+    content_keys = {
+        Stage.STT: {"text": "transcript"},
+        Stage.LLM: {"text": "llm_raw"},
+        Stage.TTS: {"text": "llm_spoken"},
+        Stage.PLAYOUT: {"text": "llm_spoken"},
+    }
 
-        spans = [self._span(s, t0) for _, s in spans_raw]
-        spans.sort(key=lambda s: s.t_start)
-        return Trace(header=self._header(root, resource), spans=spans)
+    def check_schema(self, resource: dict) -> None:
+        schema = int(resource.get("voice.schema_version") or 0)
+        if schema > MAX_SCHEMA:
+            raise UnsupportedSchema(f"voice-cascade schema_version {schema} > {MAX_SCHEMA}")
+        if schema < 1:  # producer has not started stamping it — parse anyway
+            log.warning("voice-cascade sent no voice.schema_version; assuming v%d", MAX_SCHEMA)
 
-    def _root(self, spans_raw: list[tuple[dict, dict]]) -> dict:
-        for _, s in spans_raw:
-            if s.get("name") == "voice.call":
-                return s
-        raise ValueError("no voice.call root span in payload")
+    def derive(self, attrs: dict, stage: Stage) -> dict:
+        # `voice.outcome` replaced the contract's two booleans. A failed turn also
+        # reports `done` — a known producer bug (semantics doc §4.3).
+        if stage is Stage.TURN:
+            attrs.update(_OUTCOME_FLAGS.get(str(attrs.get("voice.outcome")), {}))
+        return attrs
 
-    def _span(self, s: dict, t0: int) -> Span:
-        flat = attrs_to_dict(s.get("attributes"))
-        attrs, content = _class_attrs(flat)
-        end = span_end_ns(s)
-        return Span(
-            span_id=s["spanId"],
-            parent_span_id=s.get("parentSpanId") or None,
-            name=s["name"],
-            stage=_STAGE_BY_NAME.get(s["name"], Stage.NET),
-            t_start=round((span_start_ns(s) - t0) / 1e9, 6),
-            t_end=round((end - t0) / 1e9, 6) if end is not None else None,
-            turn_id=flat.get("voice.turn_id"),
-            attrs=attrs,
-            content=content,
-            events=[self._event(e, t0) for e in span_events(s)],
-        )
-
-    def _event(self, ev: tuple[str, int, dict], t0: int) -> SpanEvent:
-        name, ts, flat = ev
-        attrs, _ = _class_attrs(flat)
-        return SpanEvent(name=name, t=round((ts - t0) / 1e9, 6), attrs=attrs)
-
-    def _header(self, root: dict, resource: dict) -> CallHeader:
+    def header(self, root: dict, resource: dict) -> CallHeader:
         r = attrs_to_dict(root.get("attributes"))
         end = span_end_ns(root)
         return CallHeader(
-            call_id=r["voice.call_id"],
+            call_id=str(r.get("voice.call_id") or root.get("traceId") or ""),
             source=resource.get("service.name", SERVICE_NAME),
             environment=resource.get("deployment.environment", "prod"),
             started_at=_dt(span_start_ns(root)),
             ended_at=_dt(end) if end is not None else None,
             engine=r.get("voice.engine"),
             carrier=r.get("voice.carrier"),
+            # gen_ai.provider.name means STT here and LLM on llm.generate (doc §4.1).
             stt_provider=r.get("voice.stt.provider") or r.get("gen_ai.provider.name"),
             llm_provider=r.get("voice.llm.provider"),
             tts_provider=r.get("voice.tts.provider"),
@@ -138,12 +102,15 @@ class VASAdapter:
         )
 
 
+_OUTCOME_FLAGS = {
+    "interrupted": {"turn.interrupted": True},
+    "empty": {"turn.abandoned": True},
+}
+
+
 def _labels(r: dict[str, Any]) -> dict:
-    return {
-        k: r[f"voice.{k}"]
-        for k in ("tenant_id", "campaign_id")
-        if r.get(f"voice.{k}") is not None
-    }
+    return {k: r[f"voice.{k}"] for k in ("tenant_id", "campaign_id")
+            if r.get(f"voice.{k}") is not None}
 
 
 def _counters(r: dict[str, Any]) -> dict:

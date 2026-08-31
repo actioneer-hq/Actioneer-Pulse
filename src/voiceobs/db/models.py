@@ -59,11 +59,15 @@ class Call(Base):
         UniqueConstraint("tenant_id", "external_call_id", name="uq_call_external"),
         Index("ix_call_tenant_env_started", "tenant_id", "environment", "started_at"),
         Index("ix_call_status_activity", "status", "last_activity_at"),
+        Index("ix_call_tenant_trace", "tenant_id", "trace_id"),
     )
 
     id: Mapped[str] = pk()
     tenant_id: Mapped[str] = tenant_col()
     external_call_id: Mapped[str] = mapped_column(String(128), nullable=False)  # voice.call_id
+    # OTLP trace id — the only call identity every producer has. Spans arriving in a
+    # later batch than the root resolve back to this call through it.
+    trace_id: Mapped[str | None] = mapped_column(String(64), index=True)
     source: Mapped[str] = mapped_column(String(64), nullable=False)  # resource service.name
     environment: Mapped[str] = mapped_column(String(16), nullable=False)
     schema_version: Mapped[int | None] = mapped_column(Integer)
@@ -165,6 +169,8 @@ class Event(Base):
     t_offset_s: Mapped[float | None] = mapped_column(Float)  # seconds from call t0
     kind: Mapped[str] = mapped_column(String(8), nullable=False)  # span | event
     type: Mapped[str] = mapped_column(String(48), nullable=False)  # normalized stage or event name
+    name: Mapped[str | None] = mapped_column(String(64))  # the producer's own span/event name
+    duration_s: Mapped[float | None] = mapped_column(Float)  # spans only; None = never closed
     attrs: Mapped[dict | None] = mapped_column(JSON)  # SHAPE only, allowlisted
     content_text: Mapped[str | None] = mapped_column(Text)  # from voice.content.* — own column
     content_kind: Mapped[str | None] = mapped_column(String(24))  # transcript|llm_raw|llm_spoken

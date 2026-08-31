@@ -1,5 +1,8 @@
 """Layer 2 — join spans to audio on one clock, compute the per-turn waterfall.
 
+Reads VO's canonical attribute names only (`turn.index`, `stt.language`, …), never a
+producer's. Adapters map their dialect onto them — see `adapters/generic.py`.
+
 Anchoring: spans are on the call clock, utterances on the audio clock;
 audio_time = call_time - t0_offset_s places spans onto audio. t0_offset_s lives
 on AudioRef, so it is passed as a kwarg (None = already co-clocked).
@@ -73,7 +76,7 @@ def join(
 
 
 def _turn_index(span: Span) -> int:
-    v = span.attrs.get("voice.turn.index")
+    v = span.attrs.get("turn.index")
     try:
         return int(v)
     except (TypeError, ValueError):
@@ -85,12 +88,17 @@ def _children(spans: list[Span], turn_id: str | None, stage: Stage) -> list[Span
 
 
 def _first_event_t(spans: list[Span], name: str, turn_id: str | None) -> float | None:
-    for s in spans:
-        if s.turn_id == turn_id:
-            for e in s.events:
-                if e.name == name:
-                    return e.t
-    return None
+    """Earliest `name` event for this turn. Producers park call-scoped events on the
+    root span, which has no turn_id — those name the turn in their own attrs instead,
+    so match on either or the whole root timeline is invisible."""
+    ts = [
+        e.t
+        for s in spans
+        for e in s.events
+        if e.name == name
+        and (s.turn_id == turn_id or e.attrs.get("turn.id") == turn_id)
+    ]
+    return min(ts) if ts else None
 
 
 def _to_audio(call_t: float | None, offset: float) -> float | None:
@@ -101,12 +109,17 @@ def _build_turn(
     turn_span: Span, spans: list[Span], utterances: list[Utterance], offset: float
 ) -> Turn:
     tid = turn_span.turn_id or f"{turn_span.span_id}"
-    trigger = str(turn_span.attrs.get("voice.turn.trigger", "endpoint"))
+    trigger = str(turn_span.attrs.get("turn.trigger", "endpoint"))
 
+    speech = _children(spans, tid, Stage.SPEECH)
     stt = _children(spans, tid, Stage.STT)
     llm = _children(spans, tid, Stage.LLM)
     tts = _children(spans, tid, Stage.TTS)
 
+    # The caller stopped talking here. Backdated by the producer to the real instant,
+    # not the moment its VAD noticed — that gap IS the endpointing hold below.
+    speech_end = _to_audio(speech[0].t_end, offset) if speech and speech[0].t_end else None
+    stt_start = _to_audio(stt[0].t_start, offset) if stt else None
     stt_final = _to_audio(stt[0].t_end, offset) if stt else None
     llm_start = llm[0].t_start if llm else None
     llm_first_token = _to_audio(_first_event_t(spans, "llm.first_token", tid), offset)
@@ -121,9 +134,13 @@ def _build_turn(
     win_end = _to_audio(turn_span.t_end, offset)
     caller_end, agent_start = _audio_endpoints(utterances, win_start, win_end)
 
-    # the waterfall (ms); each segment is None unless both endpoints exist
-    stt_lag = _ms(caller_end, stt_final)
-    endpointing = _ms(stt_final, committed)
+    # the waterfall (ms); each segment is None unless both endpoints exist.
+    # endpointing is the VAD silence hold — how long we waited to be sure the caller
+    # was done. NOT (transcript end -> turn.committed): that fires after the text is
+    # already in hand and only measures the commit decision, a few ms.
+    # See docs/vas-telemetry-semantics.md §3 "Endpointing".
+    endpointing = _ms(speech_end, stt_start)
+    stt_lag = _ms(stt_start, stt_final)  # producing text once the caller had stopped
     llm_ttft = _ms(_to_audio(llm_start, offset), llm_first_token)
     assembly = _ms(llm_first_token, tts_start)
     tts_ttfb = _ms(tts_start, tts_first_audio)
@@ -155,20 +172,25 @@ def _build_turn(
         tts_ttfb_ms=tts_ttfb,
         playout_ms=playout,
         unattributed_ms=unattributed,
-        language=stt[0].attrs.get("voice.stt_language") if stt else None,
-        stt_confidence=_f(stt[0].attrs.get("voice.stt_confidence")) if stt else None,
+        language=stt[0].attrs.get("stt.language") if stt else None,
+        stt_confidence=_f(stt[0].attrs.get("stt.confidence")) if stt else None,
         tokens_in=_i(llm[0].attrs.get("gen_ai.usage.input_tokens")) if llm else None,
         tokens_out=_i(llm[0].attrs.get("gen_ai.usage.output_tokens")) if llm else None,
-        finish_reason=llm[0].attrs.get("voice.finish_reason") if llm else None,
-        tts_chars=_i(tts[0].attrs.get("voice.tts_chars")) if tts else None,
-        tts_chars_cut=_i(tts[0].attrs.get("voice.tts_chars_cut")) if tts else None,
-        cut_reason=tts[0].attrs.get("voice.tts_cut_reason") if tts else None,
-        interrupted=bool(turn_span.attrs.get("voice.interrupted", False)),
-        abandoned=bool(turn_span.attrs.get("voice.abandoned", False)),
-        transcript=stt[0].content.get("transcript") if stt else None,
+        finish_reason=llm[0].attrs.get("llm.finish_reason") if llm else None,
+        tts_chars=_i(tts[0].attrs.get("tts.chars")) if tts else None,
+        tts_chars_cut=_i(tts[0].attrs.get("tts.chars_cut")) if tts else None,
+        cut_reason=tts[0].attrs.get("tts.cut_reason") if tts else None,
+        interrupted=bool(turn_span.attrs.get("turn.interrupted", False)),
+        abandoned=bool(turn_span.attrs.get("turn.abandoned", False)),
+        transcript=_transcript(stt),
         llm_raw=llm[0].content.get("llm_raw") if llm else None,
         llm_spoken=tts[0].content.get("llm_spoken") if tts else None,
     )
+
+
+def _transcript(stt: list[Span]) -> str | None:
+    """Carried text is the caller's words too — it just landed on an earlier segment."""
+    return (stt[0].content.get("transcript") or stt[0].content.get("carried")) if stt else None
 
 
 def _audio_endpoints(

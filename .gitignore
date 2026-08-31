@@ -25,3 +25,8 @@ MODELS.md
 PLAN.md
 vas-contract.md
 *.pdf
+
+# Built UI — produced by `npm --prefix ui run build`
+src/voiceobs/api/static/
+ui/node_modules/
+docs/

@@ -1,0 +1,11 @@
+.git
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+tests
+notes
+.pytest_cache
+.ruff_cache
+ui/node_modules
+src/voiceobs/api/static

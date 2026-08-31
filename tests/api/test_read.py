@@ -35,3 +35,11 @@ def test_metric_defs(client):
     assert {"capture_coverage", "llm_ttft_ms"} <= names
     cov = next(d for d in defs if d["name"] == "capture_coverage")
     assert cov["higher_is_better"] is True
+
+
+def test_ui_is_served_when_built(client):
+    """404 in a source checkout, the app when `ui/` has been built. Either is fine;
+    a 500 would mean the mount shadowed the API routes."""
+    assert client.get("/").status_code in (200, 404)
+    assert client.get("/health").json() == {"status": "ok"}
+    assert client.get("/v1/calls").status_code == 200

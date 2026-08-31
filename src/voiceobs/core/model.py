@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,11 +16,14 @@ class Frozen(BaseModel):
 class Stage(StrEnum):
     CALL = "call"
     TURN = "turn"
+    SPEECH = "speech"  # caller audibly speaking (VAD), before any transcript exists
     STT = "stt"
     LLM = "llm"
     TTS = "tts"
+    PLAYOUT = "playout"  # synthesized audio actually reaching the caller
     TOOL = "tool"
     NET = "net"
+    UNKNOWN = "unknown"  # producer emitted a name no adapter maps; never silently `net`
 
 
 class TrustReason(StrEnum):
@@ -37,6 +41,9 @@ class SpanEvent(Frozen):
     name: str
     t: float  # seconds from call t0
     attrs: dict = Field(default_factory=dict)
+    # Words the producer heard but no turn claimed — overheard, dropped, carried.
+    # The discard signal; dropping it hides what STT got wrong.
+    content: dict[str, Any] = Field(default_factory=dict)
 
 
 class Span(Frozen):
@@ -48,7 +55,7 @@ class Span(Frozen):
     t_end: float | None  # None = never closed (crash mid-turn)
     turn_id: str | None  # nullable by design — the null is discard_rate
     attrs: dict = Field(default_factory=dict)  # shape only
-    content: dict[str, str] = Field(default_factory=dict)  # voice.content.* suffix -> text
+    content: dict[str, Any] = Field(default_factory=dict)  # voice.content.* suffix -> text or list
     events: list[SpanEvent] = Field(default_factory=list)
 
 
