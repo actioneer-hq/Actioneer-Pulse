@@ -1,12 +1,12 @@
 """One OTLP dialect -> Trace. The base handles any producer; a subclass adds names.
 
-Writing an adapter (Pipecat, LiveKit, your own) is two dicts:
+Writing an adapter (LiveKit, your own) is two dicts:
 
-    class PipecatAdapter(OTLPAdapter):
-        name = "pipecat"
-        service_name = "pipecat"
+    class MyAdapter(OTLPAdapter):
+        name = "myvas"
+        service_name = "myvas"
         stages = {"stt_service": Stage.STT, "llm_service": Stage.LLM}
-        attr_aliases = {"pipecat.turn": "turn.id"}
+        attr_aliases = {"myvas.turn": "turn.id"}
 
 Everything else — the span tree, timings, content splitting, PII dropping — is the
 same for every producer, because it is OTLP, not dialect.
@@ -47,6 +47,33 @@ def _dt(ns: int) -> datetime:
     return datetime.fromtimestamp(ns / 1e9, tz=UTC)
 
 
+def _propagate_turn_ids(spans: list[Span]) -> list[Span]:
+    """Attach each span to its turn. VAS stamps turn.id on every span; LiveKit
+    instead nests a turn's STT/LLM/TTS spans UNDER the turn span, so a child's turn is
+    its nearest turn-stage ancestor. Only fills a missing turn_id — never overrides one
+    the producer set. A turn span's own id becomes its turn_id so children can match it."""
+    by_id = {s.span_id: s for s in spans}
+
+    def turn_of(s: Span) -> str | None:
+        cur: Span | None = s
+        seen: set[str] = set()
+        while cur is not None and cur.span_id not in seen:
+            seen.add(cur.span_id)
+            if cur.stage is Stage.TURN:
+                return cur.turn_id or cur.span_id
+            cur = by_id.get(cur.parent_span_id) if cur.parent_span_id else None
+        return None
+
+    out: list[Span] = []
+    for s in spans:
+        if s.turn_id is None:
+            tid = turn_of(s)
+            if tid is not None:
+                s = s.model_copy(update={"turn_id": tid})
+        out.append(s)
+    return out
+
+
 class OTLPAdapter:
     name = "otlp"
     version = 1
@@ -56,6 +83,10 @@ class OTLPAdapter:
     attr_aliases: ClassVar[dict[str, str]] = {}
     content_prefix = "voice.content."
     content_keys: ClassVar[dict[Stage, dict[str, str]]] = {}
+    # Producer attributes that ARE content, not shape: {producer_attr_key: content_kind}.
+    # For producers (LiveKit) that carry the transcript as a plain attribute instead of
+    # under content_prefix. Routed to Span.content, not Span.attrs.
+    content_attrs: ClassVar[dict[str, str]] = {}
     # Set to narrow Span.attrs to an allowlist. None (default) keeps everything.
     keep_prefixes: tuple[str, ...] | None = None
 
@@ -77,6 +108,7 @@ class OTLPAdapter:
         t0 = span_start_ns(root)
 
         spans = sorted((self._span(s, t0) for _, s in rows), key=lambda s: s.t_start)
+        spans = _propagate_turn_ids(spans)
         return Trace(header=self.header(root, resource), spans=spans)
 
     def check_schema(self, resource: dict) -> None:
@@ -109,6 +141,8 @@ class OTLPAdapter:
             if k.startswith(self.content_prefix):
                 suffix = k[n:]
                 content[rename.get(suffix, suffix)] = v
+            elif k in self.content_attrs:
+                content[self.content_attrs[k]] = v
             elif self._keep(k):
                 attrs[self.attr_aliases.get(k, k)] = v
         return self.derive(attrs, stage), content

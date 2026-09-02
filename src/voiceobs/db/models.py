@@ -237,6 +237,8 @@ class Turn(Base):
     tts_chars_cut: Mapped[int | None] = mapped_column(Integer)
     cut_reason: Mapped[str | None] = mapped_column(String(16))  # barge_in | hangup
     tts_span_present: Mapped[bool | None] = mapped_column(Boolean)
+    interruption_probability: Mapped[float | None] = mapped_column(Float)  # producer's own
+    e2e_latency_ms: Mapped[float | None] = mapped_column(Float)  # engine's own end-to-end
 
     # content — from span content when sent, else artifact
     caller_transcript: Mapped[str | None] = mapped_column(Text)
@@ -379,6 +381,22 @@ class JudgeConfig(Base):
     model: Mapped[str] = mapped_column(String(128), nullable=False)
     params: Mapped[dict | None] = mapped_column(JSON)  # provider-specific passthrough
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = created_col()
+    updated_at: Mapped[datetime] = created_col()
+
+
+class TenantSettings(Base):
+    """Per-tenant platform switches. Audio analysis is off by default (OTLP-only); turning
+    it on requires access to the client's audio store (S3), pointed at by audio_store_prefix.
+    A null flag means "defer to the global VOICEOBS_AUDIO_ANALYSIS default"."""
+
+    __tablename__ = "tenant_settings"
+    __table_args__ = (UniqueConstraint("tenant_id", name="uq_tenant_settings_tenant"),)
+
+    id: Mapped[str] = pk()
+    tenant_id: Mapped[str] = tenant_col()
+    audio_analysis_enabled: Mapped[bool | None] = mapped_column(Boolean)
+    audio_store_prefix: Mapped[str | None] = mapped_column(String(1024))
     created_at: Mapped[datetime] = created_col()
     updated_at: Mapped[datetime] = created_col()
 

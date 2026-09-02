@@ -73,3 +73,23 @@ def test_a_new_producer_is_two_dicts():
 
     trace = PipecatAdapter().to_trace(_pipecat())
     assert [s.stage for s in trace.spans] == [Stage.CALL, Stage.STT, Stage.LLM]
+
+
+def test_turns_without_turn_index_get_distinct_positions():
+    """Two turn spans with no turn.index must not collide on one index (the bug that
+    crashed the first real LiveKit call: UNIQUE(call_id, turn_index))."""
+    from tests.adapters.fixtures.otlp_build import payload, span
+    from voiceobs.core import join
+    from voiceobs.core.model import Stage
+
+    class _A(OTLPAdapter):
+        name = "x"
+        stages = {"call": Stage.CALL, "turn": Stage.TURN}  # noqa: RUF012
+
+    trace = _A().to_trace(payload([
+        span("c", None, "call", 0, 5000),
+        span("t1", "c", "turn", 100, 1000),
+        span("t2", "c", "turn", 1000, 2000),
+    ]))
+    turns = join(trace, None).turns
+    assert sorted(t.turn_index for t in turns) == [0, 1]

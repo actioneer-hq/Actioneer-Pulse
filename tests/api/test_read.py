@@ -44,6 +44,7 @@ def test_spans_endpoint_is_gone(client):
 
 
 def test_full_analysis_after_worker(client, db_sessionmaker, monkeypatch):
+    monkeypatch.setenv("VOICEOBS_AUDIO_ANALYSIS", "1")  # audio overlay is off by default
     monkeypatch.setattr(
         sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri: _wav()
     )

@@ -1,0 +1,3803 @@
+{
+    "call": {
+        "id": "39d26ed1d87a90a7d73386ec52f06fb1",
+        "external_call_id": "39d26ed1d87a90a7d73386ec52f06fb1",
+        "trace_id": "39d26ed1d87a90a7d73386ec52f06fb1",
+        "source": "livekit",
+        "environment": "prod",
+        "schema_version": null,
+        "engine": null,
+        "carrier": null,
+        "stt_provider": null,
+        "llm_provider": null,
+        "tts_provider": null,
+        "voice": null,
+        "campaign_id": null,
+        "labels": {},
+        "started_at": "2026-09-02T05:17:56.273138",
+        "ended_at": "2026-09-02T05:19:48.439826",
+        "duration_s": 112.167,
+        "audio_t0_offset_s": null,
+        "audio_t0_epoch_ns": null,
+        "channel_map": null,
+        "sample_rate": null,
+        "terminal_reason": null,
+        "hangup_by": null,
+        "stream_duration_s": null,
+        "cost_llm": null,
+        "cost_stt": null,
+        "cost_tts": null,
+        "cost_total": null,
+        "cost_currency": null,
+        "tokens_in": null,
+        "tokens_out": null,
+        "tokens_cached": null,
+        "tts_chars": null,
+        "tts_chars_cut": null,
+        "stt_seconds": null,
+        "stt_segments_heard": null,
+        "stt_segments_overheard": null,
+        "stt_segments_dropped": null,
+        "span_dropped_events": null,
+        "unattributed_spans": 4,
+        "service_instance_id": null,
+        "spans_complete": true,
+        "media_ready": false,
+        "status": "awaiting_media",
+        "last_activity_at": "2026-09-02T05:19:51.274524",
+        "bookmarked": false,
+        "is_public": false,
+        "retention_days": null,
+        "app_version": "0.0.1",
+        "metric_version": 1,
+        "adapter_version": 1,
+        "created_at": "2026-09-02T05:18:00.944434"
+    },
+    "turns": [
+        {
+            "turn_index": 0,
+            "turn_id": "8c795ac7b71d3a06",
+            "trigger": "endpoint",
+            "interrupted": false,
+            "abandoned": false,
+            "stt_final_at": 15.8676,
+            "committed_at": 10.1744,
+            "llm_first_token_at": null,
+            "tts_start_at": 16.6532,
+            "tts_first_audio_at": null,
+            "caller_utt_end_s": null,
+            "agent_utt_start_s": null,
+            "response_latency_ms": 785.6,
+            "stt_lag_ms": 1.4,
+            "endpointing_ms": null,
+            "llm_ttft_ms": null,
+            "assembly_ms": null,
+            "tts_ttfb_ms": null,
+            "playout_ms": null,
+            "unattributed_ms": 784.2,
+            "llm_ttft_reported_ms": 780.7,
+            "tts_ttfb_reported_ms": 1121.7,
+            "language": null,
+            "stt_confidence": null,
+            "tokens_in": 80,
+            "tokens_out": 25,
+            "tokens_cached": null,
+            "finish_reason": null,
+            "tts_chars": null,
+            "tts_chars_cut": null,
+            "cut_reason": null,
+            "tts_span_present": true,
+            "caller_transcript": null,
+            "llm_raw": null,
+            "llm_spoken": null,
+            "metric_version": 1
+        },
+        {
+            "turn_index": 1,
+            "turn_id": "982b4dc62d17cac0",
+            "trigger": "endpoint",
+            "interrupted": false,
+            "abandoned": false,
+            "stt_final_at": 30.9087,
+            "committed_at": 26.6738,
+            "llm_first_token_at": null,
+            "tts_start_at": 31.5997,
+            "tts_first_audio_at": null,
+            "caller_utt_end_s": null,
+            "agent_utt_start_s": null,
+            "response_latency_ms": 691.0,
+            "stt_lag_ms": 2.9,
+            "endpointing_ms": null,
+            "llm_ttft_ms": null,
+            "assembly_ms": null,
+            "tts_ttfb_ms": null,
+            "playout_ms": null,
+            "unattributed_ms": 688.1,
+            "llm_ttft_reported_ms": 693.2,
+            "tts_ttfb_reported_ms": 966.1,
+            "language": null,
+            "stt_confidence": null,
+            "tokens_in": 123,
+            "tokens_out": 27,
+            "tokens_cached": null,
+            "finish_reason": null,
+            "tts_chars": null,
+            "tts_chars_cut": null,
+            "cut_reason": null,
+            "tts_span_present": true,
+            "caller_transcript": null,
+            "llm_raw": null,
+            "llm_spoken": null,
+            "metric_version": 1
+        },
+        {
+            "turn_index": 2,
+            "turn_id": "040e2378a49bf749",
+            "trigger": "endpoint",
+            "interrupted": false,
+            "abandoned": false,
+            "stt_final_at": 42.0657,
+            "committed_at": 39.2732,
+            "llm_first_token_at": null,
+            "tts_start_at": 44.1401,
+            "tts_first_audio_at": null,
+            "caller_utt_end_s": null,
+            "agent_utt_start_s": null,
+            "response_latency_ms": 2074.4,
+            "stt_lag_ms": 1.5,
+            "endpointing_ms": null,
+            "llm_ttft_ms": null,
+            "assembly_ms": null,
+            "tts_ttfb_ms": null,
+            "playout_ms": null,
+            "unattributed_ms": 2072.9,
+            "llm_ttft_reported_ms": 874.3,
+            "tts_ttfb_reported_ms": 1276.5,
+            "language": null,
+            "stt_confidence": null,
+            "tokens_in": 160,
+            "tokens_out": 17,
+            "tokens_cached": null,
+            "finish_reason": null,
+            "tts_chars": null,
+            "tts_chars_cut": null,
+            "cut_reason": null,
+            "tts_span_present": true,
+            "caller_transcript": null,
+            "llm_raw": null,
+            "llm_spoken": null,
+            "metric_version": 1
+        },
+        {
+            "turn_index": 3,
+            "turn_id": "44911036e4906ac7",
+            "trigger": "endpoint",
+            "interrupted": false,
+            "abandoned": false,
+            "stt_final_at": 54.4956,
+            "committed_at": 49.6231,
+            "llm_first_token_at": null,
+            "tts_start_at": 55.4029,
+            "tts_first_audio_at": null,
+            "caller_utt_end_s": null,
+            "agent_utt_start_s": null,
+            "response_latency_ms": 907.3,
+            "stt_lag_ms": 1.5,
+            "endpointing_ms": null,
+            "llm_ttft_ms": null,
+            "assembly_ms": null,
+            "tts_ttfb_ms": null,
+            "playout_ms": null,
+            "unattributed_ms": 905.8,
+            "llm_ttft_reported_ms": 897.1,
+            "tts_ttfb_reported_ms": 1504.4,
+            "language": null,
+            "stt_confidence": null,
+            "tokens_in": 193,
+            "tokens_out": 34,
+            "tokens_cached": null,
+            "finish_reason": null,
+            "tts_chars": null,
+            "tts_chars_cut": null,
+            "cut_reason": null,
+            "tts_span_present": true,
+            "caller_transcript": null,
+            "llm_raw": null,
+            "llm_spoken": null,
+            "metric_version": 1
+        },
+        {
+            "turn_index": 4,
+            "turn_id": "85a86a9f1bf9a541",
+            "trigger": "endpoint",
+            "interrupted": false,
+            "abandoned": false,
+            "stt_final_at": 80.9269,
+            "committed_at": 62.6751,
+            "llm_first_token_at": null,
+            "tts_start_at": 81.8098,
+            "tts_first_audio_at": null,
+            "caller_utt_end_s": null,
+            "agent_utt_start_s": null,
+            "response_latency_ms": 882.9,
+            "stt_lag_ms": 1.0,
+            "endpointing_ms": null,
+            "llm_ttft_ms": null,
+            "assembly_ms": null,
+            "tts_ttfb_ms": null,
+            "playout_ms": null,
+            "unattributed_ms": 881.9,
+            "llm_ttft_reported_ms": 878.3,
+            "tts_ttfb_reported_ms": 838.3,
+            "language": null,
+            "stt_confidence": null,
+            "tokens_in": 297,
+            "tokens_out": 42,
+            "tokens_cached": null,
+            "finish_reason": null,
+            "tts_chars": null,
+            "tts_chars_cut": null,
+            "cut_reason": null,
+            "tts_span_present": true,
+            "caller_transcript": null,
+            "llm_raw": null,
+            "llm_spoken": null,
+            "metric_version": 1
+        },
+        {
+            "turn_index": 5,
+            "turn_id": "3139c105938080ee",
+            "trigger": "endpoint",
+            "interrupted": false,
+            "abandoned": false,
+            "stt_final_at": 103.4856,
+            "committed_at": 93.7718,
+            "llm_first_token_at": null,
+            "tts_start_at": 104.179,
+            "tts_first_audio_at": null,
+            "caller_utt_end_s": null,
+            "agent_utt_start_s": null,
+            "response_latency_ms": 693.4,
+            "stt_lag_ms": 0.3,
+            "endpointing_ms": null,
+            "llm_ttft_ms": null,
+            "assembly_ms": null,
+            "tts_ttfb_ms": null,
+            "playout_ms": null,
+            "unattributed_ms": 693.1,
+            "llm_ttft_reported_ms": 691.1,
+            "tts_ttfb_reported_ms": 1119.9,
+            "language": null,
+            "stt_confidence": null,
+            "tokens_in": 369,
+            "tokens_out": 37,
+            "tokens_cached": null,
+            "finish_reason": null,
+            "tts_chars": null,
+            "tts_chars_cut": null,
+            "cut_reason": null,
+            "tts_span_present": true,
+            "caller_transcript": null,
+            "llm_raw": null,
+            "llm_spoken": null,
+            "metric_version": 1
+        },
+        {
+            "turn_index": 6,
+            "turn_id": "182b04c524bb369e",
+            "trigger": "endpoint",
+            "interrupted": false,
+            "abandoned": false,
+            "stt_final_at": 105.7545,
+            "committed_at": 105.7542,
+            "llm_first_token_at": null,
+            "tts_start_at": 2.1422,
+            "tts_first_audio_at": null,
+            "caller_utt_end_s": null,
+            "agent_utt_start_s": null,
+            "response_latency_ms": null,
+            "stt_lag_ms": 0.2,
+            "endpointing_ms": null,
+            "llm_ttft_ms": null,
+            "assembly_ms": null,
+            "tts_ttfb_ms": null,
+            "playout_ms": null,
+            "unattributed_ms": null,
+            "llm_ttft_reported_ms": 1471.6,
+            "tts_ttfb_reported_ms": 1986.1,
+            "language": null,
+            "stt_confidence": null,
+            "tokens_in": 50,
+            "tokens_out": 32,
+            "tokens_cached": null,
+            "finish_reason": null,
+            "tts_chars": null,
+            "tts_chars_cut": null,
+            "cut_reason": null,
+            "tts_span_present": true,
+            "caller_transcript": null,
+            "llm_raw": null,
+            "llm_spoken": null,
+            "metric_version": 1
+        }
+    ],
+    "metrics": [
+        {
+            "name": "assembly_ms",
+            "value": null,
+            "samples": [],
+            "available": false,
+            "reason": "no spans carried this segment"
+        },
+        {
+            "name": "cut_reason",
+            "value": null,
+            "samples": null,
+            "available": false,
+            "reason": "no truncated turns"
+        },
+        {
+            "name": "llm_ttft_ms",
+            "value": null,
+            "samples": [],
+            "available": false,
+            "reason": "no spans carried this segment"
+        },
+        {
+            "name": "llm_ttft_reported_ms",
+            "value": 897.1,
+            "samples": [
+                780.7,
+                693.2,
+                874.3,
+                897.1,
+                878.3,
+                691.1,
+                1471.6
+            ],
+            "available": true,
+            "reason": null
+        },
+        {
+            "name": "response_latency_ms",
+            "value": 907.3,
+            "samples": [
+                785.6,
+                691.0,
+                2074.4,
+                907.3,
+                882.9,
+                693.4
+            ],
+            "available": true,
+            "reason": null
+        },
+        {
+            "name": "tokens_per_turn",
+            "value": 30.6,
+            "samples": [
+                25.0,
+                27.0,
+                17.0,
+                34.0,
+                42.0,
+                37.0,
+                32.0
+            ],
+            "available": true,
+            "reason": null
+        },
+        {
+            "name": "truncation_rate",
+            "value": null,
+            "samples": null,
+            "available": false,
+            "reason": "no tts chars"
+        },
+        {
+            "name": "tts_ttfb_ms",
+            "value": null,
+            "samples": [],
+            "available": false,
+            "reason": "no spans carried this segment"
+        },
+        {
+            "name": "tts_ttfb_reported_ms",
+            "value": 1504.4,
+            "samples": [
+                1121.7,
+                966.1,
+                1276.5,
+                1504.4,
+                838.3,
+                1119.9,
+                1986.1
+            ],
+            "available": true,
+            "reason": null
+        },
+        {
+            "name": "unattributed_ms",
+            "value": 905.8,
+            "samples": [
+                784.2,
+                688.1,
+                2072.9,
+                905.8,
+                881.9,
+                693.1
+            ],
+            "available": true,
+            "reason": null
+        }
+    ],
+    "trust": {
+        "spans_complete": true,
+        "media_ready": false,
+        "capture_coverage": {},
+        "span_dropped_events": null,
+        "unattributed_spans": 4
+    },
+    "spans": [
+        {
+            "span_id": "112fae5ad17b8aca",
+            "parent_span_id": null,
+            "name": "agent_session",
+            "stage": "call",
+            "turn_id": null,
+            "t_start_s": 0.0,
+            "duration_s": 112.166688,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.agent_label": "default_agent",
+                "lk.pii.room_name": "console-1314e06f",
+                "lk.job_id": "AJ_rg28eV2ZW796",
+                "lk.agent_name": ""
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "08c1c722752a58ea",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "start_agent_activity",
+            "stage": "unknown",
+            "turn_id": null,
+            "t_start_s": 0.474227,
+            "duration_s": 0.173354,
+            "attrs": {
+                "lk.agent_label": "default_agent",
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "19fbe5442d28f7fa",
+            "parent_span_id": "08c1c722752a58ea",
+            "name": "on_enter",
+            "stage": "unknown",
+            "turn_id": null,
+            "t_start_s": 0.654697,
+            "duration_s": 1.7e-05,
+            "attrs": {
+                "lk.agent_label": "default_agent",
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "a916fe899719aa20",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "agent_turn",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 0.664268,
+            "duration_s": 15.206256,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.generation_id": "speech_dd46f0b7fc41_1",
+                "lk.speech_id": "speech_dd46f0b7fc41",
+                "lk.pii.instructions": "Greet the caller and open the conversation.",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT",
+                "turn.interrupted": true,
+                "lk.pii.response.text": "Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "c236bc51318d10f3",
+            "parent_span_id": "a916fe899719aa20",
+            "name": "llm_node",
+            "stage": "llm",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 0.669032,
+            "duration_s": 1.7479,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"lk.agent_task.instructions\", \"type\": \"message\", \"role\": \"system\", \"content\": [\"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_745bb1c0589a\", \"type\": \"agent_config_update\", \"instructions\": \"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"}, {\"id\": \"item_d2533dc2835d\", \"type\": \"message\", \"role\": \"system\", \"content\": [\"Greet the caller and open the conversation.\"], \"interrupted\": false, \"extra\": {}}]}",
+                "lk.function_tools": [],
+                "lk.provider_tools": [],
+                "lk.tool_sets": [],
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.response.text": "Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm your appointment. Does the scheduled time still work for you?",
+                "lk.pii.response.function_calls": "[]",
+                "metrics.ttft": 1.4715709589945618
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "774ea4719ee38ca9",
+            "parent_span_id": "c236bc51318d10f3",
+            "name": "llm_request",
+            "stage": "llm",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 0.669843,
+            "duration_s": 1.747003,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.llm_metrics": "{\"type\":\"llm_metrics\",\"label\":\"livekit.plugins.openai.llm.LLM\",\"request_id\":\"chatcmpl-EJXeA5KZcKHuBdq9LrfcNymveKpGW\",\"timestamp\":1788326278.6880682,\"duration\":1.7451107499946374,\"ttft\":1.4711078330001328,\"cancelled\":false,\"completion_tokens\":32,\"prompt_tokens\":50,\"prompt_cached_tokens\":0,\"cache_creation_tokens\":0,\"total_tokens\":82,\"tokens_per_second\":18.33694509079056,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini\",\"model_provider\":\"api.openai.com\"}}",
+                "gen_ai.operation.name": "chat",
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "gen_ai.usage.input_tokens": 50,
+                "gen_ai.usage.cache_read.input_tokens": 0,
+                "gen_ai.usage.output_tokens": 32,
+                "langfuse.observation.completion_start_time": "\"2026-09-02T05:17:58.414064+00:00\""
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": [
+                {
+                    "name": "gen_ai.system.message",
+                    "t_offset_s": 0.669863,
+                    "attrs": {
+                        "content": "You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short."
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.system.message",
+                    "t_offset_s": 0.669873,
+                    "attrs": {
+                        "content": "Greet the caller and open the conversation."
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.choice",
+                    "t_offset_s": 2.415159,
+                    "attrs": {
+                        "role": "assistant",
+                        "content": "Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm your appointment. Does the scheduled time still work for you?"
+                    },
+                    "content_text": null
+                }
+            ]
+        },
+        {
+            "span_id": "072fcd87484b53c5",
+            "parent_span_id": "774ea4719ee38ca9",
+            "name": "llm_request_run",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 0.669896,
+            "duration_s": 1.738959,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "chatcmpl-EJXeA5KZcKHuBdq9LrfcNymveKpGW"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "bdc60a84092dac24",
+            "parent_span_id": "a916fe899719aa20",
+            "name": "tts_node",
+            "stage": "tts",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 2.142193,
+            "duration_s": 8.933054,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "gen_ai.request.model": "gpt-4o-mini-tts",
+                "gen_ai.provider.name": "api.openai.com",
+                "metrics.ttfb": 1.9861231669783592
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "a3d4b572007a5501",
+            "parent_span_id": "bdc60a84092dac24",
+            "name": "tts_stream_adapter",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 2.142806,
+            "duration_s": 8.932298,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": true,
+                "lk.tts.label": "livekit.agents.tts.stream_adapter.StreamAdapter",
+                "lk.pii.input_text": "Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm your appointment. Does the scheduled time still work for you?"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "1847d8d25f8b4c32",
+            "parent_span_id": "a3d4b572007a5501",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 2.142853,
+            "duration_s": 8.930666,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "d8dff8e23b5b"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "f884ddd78b16c315",
+            "parent_span_id": "1847d8d25f8b4c32",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 2.152226,
+            "duration_s": 2.848397,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "Hello! Thank you for calling.",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_561932c70ae14462a3d2f3d12993feb6\",\"timestamp\":1788326281.2729769,\"ttfb\":1.9829346670012455,\"duration\":2.8476887499855366,\"audio_duration\":3.192,\"cancelled\":false,\"characters_count\":29,\"input_tokens\":7,\"output_tokens\":80,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "ebeeb0ce49249b9f",
+            "parent_span_id": "f884ddd78b16c315",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 2.152285,
+            "duration_s": 2.833854,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "75ac0e3f25661ee1",
+            "parent_span_id": "a916fe899719aa20",
+            "name": "agent_speaking",
+            "stage": "playout",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 4.450665,
+            "duration_s": 6.139376,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "16378e4e8f0366b4",
+            "parent_span_id": "1847d8d25f8b4c32",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 5.000803,
+            "duration_s": 1.272368,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "I hope you're having a great day!",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_87f8aea198a44478870daee2c339a440\",\"timestamp\":1788326282.5456588,\"ttfb\":1.0351940419932362,\"duration\":1.2717753339966293,\"audio_duration\":1.9919999999999998,\"cancelled\":false,\"characters_count\":33,\"input_tokens\":8,\"output_tokens\":57,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "6364119775d89501",
+            "parent_span_id": "16378e4e8f0366b4",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 5.000836,
+            "duration_s": 1.239014,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "b3a9baece43efa7e",
+            "parent_span_id": "1847d8d25f8b4c32",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 6.273366,
+            "duration_s": 1.852844,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "I'm reaching out to confirm your appointment.",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_6cf14288403f4e52b567f28b7e66bcab\",\"timestamp\":1788326284.398485,\"ttfb\":1.2110396249918267,\"duration\":1.8520497079880442,\"audio_duration\":4.128,\"cancelled\":false,\"characters_count\":45,\"input_tokens\":8,\"output_tokens\":100,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "ae036357169cea27",
+            "parent_span_id": "b3a9baece43efa7e",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 6.273405,
+            "duration_s": 1.841859,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "91f7b1003581f12b",
+            "parent_span_id": "1847d8d25f8b4c32",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 8.126439,
+            "duration_s": 2.946905,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "Does the scheduled time still work for you?",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_c57e94433fa5430abb9064cdebae42eb\",\"timestamp\":1788326287.34564,\"ttfb\":2.0215610839950386,\"duration\":2.9461389999778476,\"audio_duration\":2.7840000000000003,\"cancelled\":false,\"characters_count\":43,\"input_tokens\":9,\"output_tokens\":76,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "05a01c1bf5a7a467",
+            "parent_span_id": "91f7b1003581f12b",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 8.126488,
+            "duration_s": 2.922479,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "746e42521ad13b5c",
+            "parent_span_id": "8c795ac7b71d3a06",
+            "name": "user_speaking",
+            "stage": "unknown",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 10.174418,
+            "duration_s": 3.838903,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD",
+                "lk.is_interruption": "true",
+                "lk.interruption.probability": 0.6943822503089905,
+                "lk.interruption.total_duration": 0.05363925,
+                "lk.interruption.prediction_duration": 0.022334051,
+                "lk.interruption.detection_delay": 0.414597749710083
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "8c795ac7b71d3a06",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "user_turn",
+            "stage": "turn",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 10.174418,
+            "duration_s": 5.693317,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD",
+                "gen_ai.request.model": "gpt-4o-mini-transcribe",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.user_transcript": "Hey man, what's up? How are you? How are you doing?",
+                "lk.transcript_confidence": 0.0,
+                "lk.transcription_delay": 1.8522260189056396,
+                "lk.end_of_turn_delay": 1.8539197444915771
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "f613e184f1807127",
+            "parent_span_id": "8c795ac7b71d3a06",
+            "name": "eou_detection",
+            "stage": "stt",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 15.866196,
+            "duration_s": 0.001411,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"item_153dc5828215\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Hey man, what's up? How are you? How are you doing?\"], \"interrupted\": false, \"extra\": {}}]}",
+                "lk.eou.endpointing_delay": 0.3,
+                "lk.eou.language": "en",
+                "lk.eou.source": "stt",
+                "lk.eou.from_cache": true,
+                "lk.eou.probability": 0.9431599974632263,
+                "lk.eou.unlikely_threshold": 0.56,
+                "lk.eou.detection_delay": 0.181
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "4b7cd37760498d7b",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "agent_turn",
+            "stage": "unknown",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 15.871193,
+            "duration_s": 10.60804,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.generation_id": "speech_56e51cea6ca7_1",
+                "lk.speech_id": "speech_56e51cea6ca7",
+                "lk.pii.user_input": "Hey man, what's up? How are you? How are you doing?",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT",
+                "lk.e2e_latency": 4.051515817642212,
+                "turn.interrupted": false,
+                "lk.pii.response.text": "Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "165af4d99a97746d",
+            "parent_span_id": "4b7cd37760498d7b",
+            "name": "llm_node",
+            "stage": "llm",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 15.872028,
+            "duration_s": 1.037914,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"lk.agent_task.instructions\", \"type\": \"message\", \"role\": \"system\", \"content\": [\"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_745bb1c0589a\", \"type\": \"agent_config_update\", \"instructions\": \"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"}, {\"id\": \"item_d968778126cc\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_d575c355eb26\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Hey man, what's up? How are you? How are you doing?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}]}",
+                "lk.function_tools": [],
+                "lk.provider_tools": [],
+                "lk.tool_sets": [],
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.response.text": "Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?",
+                "lk.pii.response.function_calls": "[]",
+                "metrics.ttft": 0.7807402079924941
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "f1403c7bf6613a5c",
+            "parent_span_id": "165af4d99a97746d",
+            "name": "llm_request",
+            "stage": "llm",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 15.872343,
+            "duration_s": 1.037462,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.llm_metrics": "{\"type\":\"llm_metrics\",\"label\":\"livekit.plugins.openai.llm.LLM\",\"request_id\":\"chatcmpl-EJXeOpuXnITf35wXhN9prmiwPeOsl\",\"timestamp\":1788326293.181725,\"duration\":1.0362648750015069,\"ttft\":0.780512124998495,\"cancelled\":false,\"completion_tokens\":25,\"prompt_tokens\":80,\"prompt_cached_tokens\":0,\"cache_creation_tokens\":0,\"total_tokens\":105,\"tokens_per_second\":24.125106044884177,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini\",\"model_provider\":\"api.openai.com\"}}",
+                "gen_ai.operation.name": "chat",
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "gen_ai.usage.input_tokens": 80,
+                "gen_ai.usage.cache_read.input_tokens": 0,
+                "gen_ai.usage.output_tokens": 25,
+                "langfuse.observation.completion_start_time": "\"2026-09-02T05:18:12.925975+00:00\""
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": [
+                {
+                    "name": "gen_ai.system.message",
+                    "t_offset_s": 15.872359,
+                    "attrs": {
+                        "content": "You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short."
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 15.872364,
+                    "attrs": {
+                        "content": "Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 15.872366,
+                    "attrs": {
+                        "content": "Hey man, what's up? How are you? How are you doing?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.choice",
+                    "t_offset_s": 16.908717,
+                    "attrs": {
+                        "role": "assistant",
+                        "content": "Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?"
+                    },
+                    "content_text": null
+                }
+            ]
+        },
+        {
+            "span_id": "1870fbb510e32a59",
+            "parent_span_id": "f1403c7bf6613a5c",
+            "name": "llm_request_run",
+            "stage": "unknown",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 15.872389,
+            "duration_s": 1.035934,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "chatcmpl-EJXeOpuXnITf35wXhN9prmiwPeOsl"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "ffc4cb4bf5710c12",
+            "parent_span_id": "4b7cd37760498d7b",
+            "name": "tts_node",
+            "stage": "tts",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 16.653231,
+            "duration_s": 6.262013,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "gen_ai.request.model": "gpt-4o-mini-tts",
+                "gen_ai.provider.name": "api.openai.com",
+                "metrics.ttfb": 1.121692292013904
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "14e8b83c0213aadf",
+            "parent_span_id": "ffc4cb4bf5710c12",
+            "name": "tts_stream_adapter",
+            "stage": "unknown",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 16.653815,
+            "duration_s": 6.261276,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": true,
+                "lk.tts.label": "livekit.agents.tts.stream_adapter.StreamAdapter",
+                "lk.pii.input_text": "Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "95a6074b7883549a",
+            "parent_span_id": "14e8b83c0213aadf",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 16.653869,
+            "duration_s": 6.260682,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "8a9c01ec1c74"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "16a5340012e1357f",
+            "parent_span_id": "95a6074b7883549a",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 16.719947,
+            "duration_s": 1.630861,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "Hello! I'm doing well, thank you!",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_6a8ce656e2b144489f2493a7c07122db\",\"timestamp\":1788326294.6235268,\"ttfb\":1.1208738749846816,\"duration\":1.6305869169882499,\"audio_duration\":3.024,\"cancelled\":false,\"characters_count\":33,\"input_tokens\":9,\"output_tokens\":81,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "49c75cb4c29425b2",
+            "parent_span_id": "16a5340012e1357f",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 16.72003,
+            "duration_s": 1.62271,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "ef72d5ff12b38bd6",
+            "parent_span_id": "4b7cd37760498d7b",
+            "name": "agent_speaking",
+            "stage": "playout",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 18.065218,
+            "duration_s": 8.413579,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "bbf4730f49a8b09f",
+            "parent_span_id": "95a6074b7883549a",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 18.350919,
+            "duration_s": 1.988694,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "Just here to confirm your appointment.",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_1e2ad524c7c24cff880f213220aa9b1f\",\"timestamp\":1788326296.612104,\"ttfb\":1.421145083004376,\"duration\":1.9880818329984322,\"audio_duration\":2.0879999999999996,\"cancelled\":false,\"characters_count\":38,\"input_tokens\":7,\"output_tokens\":56,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "89f7dc0a357cb1ac",
+            "parent_span_id": "bbf4730f49a8b09f",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 18.350942,
+            "duration_s": 1.960989,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "66a76c6e85bc2d54",
+            "parent_span_id": "95a6074b7883549a",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 20.339803,
+            "duration_s": 2.574059,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "Does the scheduled time still work for you?",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_f63b8fa9f83b43d181edf04faaf9d4e3\",\"timestamp\":1788326299.186322,\"ttfb\":1.4676567910064477,\"duration\":2.5734387910051737,\"audio_duration\":3.2880000000000007,\"cancelled\":false,\"characters_count\":43,\"input_tokens\":9,\"output_tokens\":86,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "3553d3f289cbb932",
+            "parent_span_id": "66a76c6e85bc2d54",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "8c795ac7b71d3a06",
+            "t_start_s": 20.339844,
+            "duration_s": 2.536581,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "b1c1bd6ea7141f04",
+            "parent_span_id": "982b4dc62d17cac0",
+            "name": "user_speaking",
+            "stage": "unknown",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 26.673812,
+            "duration_s": 2.438484,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "982b4dc62d17cac0",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "user_turn",
+            "stage": "turn",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 26.673812,
+            "duration_s": 4.234994,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD",
+                "gen_ai.request.model": "gpt-4o-mini-transcribe",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.user_transcript": "What sort of appointment are we talking about here?",
+                "lk.transcript_confidence": 0.0,
+                "lk.transcription_delay": 1.7918848991394043,
+                "lk.end_of_turn_delay": 1.7960028648376465
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "c12929a1c883f04f",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "agent_turn",
+            "stage": "unknown",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 30.904972,
+            "duration_s": 11.165923,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.generation_id": "speech_3840d56ecab5_1",
+                "lk.speech_id": "speech_3840d56ecab5",
+                "lk.pii.user_input": "What sort of appointment are we talking about here?",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT",
+                "lk.e2e_latency": 3.856139898300171,
+                "turn.interrupted": true,
+                "lk.pii.response.text": "I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "54f36734ed10b26b",
+            "parent_span_id": "982b4dc62d17cac0",
+            "name": "eou_detection",
+            "stage": "stt",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 30.905774,
+            "duration_s": 0.002894,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"item_d968778126cc\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_d575c355eb26\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Hey man, what's up? How are you? How are you doing?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_260dbadb246b\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_4cbc7ac27248\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"What sort of appointment are we talking about here?\"], \"interrupted\": false, \"extra\": {}}]}",
+                "lk.eou.endpointing_delay": 0.3,
+                "lk.eou.language": "en",
+                "lk.eou.source": "stt",
+                "lk.eou.from_cache": true,
+                "lk.eou.probability": 0.9670329689979553,
+                "lk.eou.unlikely_threshold": 0.56,
+                "lk.eou.detection_delay": 0.124
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "9ea6f7ef5ec9212c",
+            "parent_span_id": "c12929a1c883f04f",
+            "name": "llm_node",
+            "stage": "llm",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 30.906055,
+            "duration_s": 0.950088,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"lk.agent_task.instructions\", \"type\": \"message\", \"role\": \"system\", \"content\": [\"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_745bb1c0589a\", \"type\": \"agent_config_update\", \"instructions\": \"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"}, {\"id\": \"item_d968778126cc\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_d575c355eb26\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Hey man, what's up? How are you? How are you doing?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_260dbadb246b\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_728efbe3a6ba\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"What sort of appointment are we talking about here?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}]}",
+                "lk.function_tools": [],
+                "lk.provider_tools": [],
+                "lk.tool_sets": [],
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.response.text": "I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist you better? Thank you!",
+                "lk.pii.response.function_calls": "[]",
+                "metrics.ttft": 0.693217291001929
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "1f678d3b09385e02",
+            "parent_span_id": "9ea6f7ef5ec9212c",
+            "name": "llm_request",
+            "stage": "llm",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 30.906647,
+            "duration_s": 0.949325,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.llm_metrics": "{\"type\":\"llm_metrics\",\"label\":\"livekit.plugins.openai.llm.LLM\",\"request_id\":\"chatcmpl-EJXedBR7RFOJspbXXiQP3T8syrHhZ\",\"timestamp\":1788326308.127558,\"duration\":0.9478057500091381,\"ttft\":0.6927274159970693,\"cancelled\":false,\"completion_tokens\":27,\"prompt_tokens\":123,\"prompt_cached_tokens\":0,\"cache_creation_tokens\":0,\"total_tokens\":150,\"tokens_per_second\":28.48684975770582,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini\",\"model_provider\":\"api.openai.com\"}}",
+                "gen_ai.operation.name": "chat",
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "gen_ai.usage.input_tokens": 123,
+                "gen_ai.usage.cache_read.input_tokens": 0,
+                "gen_ai.usage.output_tokens": 27,
+                "langfuse.observation.completion_start_time": "\"2026-09-02T05:18:27.872481+00:00\""
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": [
+                {
+                    "name": "gen_ai.system.message",
+                    "t_offset_s": 30.906669,
+                    "attrs": {
+                        "content": "You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short."
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 30.906675,
+                    "attrs": {
+                        "content": "Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 30.906677,
+                    "attrs": {
+                        "content": "Hey man, what's up? How are you? How are you doing?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 30.906678,
+                    "attrs": {
+                        "content": "Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 30.90668,
+                    "attrs": {
+                        "content": "What sort of appointment are we talking about here?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.choice",
+                    "t_offset_s": 31.85461,
+                    "attrs": {
+                        "role": "assistant",
+                        "content": "I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist you better? Thank you!"
+                    },
+                    "content_text": null
+                }
+            ]
+        },
+        {
+            "span_id": "ac9d7a6c1f794f17",
+            "parent_span_id": "1f678d3b09385e02",
+            "name": "llm_request_run",
+            "stage": "unknown",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 30.906702,
+            "duration_s": 0.946744,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "chatcmpl-EJXedBR7RFOJspbXXiQP3T8syrHhZ"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "0577d051898fd096",
+            "parent_span_id": "c12929a1c883f04f",
+            "name": "tts_node",
+            "stage": "tts",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 31.599661,
+            "duration_s": 6.401186,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "gen_ai.request.model": "gpt-4o-mini-tts",
+                "gen_ai.provider.name": "api.openai.com",
+                "metrics.ttfb": 0.9660644580144435
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "50877e06ca131261",
+            "parent_span_id": "0577d051898fd096",
+            "name": "tts_stream_adapter",
+            "stage": "unknown",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 31.600097,
+            "duration_s": 6.400594,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": true,
+                "lk.tts.label": "livekit.agents.tts.stream_adapter.StreamAdapter",
+                "lk.pii.input_text": "I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist you better? Thank you!"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "2a97576b059818c1",
+            "parent_span_id": "50877e06ca131261",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 31.600155,
+            "duration_s": 6.399844,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "4eee6d04b319"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "ee772b3671669ec6",
+            "parent_span_id": "2a97576b059818c1",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 31.642946,
+            "duration_s": 1.910099,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "I'm confirming your upcoming appointment with us.",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_491a5c396c5e4fbe84f8283976787d55\",\"timestamp\":1788326309.825598,\"ttfb\":0.965541707992088,\"duration\":1.909609415975865,\"audio_duration\":3.2400000000000007,\"cancelled\":false,\"characters_count\":49,\"input_tokens\":8,\"output_tokens\":84,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "ba31cfec347e4b85",
+            "parent_span_id": "ee772b3671669ec6",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 31.642996,
+            "duration_s": 1.874745,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "19645fd50c706594",
+            "parent_span_id": "c12929a1c883f04f",
+            "name": "agent_speaking",
+            "stage": "playout",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 32.968827,
+            "duration_s": 6.537652,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "f0303cf654b7999a",
+            "parent_span_id": "2a97576b059818c1",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 33.553224,
+            "duration_s": 3.05609,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "Could you please provide me with the details, so I can assist you better?",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_28e45de4334a4e60859988d30d181877\",\"timestamp\":1788326312.881948,\"ttfb\":2.2458500409848057,\"duration\":3.0556439159845468,\"audio_duration\":4.176,\"cancelled\":false,\"characters_count\":73,\"input_tokens\":16,\"output_tokens\":111,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "1aba4a8ae26d9a22",
+            "parent_span_id": "f0303cf654b7999a",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 33.553262,
+            "duration_s": 3.035805,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "0f8661a5c8d44bb6",
+            "parent_span_id": "2a97576b059818c1",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 36.609454,
+            "duration_s": 1.390229,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "Thank you!",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_eb4dba66f12e4ac4a9279b68f4cbe64e\",\"timestamp\":1788326314.271829,\"ttfb\":1.0886778749991208,\"duration\":1.3892777499859221,\"audio_duration\":1.5839999999999999,\"cancelled\":false,\"characters_count\":10,\"input_tokens\":3,\"output_tokens\":40,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "1618d2578eabadae",
+            "parent_span_id": "0f8661a5c8d44bb6",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "982b4dc62d17cac0",
+            "t_start_s": 36.609483,
+            "duration_s": 1.364912,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "a55a3110c4b593ff",
+            "parent_span_id": "040e2378a49bf749",
+            "name": "user_speaking",
+            "stage": "unknown",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 39.273225,
+            "duration_s": 1.489558,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD",
+                "lk.is_interruption": "true",
+                "lk.interruption.probability": 0.85988450050354,
+                "lk.interruption.total_duration": 0.067899292,
+                "lk.interruption.prediction_duration": 0.035235003,
+                "lk.interruption.detection_delay": 0.23183989524841309
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "040e2378a49bf749",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "user_turn",
+            "stage": "turn",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 39.273225,
+            "duration_s": 3.990996,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD",
+                "gen_ai.request.model": "gpt-4o-mini-transcribe",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.user_transcript": "Who are you? Who are you?",
+                "lk.transcript_confidence": 0.0,
+                "lk.transcription_delay": 1.3004918098449707,
+                "lk.end_of_turn_delay": 2.501051664352417
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "604d7325a9330757",
+            "parent_span_id": "040e2378a49bf749",
+            "name": "eou_detection",
+            "stage": "stt",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 42.064162,
+            "duration_s": 0.001551,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"item_d968778126cc\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_d575c355eb26\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Hey man, what's up? How are you? How are you doing?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_260dbadb246b\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_728efbe3a6ba\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"What sort of appointment are we talking about here?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_3cf6640af4fd\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Who are you? Who are you?\"], \"interrupted\": false, \"extra\": {}}]}",
+                "lk.eou.endpointing_delay": 2.5,
+                "lk.eou.language": "en",
+                "lk.eou.source": "stt",
+                "lk.eou.from_cache": true,
+                "lk.eou.probability": 0.18795260787010193,
+                "lk.eou.unlikely_threshold": 0.56,
+                "lk.eou.detection_delay": 0.135
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "f99a31cdee8da716",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "agent_turn",
+            "stage": "unknown",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 43.264611,
+            "duration_s": 11.237542,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.generation_id": "speech_39964ce63160_1",
+                "lk.speech_id": "speech_39964ce63160",
+                "lk.pii.user_input": "Who are you? Who are you?",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT",
+                "lk.e2e_latency": 5.0682690143585205,
+                "turn.interrupted": true,
+                "lk.pii.response.text": "I'm your friendly assistant here to confirm your appointment. How"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "88a65f2cbf30c552",
+            "parent_span_id": "f99a31cdee8da716",
+            "name": "llm_node",
+            "stage": "llm",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 43.265109,
+            "duration_s": 1.126162,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"lk.agent_task.instructions\", \"type\": \"message\", \"role\": \"system\", \"content\": [\"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_745bb1c0589a\", \"type\": \"agent_config_update\", \"instructions\": \"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"}, {\"id\": \"item_d968778126cc\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_d575c355eb26\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Hey man, what's up? How are you? How are you doing?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_260dbadb246b\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_728efbe3a6ba\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"What sort of appointment are we talking about here?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_f75629628ed7\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_69bf9b0b7fc6\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Who are you? Who are you?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}]}",
+                "lk.function_tools": [],
+                "lk.provider_tools": [],
+                "lk.tool_sets": [],
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.response.text": "I'm your friendly assistant here to confirm your appointment. How can I assist you today?",
+                "lk.pii.response.function_calls": "[]",
+                "metrics.ttft": 0.8743253749853466
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "f631477fc4c95c03",
+            "parent_span_id": "88a65f2cbf30c552",
+            "name": "llm_request",
+            "stage": "llm",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 43.265294,
+            "duration_s": 1.125782,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.llm_metrics": "{\"type\":\"llm_metrics\",\"label\":\"livekit.plugins.openai.llm.LLM\",\"request_id\":\"chatcmpl-EJXeqgaSVHtqyaOIvA5Lwh0gVxwJ7\",\"timestamp\":1788326320.662734,\"duration\":1.1243167920038104,\"ttft\":0.8744074999995064,\"cancelled\":false,\"completion_tokens\":17,\"prompt_tokens\":160,\"prompt_cached_tokens\":0,\"cache_creation_tokens\":0,\"total_tokens\":177,\"tokens_per_second\":15.12029360488497,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini\",\"model_provider\":\"api.openai.com\"}}",
+                "gen_ai.operation.name": "chat",
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "gen_ai.usage.input_tokens": 160,
+                "gen_ai.usage.cache_read.input_tokens": 0,
+                "gen_ai.usage.output_tokens": 17,
+                "langfuse.observation.completion_start_time": "\"2026-09-02T05:18:40.412825+00:00\""
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": [
+                {
+                    "name": "gen_ai.system.message",
+                    "t_offset_s": 43.265306,
+                    "attrs": {
+                        "content": "You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short."
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 43.265309,
+                    "attrs": {
+                        "content": "Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 43.26531,
+                    "attrs": {
+                        "content": "Hey man, what's up? How are you? How are you doing?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 43.265312,
+                    "attrs": {
+                        "content": "Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 43.265313,
+                    "attrs": {
+                        "content": "What sort of appointment are we talking about here?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 43.265314,
+                    "attrs": {
+                        "content": "I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 43.265315,
+                    "attrs": {
+                        "content": "Who are you? Who are you?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.choice",
+                    "t_offset_s": 44.389741,
+                    "attrs": {
+                        "role": "assistant",
+                        "content": "I'm your friendly assistant here to confirm your appointment. How can I assist you today?"
+                    },
+                    "content_text": null
+                }
+            ]
+        },
+        {
+            "span_id": "1aa2c6681a4f2b78",
+            "parent_span_id": "f631477fc4c95c03",
+            "name": "llm_request_run",
+            "stage": "unknown",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 43.26533,
+            "duration_s": 1.124009,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "chatcmpl-EJXeqgaSVHtqyaOIvA5Lwh0gVxwJ7"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "c9ae90111d39eb2f",
+            "parent_span_id": "f99a31cdee8da716",
+            "name": "tts_node",
+            "stage": "tts",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 44.14013,
+            "duration_s": 3.926524,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "gen_ai.request.model": "gpt-4o-mini-tts",
+                "gen_ai.provider.name": "api.openai.com",
+                "metrics.ttfb": 1.2764591250161175
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "54c3aa57ae5a4e01",
+            "parent_span_id": "c9ae90111d39eb2f",
+            "name": "tts_stream_adapter",
+            "stage": "unknown",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 44.140661,
+            "duration_s": 3.925919,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": true,
+                "lk.tts.label": "livekit.agents.tts.stream_adapter.StreamAdapter",
+                "lk.pii.input_text": "I'm your friendly assistant here to confirm your appointment. How can I assist you today?"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "94463670a662c443",
+            "parent_span_id": "54c3aa57ae5a4e01",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 44.140714,
+            "duration_s": 3.92522,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "34528160d67c"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "0fdb614886dd3b22",
+            "parent_span_id": "94463670a662c443",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 44.23751,
+            "duration_s": 2.073012,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "I'm your friendly assistant here to confirm your appointment.",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_097e02961ed443ca99bd101cd437c2d3\",\"timestamp\":1788326322.583018,\"ttfb\":1.2756571250210982,\"duration\":2.0725038750097156,\"audio_duration\":3.7440000000000007,\"cancelled\":false,\"characters_count\":61,\"input_tokens\":10,\"output_tokens\":96,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "28422b28a10d3cc7",
+            "parent_span_id": "0fdb614886dd3b22",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 44.237574,
+            "duration_s": 2.042372,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "aed35433d9732cd2",
+            "parent_span_id": "f99a31cdee8da716",
+            "name": "agent_speaking",
+            "stage": "playout",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 45.831282,
+            "duration_s": 4.111908,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "e9edc7d294c151fe",
+            "parent_span_id": "94463670a662c443",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 46.310693,
+            "duration_s": 1.75151,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "How can I assist you today?",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_23cb3c632daa4c26a09d451fb8df4d68\",\"timestamp\":1788326324.333932,\"ttfb\":0.9258467920008115,\"duration\":1.750157083995873,\"audio_duration\":1.896,\"cancelled\":false,\"characters_count\":27,\"input_tokens\":7,\"output_tokens\":54,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "d4647139556a385a",
+            "parent_span_id": "e9edc7d294c151fe",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "040e2378a49bf749",
+            "t_start_s": 46.31073,
+            "duration_s": 1.726417,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "ceb289daf15c41a5",
+            "parent_span_id": "44911036e4906ac7",
+            "name": "user_speaking",
+            "stage": "unknown",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 49.623145,
+            "duration_s": 3.488737,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD",
+                "lk.is_interruption": "true",
+                "lk.interruption.probability": 0.8466403484344482,
+                "lk.interruption.total_duration": 0.155454583,
+                "lk.interruption.prediction_duration": 0.019800168,
+                "lk.interruption.detection_delay": 0.31916213035583496
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "44911036e4906ac7",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "user_turn",
+            "stage": "turn",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 49.623145,
+            "duration_s": 4.872713,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD",
+                "gen_ai.request.model": "gpt-4o-mini-transcribe",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.user_transcript": "But for what appointment, dude? What appointment are you talking about?",
+                "lk.transcript_confidence": 0.0,
+                "lk.transcription_delay": 1.3812460899353027,
+                "lk.end_of_turn_delay": 1.3834271430969238
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "420466b23188be34",
+            "parent_span_id": "44911036e4906ac7",
+            "name": "eou_detection",
+            "stage": "stt",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 54.494097,
+            "duration_s": 0.001525,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"item_d575c355eb26\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Hey man, what's up? How are you? How are you doing?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_260dbadb246b\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_728efbe3a6ba\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"What sort of appointment are we talking about here?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_f75629628ed7\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_69bf9b0b7fc6\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Who are you? Who are you?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_14741f37daca\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"But for what appointment, dude? What appointment are you talking about?\"], \"interrupted\": false, \"extra\": {}}]}",
+                "lk.eou.endpointing_delay": 0.3,
+                "lk.eou.language": "en",
+                "lk.eou.source": "stt",
+                "lk.eou.from_cache": true,
+                "lk.eou.probability": 0.9737909436225891,
+                "lk.eou.unlikely_threshold": 0.56,
+                "lk.eou.detection_delay": 0.131
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "17c20b32e5a96f3e",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "agent_turn",
+            "stage": "unknown",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 54.503612,
+            "duration_s": 26.426175,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.generation_id": "speech_33a414823b84_1",
+                "lk.speech_id": "speech_33a414823b84",
+                "lk.pii.user_input": "But for what appointment, dude? What appointment are you talking about?",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT",
+                "lk.e2e_latency": 3.919952869415283,
+                "turn.interrupted": true,
+                "lk.pii.response.text": "I apologize for the confusion! I\u2019m here to confirm your scheduled appointment, but I don\u2019t have the specific"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "d0f83f2cae7eab8c",
+            "parent_span_id": "17c20b32e5a96f3e",
+            "name": "llm_node",
+            "stage": "llm",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 54.505293,
+            "duration_s": 1.162415,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"lk.agent_task.instructions\", \"type\": \"message\", \"role\": \"system\", \"content\": [\"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_745bb1c0589a\", \"type\": \"agent_config_update\", \"instructions\": \"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"}, {\"id\": \"item_d968778126cc\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_d575c355eb26\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Hey man, what's up? How are you? How are you doing?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_260dbadb246b\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_728efbe3a6ba\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"What sort of appointment are we talking about here?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_f75629628ed7\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_69bf9b0b7fc6\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Who are you? Who are you?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_7c15d3aaa3e8\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I'm your friendly assistant here to confirm your appointment. How\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_c3b2b09d29b9\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"But for what appointment, dude? What appointment are you talking about?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}]}",
+                "lk.function_tools": [],
+                "lk.provider_tools": [],
+                "lk.tool_sets": [],
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.response.text": "I apologize for the confusion! I\u2019m here to confirm your scheduled appointment, but I don\u2019t have the specific details. Could you remind me of the appointment, please?",
+                "lk.pii.response.function_calls": "[]",
+                "metrics.ttft": 0.8971452499972656
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "564ec50baa4842d3",
+            "parent_span_id": "d0f83f2cae7eab8c",
+            "name": "llm_request",
+            "stage": "llm",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 54.506236,
+            "duration_s": 1.161365,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.llm_metrics": "{\"type\":\"llm_metrics\",\"label\":\"livekit.plugins.openai.llm.LLM\",\"request_id\":\"chatcmpl-EJXf1Fqy8OeR7b6ow58mQ3xph0inQ\",\"timestamp\":1788326331.9395149,\"duration\":1.1602133330015931,\"ttft\":0.896355125005357,\"cancelled\":false,\"completion_tokens\":34,\"prompt_tokens\":193,\"prompt_cached_tokens\":0,\"cache_creation_tokens\":0,\"total_tokens\":227,\"tokens_per_second\":29.304955418878393,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini\",\"model_provider\":\"api.openai.com\"}}",
+                "gen_ai.operation.name": "chat",
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "gen_ai.usage.input_tokens": 193,
+                "gen_ai.usage.cache_read.input_tokens": 0,
+                "gen_ai.usage.output_tokens": 34,
+                "langfuse.observation.completion_start_time": "\"2026-09-02T05:18:51.675658+00:00\""
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": [
+                {
+                    "name": "gen_ai.system.message",
+                    "t_offset_s": 54.506275,
+                    "attrs": {
+                        "content": "You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short."
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 54.506284,
+                    "attrs": {
+                        "content": "Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 54.506287,
+                    "attrs": {
+                        "content": "Hey man, what's up? How are you? How are you doing?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 54.50629,
+                    "attrs": {
+                        "content": "Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 54.506293,
+                    "attrs": {
+                        "content": "What sort of appointment are we talking about here?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 54.506296,
+                    "attrs": {
+                        "content": "I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 54.506299,
+                    "attrs": {
+                        "content": "Who are you? Who are you?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 54.506301,
+                    "attrs": {
+                        "content": "I'm your friendly assistant here to confirm your appointment. How"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 54.506304,
+                    "attrs": {
+                        "content": "But for what appointment, dude? What appointment are you talking about?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.choice",
+                    "t_offset_s": 55.666519,
+                    "attrs": {
+                        "role": "assistant",
+                        "content": "I apologize for the confusion! I\u2019m here to confirm your scheduled appointment, but I don\u2019t have the specific details. Could you remind me of the appointment, please?"
+                    },
+                    "content_text": null
+                }
+            ]
+        },
+        {
+            "span_id": "c2535bd76151f6b8",
+            "parent_span_id": "564ec50baa4842d3",
+            "name": "llm_request_run",
+            "stage": "unknown",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 54.506344,
+            "duration_s": 1.159523,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "chatcmpl-EJXf1Fqy8OeR7b6ow58mQ3xph0inQ"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "d01c69ed966dded2",
+            "parent_span_id": "17c20b32e5a96f3e",
+            "name": "tts_node",
+            "stage": "tts",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 55.402941,
+            "duration_s": 6.101167,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "gen_ai.request.model": "gpt-4o-mini-tts",
+                "gen_ai.provider.name": "api.openai.com",
+                "metrics.ttfb": 1.5044344579800963
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "db9fc171c6bb63f2",
+            "parent_span_id": "d01c69ed966dded2",
+            "name": "tts_stream_adapter",
+            "stage": "unknown",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 55.403594,
+            "duration_s": 6.100443,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": true,
+                "lk.tts.label": "livekit.agents.tts.stream_adapter.StreamAdapter",
+                "lk.pii.input_text": "I apologize for the confusion! I\u2019m here to confirm your scheduled appointment, but I don\u2019t have the specific details. Could you remind me of the appointment, please?"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "d2e7b4cf62827aa6",
+            "parent_span_id": "db9fc171c6bb63f2",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 55.403678,
+            "duration_s": 6.099631,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "9cb0d4b2ddd5"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "73a925828f559dc9",
+            "parent_span_id": "d2e7b4cf62827aa6",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 55.438626,
+            "duration_s": 2.141505,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "I apologize for the confusion!",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_a3232aaa1a12474b8c0ebfdb598d0d8d\",\"timestamp\":1788326333.8524659,\"ttfb\":1.5035924580006395,\"duration\":2.1408477920049336,\"audio_duration\":2.5919999999999996,\"cancelled\":false,\"characters_count\":30,\"input_tokens\":6,\"output_tokens\":67,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "a21d4fabc6583f60",
+            "parent_span_id": "73a925828f559dc9",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 55.438701,
+            "duration_s": 2.133392,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "f22d443e7bb0f265",
+            "parent_span_id": "17c20b32e5a96f3e",
+            "name": "agent_speaking",
+            "stage": "playout",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 57.032181,
+            "duration_s": 5.844888,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "ce8789eeafe1631d",
+            "parent_span_id": "d2e7b4cf62827aa6",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 57.580323,
+            "duration_s": 2.112543,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "I\u2019m here to confirm your scheduled appointment, but I don\u2019t have the specific details.",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_c2cbc4168bf34fcbbf2f013e74f220bc\",\"timestamp\":1788326335.965096,\"ttfb\":0.8842263330006972,\"duration\":2.1117004579864442,\"audio_duration\":4.824000000000002,\"cancelled\":false,\"characters_count\":86,\"input_tokens\":18,\"output_tokens\":124,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "167b463446a0be9b",
+            "parent_span_id": "ce8789eeafe1631d",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 57.580369,
+            "duration_s": 2.083356,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "5e45bbd597726d89",
+            "parent_span_id": "d2e7b4cf62827aa6",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 59.693122,
+            "duration_s": 1.808811,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "Could you remind me of the appointment, please?",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_0730967d1b854eb290b89a5db63e097c\",\"timestamp\":1788326337.774328,\"ttfb\":0.8736849580018315,\"duration\":1.8081549580092542,\"audio_duration\":2.8800000000000003,\"cancelled\":false,\"characters_count\":47,\"input_tokens\":10,\"output_tokens\":77,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "db7c9fdf50de1640",
+            "parent_span_id": "5e45bbd597726d89",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "44911036e4906ac7",
+            "t_start_s": 59.69317,
+            "duration_s": 1.774569,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "85a86a9f1bf9a541",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "user_turn",
+            "stage": "turn",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 62.675053,
+            "duration_s": 18.251903,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD",
+                "gen_ai.request.model": "gpt-4o-mini-transcribe",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.user_transcript": "Can you open for what? Are you talking about my dentist? Are you talking about my weekly ortho visit or what? What are you even talking about here? Please be more specific. Okay, are you talking about appointment, but for what appointment? Are you calling from my doctor's office? Are you calling from my dentist's office? Where are you calling from?",
+                "lk.transcript_confidence": 0.0,
+                "lk.transcription_delay": 2.011884927749634,
+                "lk.end_of_turn_delay": 2.013154983520508
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "a3addd00b76e54de",
+            "parent_span_id": "85a86a9f1bf9a541",
+            "name": "user_speaking",
+            "stage": "unknown",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 62.675053,
+            "duration_s": 16.238098,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD",
+                "lk.is_interruption": "true",
+                "lk.interruption.probability": 0.7634492516517639,
+                "lk.interruption.total_duration": 0.038729625,
+                "lk.interruption.prediction_duration": 0.021000197,
+                "lk.interruption.detection_delay": 0.20109081268310547
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "393ee526866dff7c",
+            "parent_span_id": "85a86a9f1bf9a541",
+            "name": "eou_detection",
+            "stage": "stt",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 80.925914,
+            "duration_s": 0.000937,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"item_728efbe3a6ba\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"What sort of appointment are we talking about here?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_f75629628ed7\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_69bf9b0b7fc6\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Who are you? Who are you?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_7c15d3aaa3e8\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I'm your friendly assistant here to confirm your appointment. How\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_c3b2b09d29b9\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"But for what appointment, dude? What appointment are you talking about?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_06154d780023\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Can you open for what? Are you talking about my dentist? Are you talking about my weekly ortho visit or what? What are you even talking about here? Please be more specific. Okay, are you talking about appointment, but for what appointment? Are you calling from my doctor's office? Are you calling from my dentist's office? Where are you calling from?\"], \"interrupted\": false, \"extra\": {}}]}",
+                "lk.eou.endpointing_delay": 0.3,
+                "lk.eou.language": "en",
+                "lk.eou.source": "stt",
+                "lk.eou.from_cache": true,
+                "lk.eou.probability": 0.9848864674568176,
+                "lk.eou.unlikely_threshold": 0.56,
+                "lk.eou.detection_delay": 0.235
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "d0f61d80c373b6af",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "agent_turn",
+            "stage": "unknown",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 80.930549,
+            "duration_s": 21.850964,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.generation_id": "speech_2df7361efd1b_1",
+                "lk.speech_id": "speech_2df7361efd1b",
+                "lk.pii.user_input": "Can you open for what? Are you talking about my dentist? Are you talking about my weekly ortho visit or what? What are you even talking about here? Please be more specific. Okay, are you talking about appointment, but for what appointment? Are you calling from my doctor's office? Are you calling from my dentist's office? Where are you calling from?",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT",
+                "lk.e2e_latency": 4.207274913787842,
+                "turn.interrupted": true,
+                "lk.pii.response.text": "I understand, and I apologize for the confusion! I don\u2019t have the specific details of your appointment. Can you please let me know which office you scheduled"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "59458f0eccb525b7",
+            "parent_span_id": "d0f61d80c373b6af",
+            "name": "llm_node",
+            "stage": "llm",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 80.931272,
+            "duration_s": 1.234624,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"lk.agent_task.instructions\", \"type\": \"message\", \"role\": \"system\", \"content\": [\"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_745bb1c0589a\", \"type\": \"agent_config_update\", \"instructions\": \"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"}, {\"id\": \"item_d968778126cc\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_d575c355eb26\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Hey man, what's up? How are you? How are you doing?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_260dbadb246b\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_728efbe3a6ba\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"What sort of appointment are we talking about here?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_f75629628ed7\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_69bf9b0b7fc6\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Who are you? Who are you?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_7c15d3aaa3e8\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I'm your friendly assistant here to confirm your appointment. How\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_c3b2b09d29b9\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"But for what appointment, dude? What appointment are you talking about?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_ed9a5d88c1ec\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I apologize for the confusion! I\\u2019m here to confirm your scheduled appointment, but I don\\u2019t have the specific\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_a4a5769daa23\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Can you open for what? Are you talking about my dentist? Are you talking about my weekly ortho visit or what? What are you even talking about here? Please be more specific. Okay, are you talking about appointment, but for what appointment? Are you calling from my doctor's office? Are you calling from my dentist's office? Where are you calling from?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}]}",
+                "lk.function_tools": [],
+                "lk.provider_tools": [],
+                "lk.tool_sets": [],
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.response.text": "I understand, and I apologize for the confusion! I don\u2019t have the specific details of your appointment. Can you please let me know which office you scheduled with? That way, I can assist you better!",
+                "lk.pii.response.function_calls": "[]",
+                "metrics.ttft": 0.8783224590006284
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "285e3f166db4542a",
+            "parent_span_id": "59458f0eccb525b7",
+            "name": "llm_request",
+            "stage": "llm",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 80.931545,
+            "duration_s": 1.234224,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.llm_metrics": "{\"type\":\"llm_metrics\",\"label\":\"livekit.plugins.openai.llm.LLM\",\"request_id\":\"chatcmpl-EJXfR0ExkS0juldiFnLS4m3Kt3eSP\",\"timestamp\":1788326358.4376929,\"duration\":1.2330284579948056,\"ttft\":0.8781050409888849,\"cancelled\":false,\"completion_tokens\":42,\"prompt_tokens\":297,\"prompt_cached_tokens\":0,\"cache_creation_tokens\":0,\"total_tokens\":339,\"tokens_per_second\":34.06247416892703,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini\",\"model_provider\":\"api.openai.com\"}}",
+                "gen_ai.operation.name": "chat",
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "gen_ai.usage.input_tokens": 297,
+                "gen_ai.usage.cache_read.input_tokens": 0,
+                "gen_ai.usage.output_tokens": 42,
+                "langfuse.observation.completion_start_time": "\"2026-09-02T05:19:18.082769+00:00\""
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": [
+                {
+                    "name": "gen_ai.system.message",
+                    "t_offset_s": 80.931565,
+                    "attrs": {
+                        "content": "You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short."
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 80.931569,
+                    "attrs": {
+                        "content": "Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 80.931571,
+                    "attrs": {
+                        "content": "Hey man, what's up? How are you? How are you doing?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 80.931572,
+                    "attrs": {
+                        "content": "Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 80.931574,
+                    "attrs": {
+                        "content": "What sort of appointment are we talking about here?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 80.931575,
+                    "attrs": {
+                        "content": "I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 80.931577,
+                    "attrs": {
+                        "content": "Who are you? Who are you?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 80.931578,
+                    "attrs": {
+                        "content": "I'm your friendly assistant here to confirm your appointment. How"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 80.931579,
+                    "attrs": {
+                        "content": "But for what appointment, dude? What appointment are you talking about?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 80.931581,
+                    "attrs": {
+                        "content": "I apologize for the confusion! I\u2019m here to confirm your scheduled appointment, but I don\u2019t have the specific"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 80.931582,
+                    "attrs": {
+                        "content": "Can you open for what? Are you talking about my dentist? Are you talking about my weekly ortho visit or what? What are you even talking about here? Please be more specific. Okay, are you talking about appointment, but for what appointment? Are you calling from my doctor's office? Are you calling from my dentist's office? Where are you calling from?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.choice",
+                    "t_offset_s": 82.164724,
+                    "attrs": {
+                        "role": "assistant",
+                        "content": "I understand, and I apologize for the confusion! I don\u2019t have the specific details of your appointment. Can you please let me know which office you scheduled with? That way, I can assist you better!"
+                    },
+                    "content_text": null
+                }
+            ]
+        },
+        {
+            "span_id": "858a59246d038a97",
+            "parent_span_id": "285e3f166db4542a",
+            "name": "llm_request_run",
+            "stage": "unknown",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 80.931601,
+            "duration_s": 1.232678,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "chatcmpl-EJXfR0ExkS0juldiFnLS4m3Kt3eSP"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "1ea3cc9b10742c3d",
+            "parent_span_id": "d0f61d80c373b6af",
+            "name": "tts_node",
+            "stage": "tts",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 81.809776,
+            "duration_s": 7.36858,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "gen_ai.request.model": "gpt-4o-mini-tts",
+                "gen_ai.provider.name": "api.openai.com",
+                "metrics.ttfb": 0.8382688749989029
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "61a00b6f3e703878",
+            "parent_span_id": "1ea3cc9b10742c3d",
+            "name": "tts_stream_adapter",
+            "stage": "unknown",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 81.809988,
+            "duration_s": 7.368284,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": true,
+                "lk.tts.label": "livekit.agents.tts.stream_adapter.StreamAdapter",
+                "lk.pii.input_text": "I understand, and I apologize for the confusion! I don\u2019t have the specific details of your appointment. Can you please let me know which office you scheduled with? That way, I can assist you better!"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "a3dccfceb1956a39",
+            "parent_span_id": "61a00b6f3e703878",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 81.81001,
+            "duration_s": 7.367414,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "1ad62baf9b30"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "61ee0510eb0e9a2d",
+            "parent_span_id": "a3dccfceb1956a39",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 81.906803,
+            "duration_s": 1.618699,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "I understand, and I apologize for the confusion!",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_9acb4709dea14f2bbae0ee837446a575\",\"timestamp\":1788326359.798236,\"ttfb\":0.837773000006564,\"duration\":1.618368333001854,\"audio_duration\":3.4800000000000004,\"cancelled\":false,\"characters_count\":48,\"input_tokens\":10,\"output_tokens\":91,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "0131aa8b825afd10",
+            "parent_span_id": "61ee0510eb0e9a2d",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 81.906852,
+            "duration_s": 1.61276,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "b6ef9090bed0bd8a",
+            "parent_span_id": "d0f61d80c373b6af",
+            "name": "agent_speaking",
+            "stage": "playout",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 83.120983,
+            "duration_s": 10.91479,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "9dc606aa50a3b5dc",
+            "parent_span_id": "a3dccfceb1956a39",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 83.52561,
+            "duration_s": 2.177091,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "I don\u2019t have the specific details of your appointment.",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_b25d5974fce749a09dd4de3b6c583526\",\"timestamp\":1788326361.975372,\"ttfb\":1.5631600419874303,\"duration\":2.1766575829824433,\"audio_duration\":2.976,\"cancelled\":false,\"characters_count\":54,\"input_tokens\":11,\"output_tokens\":81,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "b6e13f4fcbcdfd40",
+            "parent_span_id": "9dc606aa50a3b5dc",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 83.525633,
+            "duration_s": 2.163916,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "24600dc445657f69",
+            "parent_span_id": "a3dccfceb1956a39",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 85.702936,
+            "duration_s": 1.827656,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "Can you please let me know which office you scheduled with?",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_1d6f5232506846cea6dfd3a954db2de0\",\"timestamp\":1788326363.803025,\"ttfb\":1.0232034999935422,\"duration\":1.827022916986607,\"audio_duration\":4.224000000000001,\"cancelled\":false,\"characters_count\":59,\"input_tokens\":12,\"output_tokens\":108,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "a0b63fa65fb77422",
+            "parent_span_id": "24600dc445657f69",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 85.702989,
+            "duration_s": 1.822197,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "bb1f6b14c453f8b4",
+            "parent_span_id": "a3dccfceb1956a39",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 87.530742,
+            "duration_s": 1.644843,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "That way, I can assist you better!",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_f94ea490238b483c851bf5ca18673260\",\"timestamp\":1788326365.4480178,\"ttfb\":0.9640089170134161,\"duration\":1.6441892920120154,\"audio_duration\":2.6879999999999997,\"cancelled\":false,\"characters_count\":34,\"input_tokens\":9,\"output_tokens\":74,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "2969e0345e5dbe64",
+            "parent_span_id": "bb1f6b14c453f8b4",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "85a86a9f1bf9a541",
+            "t_start_s": 87.530774,
+            "duration_s": 1.625625,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "0ac4c0e618490b41",
+            "parent_span_id": "3139c105938080ee",
+            "name": "user_speaking",
+            "stage": "unknown",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 93.771764,
+            "duration_s": 7.541237,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD",
+                "lk.is_interruption": "true",
+                "lk.interruption.probability": 0.7293136715888977,
+                "lk.interruption.total_duration": 0.097311292,
+                "lk.interruption.prediction_duration": 0.01908684,
+                "lk.interruption.detection_delay": 0.2625298500061035
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "3139c105938080ee",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "user_turn",
+            "stage": "turn",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 93.771764,
+            "duration_s": 9.713915,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD",
+                "gen_ai.request.model": "gpt-4o-mini-transcribe",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.user_transcript": "Okay, so you're just here to scam me out, right? You're just scamming me here. Do not ever call me back again. You sure about that?",
+                "lk.transcript_confidence": 0.0,
+                "lk.transcription_delay": 0,
+                "lk.end_of_turn_delay": 0.576469898223877
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "6d59777dc7c12fcf",
+            "parent_span_id": "3139c105938080ee",
+            "name": "user_speaking",
+            "stage": "unknown",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 102.174254,
+            "duration_s": 0.734812,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "d1c9f6f96f19e440",
+            "parent_span_id": "3139c105938080ee",
+            "name": "eou_detection",
+            "stage": "stt",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 103.485329,
+            "duration_s": 0.000281,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"item_7c15d3aaa3e8\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I'm your friendly assistant here to confirm your appointment. How\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_c3b2b09d29b9\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"But for what appointment, dude? What appointment are you talking about?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_ed9a5d88c1ec\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I apologize for the confusion! I\\u2019m here to confirm your scheduled appointment, but I don\\u2019t have the specific\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_a4a5769daa23\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Can you open for what? Are you talking about my dentist? Are you talking about my weekly ortho visit or what? What are you even talking about here? Please be more specific. Okay, are you talking about appointment, but for what appointment? Are you calling from my doctor's office? Are you calling from my dentist's office? Where are you calling from?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_9a8bab774ba9\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I understand, and I apologize for the confusion! I don\\u2019t have the specific details of your appointment. Can you please let me know which office you scheduled\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_e5e5c36ef07b\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Okay, so you're just here to scam me out, right? You're just scamming me here. Do not ever call me back again. You sure about that?\"], \"interrupted\": false, \"extra\": {}}]}",
+                "lk.eou.endpointing_delay": 0.3,
+                "lk.eou.language": "en",
+                "lk.eou.source": "vad",
+                "lk.eou.from_cache": true,
+                "lk.eou.probability": 0.8882308006286621,
+                "lk.eou.unlikely_threshold": 0.56,
+                "lk.eou.detection_delay": 0.191
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "d12d02b225eb5050",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "agent_turn",
+            "stage": "unknown",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 103.486873,
+            "duration_s": 2.274048,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.generation_id": "speech_0dd1f3c29033_1",
+                "lk.speech_id": "speech_0dd1f3c29033",
+                "lk.pii.user_input": "Okay, so you're just here to scam me out, right? You're just scamming me here. Do not ever call me back again. You sure about that?",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT",
+                "lk.e2e_latency": 2.6623919010162354,
+                "turn.interrupted": true
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "e0fcdea2436f9c0d",
+            "parent_span_id": "d12d02b225eb5050",
+            "name": "llm_node",
+            "stage": "llm",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 103.487552,
+            "duration_s": 0.951332,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"lk.agent_task.instructions\", \"type\": \"message\", \"role\": \"system\", \"content\": [\"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_745bb1c0589a\", \"type\": \"agent_config_update\", \"instructions\": \"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"}, {\"id\": \"item_d968778126cc\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_d575c355eb26\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Hey man, what's up? How are you? How are you doing?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_260dbadb246b\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_728efbe3a6ba\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"What sort of appointment are we talking about here?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_f75629628ed7\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_69bf9b0b7fc6\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Who are you? Who are you?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_7c15d3aaa3e8\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I'm your friendly assistant here to confirm your appointment. How\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_c3b2b09d29b9\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"But for what appointment, dude? What appointment are you talking about?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_ed9a5d88c1ec\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I apologize for the confusion! I\\u2019m here to confirm your scheduled appointment, but I don\\u2019t have the specific\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_a4a5769daa23\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Can you open for what? Are you talking about my dentist? Are you talking about my weekly ortho visit or what? What are you even talking about here? Please be more specific. Okay, are you talking about appointment, but for what appointment? Are you calling from my doctor's office? Are you calling from my dentist's office? Where are you calling from?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_9a8bab774ba9\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I understand, and I apologize for the confusion! I don\\u2019t have the specific details of your appointment. Can you please let me know which office you scheduled\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_493b5b14105f\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Okay, so you're just here to scam me out, right? You're just scamming me here. Do not ever call me back again. You sure about that?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}]}",
+                "lk.function_tools": [],
+                "lk.provider_tools": [],
+                "lk.tool_sets": [],
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.response.text": "I\u2019m really sorry for any misunderstanding! That\u2019s not my intention at all. I just wanted to confirm an appointment. I won\u2019t call you again. Thank you for your time!",
+                "lk.pii.response.function_calls": "[]",
+                "metrics.ttft": 0.6910877079935744
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "0c2f665f3c222cc8",
+            "parent_span_id": "e0fcdea2436f9c0d",
+            "name": "llm_request",
+            "stage": "llm",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 103.487806,
+            "duration_s": 0.950996,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.llm_metrics": "{\"type\":\"llm_metrics\",\"label\":\"livekit.plugins.openai.llm.LLM\",\"request_id\":\"chatcmpl-EJXfoyJ89d0NyDMzi71HbJaxadEHf\",\"timestamp\":1788326380.711201,\"duration\":0.9502721669850871,\"ttft\":0.6909125419915654,\"cancelled\":false,\"completion_tokens\":37,\"prompt_tokens\":369,\"prompt_cached_tokens\":0,\"cache_creation_tokens\":0,\"total_tokens\":406,\"tokens_per_second\":38.93621352437302,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini\",\"model_provider\":\"api.openai.com\"}}",
+                "gen_ai.operation.name": "chat",
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "gen_ai.usage.input_tokens": 369,
+                "gen_ai.usage.cache_read.input_tokens": 0,
+                "gen_ai.usage.output_tokens": 37,
+                "langfuse.observation.completion_start_time": "\"2026-09-02T05:19:40.451844+00:00\""
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": [
+                {
+                    "name": "gen_ai.system.message",
+                    "t_offset_s": 103.487821,
+                    "attrs": {
+                        "content": "You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short."
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 103.487824,
+                    "attrs": {
+                        "content": "Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 103.487825,
+                    "attrs": {
+                        "content": "Hey man, what's up? How are you? How are you doing?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 103.487826,
+                    "attrs": {
+                        "content": "Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 103.487827,
+                    "attrs": {
+                        "content": "What sort of appointment are we talking about here?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 103.487828,
+                    "attrs": {
+                        "content": "I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 103.487829,
+                    "attrs": {
+                        "content": "Who are you? Who are you?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 103.48783,
+                    "attrs": {
+                        "content": "I'm your friendly assistant here to confirm your appointment. How"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 103.487831,
+                    "attrs": {
+                        "content": "But for what appointment, dude? What appointment are you talking about?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 103.487832,
+                    "attrs": {
+                        "content": "I apologize for the confusion! I\u2019m here to confirm your scheduled appointment, but I don\u2019t have the specific"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 103.487833,
+                    "attrs": {
+                        "content": "Can you open for what? Are you talking about my dentist? Are you talking about my weekly ortho visit or what? What are you even talking about here? Please be more specific. Okay, are you talking about appointment, but for what appointment? Are you calling from my doctor's office? Are you calling from my dentist's office? Where are you calling from?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 103.487834,
+                    "attrs": {
+                        "content": "I understand, and I apologize for the confusion! I don\u2019t have the specific details of your appointment. Can you please let me know which office you scheduled"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 103.487835,
+                    "attrs": {
+                        "content": "Okay, so you're just here to scam me out, right? You're just scamming me here. Do not ever call me back again. You sure about that?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.choice",
+                    "t_offset_s": 104.43817,
+                    "attrs": {
+                        "role": "assistant",
+                        "content": "I\u2019m really sorry for any misunderstanding! That\u2019s not my intention at all. I just wanted to confirm an appointment. I won\u2019t call you again. Thank you for your time!"
+                    },
+                    "content_text": null
+                }
+            ]
+        },
+        {
+            "span_id": "ba6a02dfa6758c2f",
+            "parent_span_id": "0c2f665f3c222cc8",
+            "name": "llm_request_run",
+            "stage": "unknown",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 103.487848,
+            "duration_s": 0.949268,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "chatcmpl-EJXfoyJ89d0NyDMzi71HbJaxadEHf"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "c9b23f352090d6dc",
+            "parent_span_id": "d12d02b225eb5050",
+            "name": "tts_node",
+            "stage": "tts",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 104.179048,
+            "duration_s": 1.581641,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "gen_ai.request.model": "gpt-4o-mini-tts",
+                "gen_ai.provider.name": "api.openai.com",
+                "metrics.ttfb": 1.1198935420252383
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "07323ba9893d13e2",
+            "parent_span_id": "c9b23f352090d6dc",
+            "name": "tts_stream_adapter",
+            "stage": "unknown",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 104.179552,
+            "duration_s": 1.581022,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": true,
+                "lk.tts.label": "livekit.agents.tts.stream_adapter.StreamAdapter"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "ba4de4b2cfded917",
+            "parent_span_id": "07323ba9893d13e2",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 104.179653,
+            "duration_s": 1.580554,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "c67eb1aeb1e8"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "2b97e47e7169e274",
+            "parent_span_id": "ba4de4b2cfded917",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 104.263554,
+            "duration_s": 1.496362,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_cab5cc36083d41338f1506ef2eff7d25\",\"timestamp\":1788326382.032767,\"ttfb\":1.1192577090114355,\"duration\":1.4962189170182683,\"audio_duration\":0.6900000000000001,\"cancelled\":true,\"characters_count\":42,\"input_tokens\":0,\"output_tokens\":0,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "a1170db707d84a31",
+            "parent_span_id": "2b97e47e7169e274",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 104.263641,
+            "duration_s": 1.494779,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "7cc04f00f556c122",
+            "parent_span_id": "d12d02b225eb5050",
+            "name": "agent_speaking",
+            "stage": "playout",
+            "turn_id": "3139c105938080ee",
+            "t_start_s": 105.571538,
+            "duration_s": 0.181907,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "182b04c524bb369e",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "user_turn",
+            "stage": "turn",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 105.754169,
+            "duration_s": 0.301008,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_m5eEkfWZfUsF",
+                "lk.pii.participant_identity": "<local-participant>",
+                "lk.participant_kind": "PARTICIPANT_KIND_STANDARD",
+                "gen_ai.request.model": "gpt-4o-mini-transcribe",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.user_transcript": "You understand?",
+                "lk.transcript_confidence": 0.0,
+                "lk.transcription_delay": 0,
+                "lk.end_of_turn_delay": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "d5a618a7f941b0fc",
+            "parent_span_id": "182b04c524bb369e",
+            "name": "eou_detection",
+            "stage": "stt",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 105.754252,
+            "duration_s": 0.000238,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"item_c3b2b09d29b9\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"But for what appointment, dude? What appointment are you talking about?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_ed9a5d88c1ec\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I apologize for the confusion! I\\u2019m here to confirm your scheduled appointment, but I don\\u2019t have the specific\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_a4a5769daa23\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Can you open for what? Are you talking about my dentist? Are you talking about my weekly ortho visit or what? What are you even talking about here? Please be more specific. Okay, are you talking about appointment, but for what appointment? Are you calling from my doctor's office? Are you calling from my dentist's office? Where are you calling from?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_9a8bab774ba9\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I understand, and I apologize for the confusion! I don\\u2019t have the specific details of your appointment. Can you please let me know which office you scheduled\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_493b5b14105f\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Okay, so you're just here to scam me out, right? You're just scamming me here. Do not ever call me back again. You sure about that?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_7e9be0c381ab\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"You understand?\"], \"interrupted\": false, \"extra\": {}}]}",
+                "lk.eou.endpointing_delay": 0.3,
+                "lk.eou.language": "en",
+                "lk.eou.source": "stt",
+                "lk.eou.from_cache": false
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "9a1ab60c6d3b154b",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "agent_turn",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 106.057024,
+            "duration_s": 4.067855,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.generation_id": "speech_242e964561d0_1",
+                "lk.speech_id": "speech_242e964561d0",
+                "lk.pii.user_input": "You understand?",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT",
+                "turn.interrupted": true,
+                "lk.pii.response.text": "I completely understand"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "79345c02998b9d53",
+            "parent_span_id": "9a1ab60c6d3b154b",
+            "name": "llm_node",
+            "stage": "llm",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 106.058578,
+            "duration_s": 0.98063,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.pii.chat_ctx": "{\"items\": [{\"id\": \"lk.agent_task.instructions\", \"type\": \"message\", \"role\": \"system\", \"content\": [\"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_745bb1c0589a\", \"type\": \"agent_config_update\", \"instructions\": \"You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short.\"}, {\"id\": \"item_d968778126cc\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_d575c355eb26\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Hey man, what's up? How are you? How are you doing?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_260dbadb246b\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?\"], \"interrupted\": false, \"extra\": {}}, {\"id\": \"item_728efbe3a6ba\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"What sort of appointment are we talking about here?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_f75629628ed7\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_69bf9b0b7fc6\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Who are you? Who are you?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_7c15d3aaa3e8\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I'm your friendly assistant here to confirm your appointment. How\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_c3b2b09d29b9\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"But for what appointment, dude? What appointment are you talking about?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_ed9a5d88c1ec\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I apologize for the confusion! I\\u2019m here to confirm your scheduled appointment, but I don\\u2019t have the specific\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_a4a5769daa23\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Can you open for what? Are you talking about my dentist? Are you talking about my weekly ortho visit or what? What are you even talking about here? Please be more specific. Okay, are you talking about appointment, but for what appointment? Are you calling from my doctor's office? Are you calling from my dentist's office? Where are you calling from?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_9a8bab774ba9\", \"type\": \"message\", \"role\": \"assistant\", \"content\": [\"I understand, and I apologize for the confusion! I don\\u2019t have the specific details of your appointment. Can you please let me know which office you scheduled\"], \"interrupted\": true, \"extra\": {}}, {\"id\": \"item_493b5b14105f\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"Okay, so you're just here to scam me out, right? You're just scamming me here. Do not ever call me back again. You sure about that?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}, {\"id\": \"item_79c184410582\", \"type\": \"message\", \"role\": \"user\", \"content\": [\"You understand?\"], \"interrupted\": false, \"transcript_confidence\": 0.0, \"extra\": {}}]}",
+                "lk.function_tools": [],
+                "lk.provider_tools": [],
+                "lk.tool_sets": [],
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "lk.pii.response.text": "I completely understand your concern, and I\u2019m truly sorry for any confusion. I'm here to help, not to cause any issues. If you would like, I can assist you with confirming any details if you have them. Thank you for your patience!",
+                "lk.pii.response.function_calls": "[]",
+                "metrics.ttft": 0.6741421250044368
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "b8d06f02441e3a44",
+            "parent_span_id": "79345c02998b9d53",
+            "name": "llm_request",
+            "stage": "llm",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 106.059154,
+            "duration_s": 0.979943,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.llm_metrics": "{\"type\":\"llm_metrics\",\"label\":\"livekit.plugins.openai.llm.LLM\",\"request_id\":\"chatcmpl-EJXfqbCQJaoevtPOvOKyKC7jidijq\",\"timestamp\":1788326383.311218,\"duration\":0.9789651250175666,\"ttft\":0.6736965409945697,\"cancelled\":false,\"completion_tokens\":50,\"prompt_tokens\":376,\"prompt_cached_tokens\":0,\"cache_creation_tokens\":0,\"total_tokens\":426,\"tokens_per_second\":51.074342407348574,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini\",\"model_provider\":\"api.openai.com\"}}",
+                "gen_ai.operation.name": "chat",
+                "gen_ai.request.model": "gpt-4o-mini",
+                "gen_ai.provider.name": "api.openai.com",
+                "gen_ai.usage.input_tokens": 376,
+                "gen_ai.usage.cache_read.input_tokens": 0,
+                "gen_ai.usage.output_tokens": 50,
+                "langfuse.observation.completion_start_time": "\"2026-09-02T05:19:43.005952+00:00\""
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": [
+                {
+                    "name": "gen_ai.system.message",
+                    "t_offset_s": 106.059189,
+                    "attrs": {
+                        "content": "You are a friendly outbound assistant confirming an appointment. Greet the caller, ask if the time still works, and thank them. Keep replies short."
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 106.059198,
+                    "attrs": {
+                        "content": "Hello! Thank you for calling. I hope you're having a great day! I'm reaching out to confirm"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 106.059201,
+                    "attrs": {
+                        "content": "Hey man, what's up? How are you? How are you doing?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 106.059204,
+                    "attrs": {
+                        "content": "Hello! I'm doing well, thank you! Just here to confirm your appointment. Does the scheduled time still work for you?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 106.059207,
+                    "attrs": {
+                        "content": "What sort of appointment are we talking about here?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 106.059209,
+                    "attrs": {
+                        "content": "I'm confirming your upcoming appointment with us. Could you please provide me with the details, so I can assist"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 106.059212,
+                    "attrs": {
+                        "content": "Who are you? Who are you?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 106.059214,
+                    "attrs": {
+                        "content": "I'm your friendly assistant here to confirm your appointment. How"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 106.059217,
+                    "attrs": {
+                        "content": "But for what appointment, dude? What appointment are you talking about?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 106.05922,
+                    "attrs": {
+                        "content": "I apologize for the confusion! I\u2019m here to confirm your scheduled appointment, but I don\u2019t have the specific"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 106.059223,
+                    "attrs": {
+                        "content": "Can you open for what? Are you talking about my dentist? Are you talking about my weekly ortho visit or what? What are you even talking about here? Please be more specific. Okay, are you talking about appointment, but for what appointment? Are you calling from my doctor's office? Are you calling from my dentist's office? Where are you calling from?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.assistant.message",
+                    "t_offset_s": 106.059226,
+                    "attrs": {
+                        "content": "I understand, and I apologize for the confusion! I don\u2019t have the specific details of your appointment. Can you please let me know which office you scheduled"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 106.059229,
+                    "attrs": {
+                        "content": "Okay, so you're just here to scam me out, right? You're just scamming me here. Do not ever call me back again. You sure about that?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.user.message",
+                    "t_offset_s": 106.059232,
+                    "attrs": {
+                        "content": "You understand?"
+                    },
+                    "content_text": null
+                },
+                {
+                    "name": "gen_ai.choice",
+                    "t_offset_s": 107.038233,
+                    "attrs": {
+                        "role": "assistant",
+                        "content": "I completely understand your concern, and I\u2019m truly sorry for any confusion. I'm here to help, not to cause any issues. If you would like, I can assist you with confirming any details if you have them. Thank you for your patience!"
+                    },
+                    "content_text": null
+                }
+            ]
+        },
+        {
+            "span_id": "c6cb1b02f895aca6",
+            "parent_span_id": "b8d06f02441e3a44",
+            "name": "llm_request_run",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 106.059272,
+            "duration_s": 0.978368,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "chatcmpl-EJXfqbCQJaoevtPOvOKyKC7jidijq"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "b5643c4f18ec15b3",
+            "parent_span_id": "9a1ab60c6d3b154b",
+            "name": "tts_node",
+            "stage": "tts",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 106.733339,
+            "duration_s": 3.390221,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "gen_ai.request.model": "gpt-4o-mini-tts",
+                "gen_ai.provider.name": "api.openai.com",
+                "metrics.ttfb": 0.8055060000042431
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "887e9228f306430f",
+            "parent_span_id": "b5643c4f18ec15b3",
+            "name": "tts_stream_adapter",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 106.734009,
+            "duration_s": 3.38941,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": true,
+                "lk.tts.label": "livekit.agents.tts.stream_adapter.StreamAdapter"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "0e1599d8186132cf",
+            "parent_span_id": "887e9228f306430f",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 106.734113,
+            "duration_s": 3.388351,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0,
+                "lk.provider_request_ids": [
+                    "e86026558844"
+                ]
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "c8814e15d22ba53a",
+            "parent_span_id": "0e1599d8186132cf",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 106.991872,
+            "duration_s": 1.959104,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.pii.input_text": "I completely understand your concern, and I\u2019m truly sorry for any confusion.",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_2596779efca44d8481b6614af95dc363\",\"timestamp\":1788326385.2235782,\"ttfb\":0.8030217500054277,\"duration\":1.9586797500087414,\"audio_duration\":5.496000000000002,\"cancelled\":false,\"characters_count\":76,\"input_tokens\":15,\"output_tokens\":137,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "d2ebf7b7f5bbf918",
+            "parent_span_id": "c8814e15d22ba53a",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 106.991932,
+            "duration_s": 1.933684,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "a6096747163e1970",
+            "parent_span_id": "9a1ab60c6d3b154b",
+            "name": "agent_speaking",
+            "stage": "playout",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 108.120365,
+            "duration_s": 2.003667,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.participant_id": "PA_yA9Ugz8RmGA7",
+                "lk.pii.participant_identity": "agent-AJ_rg28eV2ZW796",
+                "lk.participant_kind": "PARTICIPANT_KIND_AGENT"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "d290dd2c52779b32",
+            "parent_span_id": "0e1599d8186132cf",
+            "name": "tts_request",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 108.951129,
+            "duration_s": 1.170306,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.tts.streaming": false,
+                "lk.tts.label": "livekit.plugins.openai.tts.TTS",
+                "lk.tts_metrics": "{\"type\":\"tts_metrics\",\"label\":\"livekit.plugins.openai.tts.TTS\",\"request_id\":\"req_ef2ddedfcd2547e2a044b3304517894f\",\"timestamp\":1788326386.394101,\"ttfb\":0.9401587080210447,\"duration\":1.1698785409971606,\"audio_duration\":0.05,\"cancelled\":true,\"characters_count\":42,\"input_tokens\":0,\"output_tokens\":0,\"streamed\":false,\"acquire_time\":0.0,\"connection_reused\":false,\"segment_id\":null,\"speech_id\":null,\"metadata\":{\"model_name\":\"gpt-4o-mini-tts\",\"model_provider\":\"api.openai.com\"}}"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "9ab8dcf572bcdaa1",
+            "parent_span_id": "d290dd2c52779b32",
+            "name": "tts_request_run",
+            "stage": "unknown",
+            "turn_id": "182b04c524bb369e",
+            "t_start_s": 108.951161,
+            "duration_s": 1.166565,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.retry_count": 0
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "620e346ab67b5267",
+            "parent_span_id": "112fae5ad17b8aca",
+            "name": "drain_agent_activity",
+            "stage": "unknown",
+            "turn_id": null,
+            "t_start_s": 110.125381,
+            "duration_s": 0.001828,
+            "attrs": {
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796",
+                "lk.agent_label": "default_agent"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        },
+        {
+            "span_id": "0389437e516d3492",
+            "parent_span_id": "620e346ab67b5267",
+            "name": "on_exit",
+            "stage": "unknown",
+            "turn_id": null,
+            "t_start_s": 110.125623,
+            "duration_s": 9e-06,
+            "attrs": {
+                "lk.agent_label": "default_agent",
+                "room_id": "RM_VxjGa5D8W23a",
+                "job_id": "AJ_rg28eV2ZW796"
+            },
+            "content_text": null,
+            "content_kind": null,
+            "events": []
+        }
+    ],
+    "peaks": {},
+    "audio": null,
+    "versions": {
+        "metric_version": 1,
+        "adapter_version": 1,
+        "app_version": "0.0.1"
+    }
+}

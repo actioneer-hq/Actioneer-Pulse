@@ -146,6 +146,7 @@ def _trust(call: Call, metrics: list[Metric]) -> dict:
     return {
         "spans_complete": call.spans_complete,
         "media_ready": call.media_ready,
+        "audio_analysis": cov is not None,  # the opt-in overlay ran (else OTLP-only)
         "capture_coverage": cov.samples if cov and cov.samples else {},
         "span_dropped_events": call.span_dropped_events,
         "unattributed_spans": call.unattributed_spans,
