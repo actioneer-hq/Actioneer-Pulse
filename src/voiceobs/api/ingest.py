@@ -94,11 +94,12 @@ def register_artifact(
         sha256=body.sha256, bytes=body.bytes, content_type=body.content_type,
         channels=body.channels, sample_rate=body.sample_rate,
     ))
-    if body.kind == "audio":
+    if body.kind.startswith("audio"):  # "audio" (stereo) or "audio_caller"/"audio_agent"
         call.media_ready = True
-        call.channel_map = body.channel_map
-        call.sample_rate = body.sample_rate
-        call.audio_t0_offset_s = body.t0_offset_s
+        call.channel_map = body.channel_map or call.channel_map
+        call.sample_rate = body.sample_rate or call.sample_rate
+        if body.t0_offset_s is not None:
+            call.audio_t0_offset_s = body.t0_offset_s
         if call.spans_complete:
             call.status = "ingested"
     call.last_activity_at = now()

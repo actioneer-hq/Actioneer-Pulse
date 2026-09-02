@@ -1,0 +1,5 @@
+# E2E LiveKit agent — install into its own venv, separate from the VO package.
+livekit-agents[openai,silero]>=1.0
+python-dotenv>=1.0
+opentelemetry-sdk>=1.25
+opentelemetry-exporter-otlp-proto-http>=1.25

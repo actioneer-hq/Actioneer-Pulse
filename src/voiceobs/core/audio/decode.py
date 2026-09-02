@@ -11,6 +11,33 @@ from pydantic import BaseModel, ConfigDict
 INT16_FULL_SCALE = 32768.0
 
 
+def combine_stereo(caller_wav: bytes, agent_wav: bytes) -> bytes:
+    """Two mono PCM16 WAVs -> one stereo WAV (ch0=caller, ch1=agent).
+
+    Producers that record per-track (LiveKit track egress) give two mono files; the
+    analysis wants one 2-channel stream. Both are assumed to start at the same instant
+    and share a sample rate; the shorter is zero-padded to the longer."""
+    with wave.open(io.BytesIO(caller_wav), "rb") as c, wave.open(io.BytesIO(agent_wav), "rb") as a:
+        sr = c.getframerate()
+        left = np.frombuffer(c.readframes(c.getnframes()), dtype="<i2")
+        right = np.frombuffer(a.readframes(a.getnframes()), dtype="<i2")
+
+    n = max(left.size, right.size)
+    left = np.pad(left, (0, n - left.size))
+    right = np.pad(right, (0, n - right.size))
+    interleaved = np.empty(n * 2, dtype="<i2")
+    interleaved[0::2] = left
+    interleaved[1::2] = right
+
+    out = io.BytesIO()
+    with wave.open(out, "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(sr)
+        w.writeframes(interleaved.tobytes())
+    return out.getvalue()
+
+
 class DecodedAudio(BaseModel):
     """Per-channel int16 samples keyed by speaker, plus the stream geometry."""
 

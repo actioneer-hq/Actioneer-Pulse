@@ -30,3 +30,5 @@ vas-contract.md
 src/voiceobs/api/static/
 ui/node_modules/
 docs/
+# e2e agent local venv
+tests/e2e/.venv/
