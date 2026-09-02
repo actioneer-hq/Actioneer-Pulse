@@ -7,7 +7,7 @@ import base64
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import session_dep
@@ -25,16 +25,11 @@ def list_calls(
     db: Session = Depends(session_dep),
     environment: str | None = None,
     status: str | None = None,
+    q: str | None = None,
     limit: int = Query(50, le=200),
 ) -> dict:
-    turns = (
-        select(func.count(Turn.id))
-        .where(Turn.call_id == Call.id)
-        .correlate(Call)
-        .scalar_subquery()
-    )
     stmt = (
-        select(Call, turns)
+        select(Call)
         # nulls_last: an unprocessed call has no started_at yet and would otherwise
         # sort to the top of every list forever.
         .order_by(Call.started_at.desc().nulls_last(), Call.created_at.desc())
@@ -44,7 +39,35 @@ def list_calls(
         stmt = stmt.where(Call.environment == environment)
     if status:
         stmt = stmt.where(Call.status == status)
-    return {"items": [_list_item(c, n) for c, n in db.execute(stmt)]}
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(Call.external_call_id.ilike(like) | Call.source.ilike(like))
+    calls = db.scalars(stmt).all()
+    stats = _turn_stats(db, [c.id for c in calls])
+    return {"items": [_list_item(c, stats.get(c.id)) for c in calls]}
+
+
+def _turn_stats(db: Session, call_ids: list[str]) -> dict[str, dict]:
+    """Per-call turn count, barge-ins and median voice-to-voice, in one query. The
+    percentile is taken in Python so SQLite tests and Postgres agree."""
+    if not call_ids:
+        return {}
+    rows = db.execute(
+        select(Turn.call_id, Turn.interrupted, Turn.response_latency_ms)
+        .where(Turn.call_id.in_(call_ids))
+    ).all()
+    out: dict[str, dict] = {}
+    for call_id, interrupted, v2v in rows:
+        s = out.setdefault(call_id, {"turns": 0, "barge_ins": 0, "v2v": []})
+        s["turns"] += 1
+        if interrupted:
+            s["barge_ins"] += 1
+        elif v2v is not None:
+            s["v2v"].append(v2v)
+    for s in out.values():
+        v = sorted(s.pop("v2v"))
+        s["p50_v2v_ms"] = v[len(v) // 2] if v else None
+    return out
 
 
 @router.get("/calls/{call_id}")
@@ -95,7 +118,8 @@ def _get_call(db: Session, call_id: str) -> Call:
     return call
 
 
-def _list_item(c: Call, turns: int = 0) -> dict:
+def _list_item(c: Call, stats: dict | None) -> dict:
+    stats = stats or {"turns": 0, "barge_ins": 0, "p50_v2v_ms": None}
     return {
         "id": c.external_call_id,
         "started_at": c.started_at,
@@ -104,7 +128,9 @@ def _list_item(c: Call, turns: int = 0) -> dict:
         "source": c.source,
         "labels": c.labels or {},
         "status": c.status,
-        "turns": turns,
+        "media_ready": c.media_ready,
+        "analysed": c.metric_version is not None,
+        **stats,
     }
 
 

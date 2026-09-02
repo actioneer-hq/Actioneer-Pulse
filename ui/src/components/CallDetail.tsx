@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { getCall, type CallDetail as Detail, type Trace } from "../api";
-import { secs } from "../format";
-import Discarded from "./Discarded";
-import LatencyTiles from "./LatencyTiles";
+import { secs, when } from "../format";
+import Latency from "./Latency";
+import Metadata from "./Metadata";
+import Recording from "./Recording";
 import Transcript from "./Transcript";
-import TurnTable from "./TurnTable";
 import Waterfall from "./Waterfall";
 
-export default function CallDetail({ id }: { id: string }) {
+type Props = { id: string; onClose: () => void };
+
+export default function CallDetail({ id, onClose }: Props) {
   const [data, setData] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,26 +25,51 @@ export default function CallDetail({ id }: { id: string }) {
     };
   }, [id]);
 
-  if (error) return <div className="pane empty">{error}</div>;
-  if (!data) return <div className="pane empty">Loading…</div>;
+  return (
+    <aside className="insp">
+      <div className="hd">
+        <div>
+          <div className="mono title">{id}</div>
+          {data && <Header data={data} />}
+        </div>
+        <button className="x" onClick={onClose} aria-label="Close">×</button>
+      </div>
+      <div className="body">
+        {error && <p className="dimtxt pad">{error}</p>}
+        {!data && !error && <p className="dimtxt pad">Loading…</p>}
+        {data && <Sections data={data} />}
+      </div>
+    </aside>
+  );
+}
 
+function Header({ data }: { data: Detail }) {
+  const h = data.call;
+  return (
+    <>
+      <div className="dimtxt">
+        {h.source} · {h.engine ?? "?"} · {h.environment} · started {when(h.started_at)} · lasted {secs(h.duration_s)}
+      </div>
+      <div className="pills">
+        {h.status === "unsupported" && <span className="pill bad">unsupported</span>}
+        {h.status !== "unsupported" && h.metric_version == null && <span className="pill warn">not analysed yet</span>}
+        {!data.trust.media_ready && <span className="pill warn">no audio</span>}
+        {!data.trust.spans_complete && <span className="pill bad">spans incomplete</span>}
+      </div>
+    </>
+  );
+}
+
+function Sections({ data }: { data: Detail }) {
   const h = data.call;
   const trace: Trace = { call_id: h.id, source: h.source, duration_s: h.duration_s, spans: data.spans };
   return (
-    <main className="pane">
-      <header>
-        <h1 className="mono">{h.id}</h1>
-        <div className="sub">
-          {h.status} · {secs(h.duration_s)} · {h.engine ?? "?"} → {h.llm_provider ?? "?"} /{" "}
-          {h.tts_provider ?? "?"} · {h.environment}
-          {data.trust.media_ready ? "" : " · no audio"}
-        </div>
-      </header>
-      <LatencyTiles turns={data.turns} />
-      <TurnTable turns={data.turns} />
-      <Transcript turns={data.turns} />
-      <Discarded trace={trace} />
+    <>
+      <Recording data={data} />
+      <Transcript turns={data.turns} spans={data.spans} />
+      <Latency turns={data.turns} mediaReady={data.trust.media_ready} />
       <Waterfall trace={trace} />
-    </main>
+      <Metadata data={data} />
+    </>
   );
 }
