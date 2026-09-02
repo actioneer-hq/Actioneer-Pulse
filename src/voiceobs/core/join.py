@@ -224,6 +224,10 @@ def _build_turn(
         stt_confidence=_f(_attr(stt, "stt.confidence") or _attr(related, "stt.confidence")),
         tokens_in=_i(_attr(llm, "gen_ai.usage.input_tokens")),
         tokens_out=_i(_attr(llm, "gen_ai.usage.output_tokens")),
+        tokens_cached=_i(
+            _attr(llm, "gen_ai.usage.cached_tokens")
+            or _attr(llm, "gen_ai.usage.cache_read.input_tokens")
+        ),
         finish_reason=_attr(llm, "llm.finish_reason"),
         tts_chars=_i(_attr(tts, "tts.chars")),
         tts_chars_cut=_i(_attr(tts, "tts.chars_cut")),
