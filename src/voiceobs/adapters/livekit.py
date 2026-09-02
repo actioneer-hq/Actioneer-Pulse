@@ -10,11 +10,38 @@ first-audio events, so it lands in the `*_reported_ms` fields."""
 
 from __future__ import annotations
 
+import json
 from typing import ClassVar
 
 from voiceobs.adapters.generic import OTLPAdapter, _propagate_turn_ids
 from voiceobs.adapters.otlp import iter_spans
 from voiceobs.core.model import Span, Stage, Trace
+
+# LiveKit's authoritative per-request metrics arrive as a JSON *string* under a single
+# attribute (lk.llm_metrics on llm_request, lk.tts_metrics on tts_request). Unparsed it
+# is dead weight; expanded, it is the richest account of the turn. src key -> VO canonical.
+_LLM_METRICS: dict[str, str] = {
+    "ttft": "metrics.ttft",                        # seconds
+    "completion_tokens": "gen_ai.usage.output_tokens",
+    "prompt_tokens": "gen_ai.usage.input_tokens",
+    "prompt_cached_tokens": "gen_ai.usage.cached_tokens",
+    "total_tokens": "llm.total_tokens",
+    "tokens_per_second": "llm.tokens_per_second",
+    "duration": "llm.duration_s",
+    "cancelled": "llm.cancelled",
+}
+_TTS_METRICS: dict[str, str] = {
+    "ttfb": "metrics.ttfb",                        # seconds
+    "characters_count": "tts.chars",
+    "audio_duration": "tts.audio_duration_s",
+    "duration": "tts.duration_s",
+    "input_tokens": "tts.input_tokens",
+    "output_tokens": "tts.output_tokens",
+    "streamed": "tts.streamed",
+    # aborted mid-synthesis — the ground-truth "the agent's speech was cut off" signal,
+    # stronger than lk.interrupted (a barge-in attempt that may not have truncated anything).
+    "cancelled": "tts.cancelled",
+}
 
 
 class LiveKitAdapter(OTLPAdapter):
@@ -29,6 +56,7 @@ class LiveKitAdapter(OTLPAdapter):
         "llm_request": Stage.LLM,
         "llm_node": Stage.LLM,
         "tts_node": Stage.TTS,
+        "tts_request": Stage.TTS,   # carries lk.tts_metrics (chars, audio duration, ttfb)
         "function_tool": Stage.TOOL,
     }
 
@@ -49,12 +77,38 @@ class LiveKitAdapter(OTLPAdapter):
         "lk.pii.response.text": "llm_spoken",
     }
 
+    def derive(self, attrs: dict, stage: Stage) -> dict:
+        """Expand the lk.llm_metrics / lk.tts_metrics JSON blobs into canonical attrs so
+        the waterfall reads them like any other field. The raw string is replaced, not
+        kept — the parsed fields carry everything it held."""
+        _expand(attrs, "lk.llm_metrics", _LLM_METRICS)
+        _expand(attrs, "lk.tts_metrics", _TTS_METRICS)
+        return attrs
+
     def matches(self, payload: dict) -> bool:
         return any(s.get("name") == "agent_session" for _, s in iter_spans(payload))
 
     def to_trace(self, payload: dict) -> Trace:
         trace = super().to_trace(payload)
         return Trace(header=trace.header, spans=_pair_agent_turns(trace.spans))
+
+
+def _expand(attrs: dict, key: str, mapping: dict[str, str]) -> None:
+    raw = attrs.pop(key, None)
+    if not isinstance(raw, str):
+        return
+    try:
+        m = json.loads(raw)
+    except (ValueError, TypeError):
+        attrs[key] = raw  # unparseable — keep the blob rather than lose it
+        return
+    for src, dst in mapping.items():
+        v = m.get(src)
+        if v is not None and attrs.get(dst) is None:
+            attrs[dst] = v
+    model = (m.get("metadata") or {}).get("model_name")
+    if model and attrs.get("gen_ai.request.model") is None:
+        attrs["gen_ai.request.model"] = model
 
 
 def _pair_agent_turns(spans: list[Span]) -> list[Span]:

@@ -177,6 +177,14 @@ def _build_turn(
     playout = _ms(tts_first_audio, agent_vad_start)
     response_latency = _ms(caller_stop, agent_out)
 
+    interrupted = bool(_attr(related, "turn.interrupted"))
+    # any TTS segment aborted mid-synthesis => the agent's speech was truncated. The turn
+    # streams sentence-by-sentence, so the cut lands on a late segment, not the first.
+    tts_cancelled = any(bool(s.attrs.get("tts.cancelled")) for s in tts)
+    cut_reason = _attr(tts, "tts.cut_reason")
+    if cut_reason is None and tts_cancelled:
+        cut_reason = "barge_in" if interrupted else "hangup"
+
     # producer-reported latency (seconds -> ms): LiveKit hands the number as a span
     # attribute instead of a first-token/first-audio event. Store it, and bridge it into
     # the waterfall when the event-derived value is absent, so the timeline reads complete
@@ -224,11 +232,16 @@ def _build_turn(
         stt_confidence=_f(_attr(stt, "stt.confidence") or _attr(related, "stt.confidence")),
         tokens_in=_i(_attr(llm, "gen_ai.usage.input_tokens")),
         tokens_out=_i(_attr(llm, "gen_ai.usage.output_tokens")),
+        tokens_cached=_i(
+            _attr(llm, "gen_ai.usage.cached_tokens")
+            or _attr(llm, "gen_ai.usage.cache_read.input_tokens")
+        ),
         finish_reason=_attr(llm, "llm.finish_reason"),
         tts_chars=_i(_attr(tts, "tts.chars")),
         tts_chars_cut=_i(_attr(tts, "tts.chars_cut")),
-        cut_reason=_attr(tts, "tts.cut_reason"),
-        interrupted=bool(_attr(related, "turn.interrupted")),
+        tts_cancelled=tts_cancelled,
+        cut_reason=cut_reason,
+        interrupted=interrupted,
         interruption_probability=_f(_attr(related, "turn.interruption_probability")),
         e2e_latency_ms=_sec_to_ms(_attr(related, "metrics.e2e_latency")),
         abandoned=bool(_attr(related, "turn.abandoned")),

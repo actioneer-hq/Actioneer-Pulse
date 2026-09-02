@@ -20,10 +20,20 @@ be added via LiveKit track egress → `audio_caller`/`audio_agent` artifacts (se
 
 ## What to look for in `analysis.json`
 - 7 turns; `unattributed_spans: 4` (turn grouping working — child spans attached).
-- Per turn: `stt_final_at`, `tts_start_at`, `response_latency_ms`, `tokens_in`/`out`,
-  and `llm_ttft_reported_ms` / `tts_ttfb_reported_ms` (LiveKit reports latency as span
-  attributes, so it lands in the *reported* fields; the event-derived `llm_ttft_ms`/
-  `tts_ttfb_ms` are null — LiveKit emits no first-token/first-audio events).
+- Per turn: `stt_final_at`, `tts_start_at`, `response_latency_ms`, `tokens_in`/`out`/
+  `cached`, `tts_chars`, `endpointing_ms`, `interrupted`/`interruption_probability`,
+  `e2e_latency_ms`, `caller_transcript`/`llm_spoken`. LiveKit reports latency as span
+  attributes, not first-token/first-audio events, so it lands in `*_reported_ms` — and
+  the waterfall `llm_ttft_ms`/`tts_ttfb_ms` are **bridged** from those attributes, so the
+  timeline reads complete from OTLP alone.
+- The rich per-request blobs `lk.llm_metrics` (on `llm_request`) and `lk.tts_metrics`
+  (on `tts_request`) arrive as JSON *strings*; the adapter expands them into structured
+  span attrs — `llm.tokens_per_second`, `llm.duration_s`, `tts.audio_duration_s`,
+  `tts.chars`, model name, cached tokens — rather than leaving an opaque blob.
+- Interruption vs truncation: `interrupted` is true on 5 turns (the caller talked over
+  the agent), but only 2 turns are actually `tts_cancelled` (a TTS segment aborted
+  mid-synthesis) → those get `cut_reason: barge_in`. The `cancelled` flag inside
+  `lk.tts_metrics` is the ground-truth "the agent was really cut off" signal.
 - Call-level metrics: `llm_ttft_reported_ms ≈ 897ms`, `tts_ttfb_reported_ms ≈ 1504ms`,
   `tokens_per_turn ≈ 30.6`, `response_latency_ms ≈ 907ms`.
 

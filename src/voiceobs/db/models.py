@@ -235,6 +235,7 @@ class Turn(Base):
     finish_reason: Mapped[str | None] = mapped_column(String(32))
     tts_chars: Mapped[int | None] = mapped_column(Integer)
     tts_chars_cut: Mapped[int | None] = mapped_column(Integer)
+    tts_cancelled: Mapped[bool | None] = mapped_column(Boolean)  # speech cut off mid-synthesis
     cut_reason: Mapped[str | None] = mapped_column(String(16))  # barge_in | hangup
     tts_span_present: Mapped[bool | None] = mapped_column(Boolean)
     interruption_probability: Mapped[float | None] = mapped_column(Float)  # producer's own

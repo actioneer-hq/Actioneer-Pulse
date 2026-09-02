@@ -73,6 +73,61 @@ def test_agent_turn_folds_into_the_caller_turn():
     assert t.tts_span_present is True
 
 
+def _metrics_tree() -> dict:
+    """LiveKit's per-request metrics arrive as a JSON *string* under one attribute:
+    lk.llm_metrics on llm_request, lk.tts_metrics on tts_request."""
+    import json as _json
+    return payload([
+        span("sess", None, "agent_session", 0, 4000),
+        span("ut", "sess", "user_turn", 900, 1100, {"turn.index": 0}),
+        span("at", "sess", "agent_turn", 1100, 3500),
+        span("lreq", "at", "llm_request", 1150, 1900, {"lk.llm_metrics": _json.dumps({
+            "ttft": 0.7, "completion_tokens": 32, "prompt_tokens": 50,
+            "prompt_cached_tokens": 8, "total_tokens": 82, "tokens_per_second": 18.3,
+            "metadata": {"model_name": "gpt-4o-mini"}})}),
+        span("treq", "at", "tts_request", 2000, 3400, {"lk.tts_metrics": _json.dumps({
+            "ttfb": 1.5, "characters_count": 29, "audio_duration": 3.19,
+            "streamed": False, "metadata": {"model_name": "gpt-4o-mini-tts"}})}),
+    ])
+
+
+def test_expands_the_metric_json_blobs():
+    """The lk.llm_metrics / lk.tts_metrics strings are parsed into canonical fields, not
+    left as an opaque blob."""
+    trace = LiveKitAdapter().to_trace(_metrics_tree())
+    t = join(trace, None).turns[0]
+    assert t.tokens_out == 32          # completion_tokens
+    assert t.tokens_in == 50           # prompt_tokens
+    assert t.tokens_cached == 8        # prompt_cached_tokens
+    assert t.tts_chars == 29           # characters_count (no other source for this)
+    assert t.llm_ttft_ms == 700.0      # metrics.ttft, bridged
+    assert t.tts_ttfb_ms == 1500.0     # metrics.ttfb, bridged
+    # the raw blob string is gone; the parsed detail is on the span
+    by = {s.name: s for s in trace.spans}
+    assert "lk.tts_metrics" not in by["tts_request"].attrs
+    assert by["tts_request"].attrs["tts.audio_duration_s"] == 3.19
+    assert by["llm_request"].attrs["llm.tokens_per_second"] == 18.3
+
+
+def test_cancelled_tts_is_a_truncation():
+    """A cancelled TTS segment means the agent was actually cut off — stronger than the
+    softer lk.interrupted. It lands on a late streaming segment, not the first."""
+    import json as _json
+    p = payload([
+        span("sess", None, "agent_session", 0, 4000),
+        span("ut", "sess", "user_turn", 900, 1100, {"turn.index": 0}),
+        span("at", "sess", "agent_turn", 1100, 3500, {"lk.interrupted": True}),
+        span("t1", "at", "tts_request", 2000, 2400,
+             {"lk.tts_metrics": _json.dumps({"characters_count": 40, "cancelled": False})}),
+        span("t2", "at", "tts_request", 2400, 2800,
+             {"lk.tts_metrics": _json.dumps({"characters_count": 42, "cancelled": True})}),
+    ])
+    t = join(LiveKitAdapter().to_trace(p), None).turns[0]
+    assert t.tts_cancelled is True
+    assert t.cut_reason == "barge_in"     # interrupted + cancelled
+    assert t.interrupted is True
+
+
 def test_harvests_livekits_rich_otlp():
     """LiveKit puts interruption, endpointing, confidence, transcript, and its own
     end-to-end latency in OTLP — all on the turn spans, not the stage spans."""
