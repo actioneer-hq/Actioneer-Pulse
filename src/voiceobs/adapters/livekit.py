@@ -28,6 +28,7 @@ _LLM_METRICS: dict[str, str] = {
     "total_tokens": "llm.total_tokens",
     "tokens_per_second": "llm.tokens_per_second",
     "duration": "llm.duration_s",
+    "cancelled": "llm.cancelled",
 }
 _TTS_METRICS: dict[str, str] = {
     "ttfb": "metrics.ttfb",                        # seconds
@@ -37,6 +38,9 @@ _TTS_METRICS: dict[str, str] = {
     "input_tokens": "tts.input_tokens",
     "output_tokens": "tts.output_tokens",
     "streamed": "tts.streamed",
+    # aborted mid-synthesis — the ground-truth "the agent's speech was cut off" signal,
+    # stronger than lk.interrupted (a barge-in attempt that may not have truncated anything).
+    "cancelled": "tts.cancelled",
 }
 
 

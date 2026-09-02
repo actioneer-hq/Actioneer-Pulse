@@ -30,6 +30,10 @@ be added via LiveKit track egress → `audio_caller`/`audio_agent` artifacts (se
   (on `tts_request`) arrive as JSON *strings*; the adapter expands them into structured
   span attrs — `llm.tokens_per_second`, `llm.duration_s`, `tts.audio_duration_s`,
   `tts.chars`, model name, cached tokens — rather than leaving an opaque blob.
+- Interruption vs truncation: `interrupted` is true on 5 turns (the caller talked over
+  the agent), but only 2 turns are actually `tts_cancelled` (a TTS segment aborted
+  mid-synthesis) → those get `cut_reason: barge_in`. The `cancelled` flag inside
+  `lk.tts_metrics` is the ground-truth "the agent was really cut off" signal.
 - Call-level metrics: `llm_ttft_reported_ms ≈ 897ms`, `tts_ttfb_reported_ms ≈ 1504ms`,
   `tokens_per_turn ≈ 30.6`, `response_latency_ms ≈ 907ms`.
 

@@ -148,6 +148,7 @@ class Turn(Frozen):
     finish_reason: str | None = None
     tts_chars: int | None = None
     tts_chars_cut: int | None = None
+    tts_cancelled: bool = False  # a TTS request was aborted mid-synthesis (speech cut off)
     cut_reason: str | None = None  # barge_in | hangup
     interrupted: bool = False
     interruption_probability: float | None = None  # producer's own confidence (lk.*)

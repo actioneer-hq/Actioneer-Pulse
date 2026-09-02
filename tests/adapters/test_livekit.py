@@ -109,6 +109,25 @@ def test_expands_the_metric_json_blobs():
     assert by["llm_request"].attrs["llm.tokens_per_second"] == 18.3
 
 
+def test_cancelled_tts_is_a_truncation():
+    """A cancelled TTS segment means the agent was actually cut off — stronger than the
+    softer lk.interrupted. It lands on a late streaming segment, not the first."""
+    import json as _json
+    p = payload([
+        span("sess", None, "agent_session", 0, 4000),
+        span("ut", "sess", "user_turn", 900, 1100, {"turn.index": 0}),
+        span("at", "sess", "agent_turn", 1100, 3500, {"lk.interrupted": True}),
+        span("t1", "at", "tts_request", 2000, 2400,
+             {"lk.tts_metrics": _json.dumps({"characters_count": 40, "cancelled": False})}),
+        span("t2", "at", "tts_request", 2400, 2800,
+             {"lk.tts_metrics": _json.dumps({"characters_count": 42, "cancelled": True})}),
+    ])
+    t = join(LiveKitAdapter().to_trace(p), None).turns[0]
+    assert t.tts_cancelled is True
+    assert t.cut_reason == "barge_in"     # interrupted + cancelled
+    assert t.interrupted is True
+
+
 def test_harvests_livekits_rich_otlp():
     """LiveKit puts interruption, endpointing, confidence, transcript, and its own
     end-to-end latency in OTLP — all on the turn spans, not the stage spans."""

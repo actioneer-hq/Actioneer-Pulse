@@ -44,14 +44,14 @@
     "spans_complete": true,
     "media_ready": false,
     "status": "awaiting_media",
-    "last_activity_at": "2026-09-02T06:38:25.270558",
+    "last_activity_at": "2026-09-02T06:45:03.660103",
     "bookmarked": false,
     "is_public": false,
     "retention_days": null,
     "app_version": "0.0.1",
     "metric_version": 1,
     "adapter_version": 1,
-    "created_at": "2026-09-02T06:38:25.271229"
+    "created_at": "2026-09-02T06:45:03.660740"
   },
   "turns": [
     {
@@ -85,6 +85,7 @@
       "finish_reason": null,
       "tts_chars": 33,
       "tts_chars_cut": null,
+      "tts_cancelled": false,
       "cut_reason": null,
       "tts_span_present": true,
       "interruption_probability": 0.6943822503089905,
@@ -125,6 +126,7 @@
       "finish_reason": null,
       "tts_chars": 49,
       "tts_chars_cut": null,
+      "tts_cancelled": false,
       "cut_reason": null,
       "tts_span_present": true,
       "interruption_probability": null,
@@ -165,6 +167,7 @@
       "finish_reason": null,
       "tts_chars": 61,
       "tts_chars_cut": null,
+      "tts_cancelled": false,
       "cut_reason": null,
       "tts_span_present": true,
       "interruption_probability": 0.85988450050354,
@@ -205,6 +208,7 @@
       "finish_reason": null,
       "tts_chars": 30,
       "tts_chars_cut": null,
+      "tts_cancelled": false,
       "cut_reason": null,
       "tts_span_present": true,
       "interruption_probability": 0.8466403484344482,
@@ -245,6 +249,7 @@
       "finish_reason": null,
       "tts_chars": 48,
       "tts_chars_cut": null,
+      "tts_cancelled": false,
       "cut_reason": null,
       "tts_span_present": true,
       "interruption_probability": 0.7634492516517639,
@@ -285,7 +290,8 @@
       "finish_reason": null,
       "tts_chars": 42,
       "tts_chars_cut": null,
-      "cut_reason": null,
+      "tts_cancelled": true,
+      "cut_reason": "barge_in",
       "tts_span_present": true,
       "interruption_probability": 0.7293136715888977,
       "e2e_latency_ms": 2662.4,
@@ -325,7 +331,8 @@
       "finish_reason": null,
       "tts_chars": 29,
       "tts_chars_cut": null,
-      "cut_reason": null,
+      "tts_cancelled": true,
+      "cut_reason": "barge_in",
       "tts_span_present": true,
       "interruption_probability": null,
       "e2e_latency_ms": null,
@@ -345,10 +352,10 @@
     },
     {
       "name": "cut_reason",
-      "value": null,
+      "value": "barge_in",
       "samples": null,
-      "available": false,
-      "reason": "no truncated turns"
+      "available": true,
+      "reason": null
     },
     {
       "name": "llm_ttft_ms",
@@ -593,7 +600,8 @@
         "gen_ai.usage.cached_tokens": 0,
         "llm.total_tokens": 82,
         "llm.tokens_per_second": 18.33694509079056,
-        "llm.duration_s": 1.7451107499946374
+        "llm.duration_s": 1.7451107499946374,
+        "llm.cancelled": false
       },
       "content_text": null,
       "content_kind": null,
@@ -724,6 +732,7 @@
         "tts.input_tokens": 7,
         "tts.output_tokens": 80,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -787,6 +796,7 @@
         "tts.input_tokens": 8,
         "tts.output_tokens": 57,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -831,6 +841,7 @@
         "tts.input_tokens": 8,
         "tts.output_tokens": 100,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -875,6 +886,7 @@
         "tts.input_tokens": 9,
         "tts.output_tokens": 76,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -1040,7 +1052,8 @@
         "gen_ai.usage.cached_tokens": 0,
         "llm.total_tokens": 105,
         "llm.tokens_per_second": 24.125106044884177,
-        "llm.duration_s": 1.0362648750015069
+        "llm.duration_s": 1.0362648750015069,
+        "llm.cancelled": false
       },
       "content_text": null,
       "content_kind": null,
@@ -1179,6 +1192,7 @@
         "tts.input_tokens": 9,
         "tts.output_tokens": 81,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -1242,6 +1256,7 @@
         "tts.input_tokens": 7,
         "tts.output_tokens": 56,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -1286,6 +1301,7 @@
         "tts.input_tokens": 9,
         "tts.output_tokens": 86,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -1446,7 +1462,8 @@
         "gen_ai.usage.cached_tokens": 0,
         "llm.total_tokens": 150,
         "llm.tokens_per_second": 28.48684975770582,
-        "llm.duration_s": 0.9478057500091381
+        "llm.duration_s": 0.9478057500091381,
+        "llm.cancelled": false
       },
       "content_text": null,
       "content_kind": null,
@@ -1601,6 +1618,7 @@
         "tts.input_tokens": 8,
         "tts.output_tokens": 84,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -1664,6 +1682,7 @@
         "tts.input_tokens": 16,
         "tts.output_tokens": 111,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -1708,6 +1727,7 @@
         "tts.input_tokens": 3,
         "tts.output_tokens": 40,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -1873,7 +1893,8 @@
         "gen_ai.usage.cached_tokens": 0,
         "llm.total_tokens": 177,
         "llm.tokens_per_second": 15.12029360488497,
-        "llm.duration_s": 1.1243167920038104
+        "llm.duration_s": 1.1243167920038104,
+        "llm.cancelled": false
       },
       "content_text": null,
       "content_kind": null,
@@ -2044,6 +2065,7 @@
         "tts.input_tokens": 10,
         "tts.output_tokens": 96,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -2107,6 +2129,7 @@
         "tts.input_tokens": 7,
         "tts.output_tokens": 54,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -2272,7 +2295,8 @@
         "gen_ai.usage.cached_tokens": 0,
         "llm.total_tokens": 227,
         "llm.tokens_per_second": 29.304955418878393,
-        "llm.duration_s": 1.1602133330015931
+        "llm.duration_s": 1.1602133330015931,
+        "llm.cancelled": false
       },
       "content_text": null,
       "content_kind": null,
@@ -2459,6 +2483,7 @@
         "tts.input_tokens": 6,
         "tts.output_tokens": 67,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -2522,6 +2547,7 @@
         "tts.input_tokens": 18,
         "tts.output_tokens": 124,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -2566,6 +2592,7 @@
         "tts.input_tokens": 10,
         "tts.output_tokens": 77,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -2731,7 +2758,8 @@
         "gen_ai.usage.cached_tokens": 0,
         "llm.total_tokens": 339,
         "llm.tokens_per_second": 34.06247416892703,
-        "llm.duration_s": 1.2330284579948056
+        "llm.duration_s": 1.2330284579948056,
+        "llm.cancelled": false
       },
       "content_text": null,
       "content_kind": null,
@@ -2934,6 +2962,7 @@
         "tts.input_tokens": 10,
         "tts.output_tokens": 91,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -2997,6 +3026,7 @@
         "tts.input_tokens": 11,
         "tts.output_tokens": 81,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -3041,6 +3071,7 @@
         "tts.input_tokens": 12,
         "tts.output_tokens": 108,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -3085,6 +3116,7 @@
         "tts.input_tokens": 9,
         "tts.output_tokens": 74,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -3269,7 +3301,8 @@
         "gen_ai.usage.cached_tokens": 0,
         "llm.total_tokens": 406,
         "llm.tokens_per_second": 38.93621352437302,
-        "llm.duration_s": 0.9502721669850871
+        "llm.duration_s": 0.9502721669850871,
+        "llm.cancelled": false
       },
       "content_text": null,
       "content_kind": null,
@@ -3486,6 +3519,7 @@
         "tts.input_tokens": 0,
         "tts.output_tokens": 0,
         "tts.streamed": false,
+        "tts.cancelled": true,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -3642,7 +3676,8 @@
         "gen_ai.usage.cached_tokens": 0,
         "llm.total_tokens": 426,
         "llm.tokens_per_second": 51.074342407348574,
-        "llm.duration_s": 0.9789651250175666
+        "llm.duration_s": 0.9789651250175666,
+        "llm.cancelled": false
       },
       "content_text": null,
       "content_kind": null,
@@ -3868,6 +3903,7 @@
         "tts.input_tokens": 15,
         "tts.output_tokens": 137,
         "tts.streamed": false,
+        "tts.cancelled": false,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
@@ -3930,6 +3966,7 @@
         "tts.input_tokens": 0,
         "tts.output_tokens": 0,
         "tts.streamed": false,
+        "tts.cancelled": true,
         "gen_ai.request.model": "gpt-4o-mini-tts"
       },
       "content_text": null,
