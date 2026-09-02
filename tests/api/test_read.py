@@ -26,6 +26,23 @@ def test_list_and_filter(client):
     assert len(client.get("/v1/calls").json()["items"]) == 1
     assert len(client.get("/v1/calls?status=awaiting_media").json()["items"]) == 1
     assert client.get("/v1/calls?status=ingested").json()["items"] == []
+    assert client.get("/v1/calls?q=c1").json()["items"][0]["id"] == "c1"
+    assert client.get("/v1/calls?q=nomatch").json()["items"] == []
+
+
+def test_list_carries_turn_stats(client, db_sessionmaker, monkeypatch):
+    monkeypatch.setattr(
+        sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri: _wav()
+    )
+    client.post("/v1/traces", json=sample_call())
+    with db_sessionmaker() as db:
+        process(db, db.scalars(select(Call)).one())
+        db.commit()
+    item = client.get("/v1/calls").json()["items"][0]
+    for key in ("turns", "barge_ins", "p50_v2v_ms", "media_ready", "analysed"):
+        assert key in item
+    assert item["turns"] >= 1
+    assert item["analysed"] is True
 
 
 def test_detail_is_one_consolidated_payload(client):

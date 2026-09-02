@@ -1,26 +1,100 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { listCalls, type Call } from "./api";
 import CallDetail from "./components/CallDetail";
-import CallList from "./components/CallList";
+import CallTable from "./components/CallTable";
+import { ms, pct } from "./format";
+
+// Analysed is the worker's stamp (metric_version), not Call.status: a spans-only
+// call stays "awaiting_media" forever even after its turns are fully measured.
+const TABS: [string, string, (c: Call) => boolean][] = [
+  ["all", "All", () => true],
+  ["analysed", "Analysed", (c) => c.analysed],
+  ["pending", "Not analysed yet", (c) => !c.analysed && c.status !== "unsupported"],
+  ["unsupported", "Unsupported", (c) => c.status === "unsupported"],
+];
 
 export default function App() {
   const [calls, setCalls] = useState<Call[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState("all");
+  const [q, setQ] = useState("");
 
   useEffect(() => {
-    listCalls()
-      .then((items) => {
-        setCalls(items);
-        setSelected((s) => s ?? items[0]?.id ?? null);
-      })
-      .catch((e: Error) => setError(e.message));
+    listCalls().then(setCalls).catch((e: Error) => setError(e.message));
   }, []);
 
+  const byTab = useMemo(() => {
+    const m: Record<string, Call[]> = {};
+    for (const [k, , f] of TABS) m[k] = calls.filter(f);
+    return m;
+  }, [calls]);
+
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const base = byTab[tab] ?? calls;
+    if (!needle) return base;
+    return base.filter((c) =>
+      [c.id, c.source, c.environment, c.status, ...Object.values(c.labels)]
+        .join(" ").toLowerCase().includes(needle),
+    );
+  }, [byTab, tab, q, calls]);
+
+  // j / k walk the visible rows, Esc closes the inspector. Skipped while typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement).tagName === "INPUT") return;
+      const i = rows.findIndex((c) => c.id === selected);
+      if (e.key === "j" && i < rows.length - 1) setSelected(rows[i + 1].id);
+      else if (e.key === "k" && i > 0) setSelected(rows[i - 1].id);
+      else if (e.key === "Escape") setSelected(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [rows, selected]);
+
+  const allTurns = calls.reduce((a, c) => a + c.turns, 0);
+  const bargeIns = calls.reduce((a, c) => a + c.barge_ins, 0);
+  const tiles: [string, string, string?][] = [
+    ["Calls", String(calls.length)],
+    ["Median call p50 v2v", ms(pct(calls.map((c) => c.p50_v2v_ms), 0.5)), "median of per-call medians"],
+    ["p95 of call p50s", ms(pct(calls.map((c) => c.p50_v2v_ms), 0.95))],
+    ["Barge-in rate", allTurns ? `${Math.round((100 * bargeIns) / allTurns)}%` : "—"],
+    ["Without audio", String(calls.filter((c) => !c.media_ready).length), "measured from spans only"],
+  ];
+
   return (
-    <div className="app">
-      <CallList calls={calls} selected={selected} onSelect={setSelected} error={error} />
-      {selected ? <CallDetail id={selected} /> : <div className="pane empty">Pick a call</div>}
-    </div>
+    <>
+      <div className="top">
+        <div className="brand"><i />Voice Observability</div>
+        <nav><button className="on">Calls</button></nav>
+      </div>
+      <div className="page">
+        <div className="list">
+          <div className="head">
+            <h1>Calls</h1>
+            <div className="sub">Every call VO has ingested, spans and audio joined into one record.</div>
+          </div>
+          <div className="tiles">
+            {tiles.map(([l, v, s]) => (
+              <div className="tile" key={l}><span>{l}</span><b>{v}</b>{s && <small>{s}</small>}</div>
+            ))}
+          </div>
+          <div className="tabs">
+            {TABS.map(([k, l]) => (
+              <button key={k} className={tab === k ? "on" : undefined} onClick={() => setTab(k)}>
+                {l}<em>{byTab[k]?.length ?? 0}</em>
+              </button>
+            ))}
+          </div>
+          <div className="tools">
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search id, source, label…" />
+            <span className="count">{error ?? `${rows.length} call${rows.length === 1 ? "" : "s"}`}</span>
+          </div>
+          <CallTable calls={rows} selected={selected} onSelect={setSelected} />
+        </div>
+        {selected && <CallDetail id={selected} onClose={() => setSelected(null)} />}
+      </div>
+    </>
   );
 }

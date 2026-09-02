@@ -28,8 +28,8 @@ export default function Waterfall({ trace }: { trace: Trace }) {
     0.001,
   );
   return (
-    <section>
-      <h2>Trace · {trace.spans.length} spans</h2>
+    <section className="sec">
+      <h3>Trace <span className="right">{trace.spans.length} spans</span></h3>
       <div className="legend">
         {STAGES.map((s) => (
           <span key={s}>
