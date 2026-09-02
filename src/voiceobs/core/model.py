@@ -31,6 +31,7 @@ class TrustReason(StrEnum):
     TRACE_MISSING = "trace_missing"  # artifact arrived, spans never did (VO was down)
     TRACE_NOT_APPLICABLE = "trace_not_applicable"  # producer emits no tracing (s2s)
     AUDIO_MISSING = "audio_missing"
+    AUDIO_DISABLED = "audio_disabled"  # analysis toggled off for this tenant, not an outage
     ARTIFACT_MISSING = "artifact_missing"
     AUDIO_PARTIAL = "audio_partial"
     PRODUCER_SCHEMA_UNSUPPORTED = "producer_schema_unsupported"
@@ -149,6 +150,8 @@ class Turn(Frozen):
     tts_chars_cut: int | None = None
     cut_reason: str | None = None  # barge_in | hangup
     interrupted: bool = False
+    interruption_probability: float | None = None  # producer's own confidence (lk.*)
+    e2e_latency_ms: float | None = None  # the engine's own end-to-end number, a cross-check
     abandoned: bool = False
 
     transcript: str | None = None

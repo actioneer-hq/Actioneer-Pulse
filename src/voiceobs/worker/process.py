@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import os
 from datetime import UTC, datetime
 
 from sqlalchemy import delete, select
@@ -12,10 +13,20 @@ from sqlalchemy.orm import Session
 
 from voiceobs.adapters import UnsupportedSchema, adapter_for
 from voiceobs.core import analyze_audio
+from voiceobs.core.audio.decode import combine_stereo
 from voiceobs.core.config import METRIC_VERSION
 from voiceobs.core.join import join
 from voiceobs.core.model import Analysis, AudioAnalysis, AudioRef, CallHeader, Trace
-from voiceobs.db.models import Call, Event, IngestRun, Media, Metric, RawFragment, Utterance
+from voiceobs.db.models import (
+    Call,
+    Event,
+    IngestRun,
+    Media,
+    Metric,
+    RawFragment,
+    TenantSettings,
+    Utterance,
+)
 from voiceobs.db.models import Turn as DBTurn
 from voiceobs.storage import fetch_bytes
 
@@ -76,8 +87,13 @@ def process(db: Session, call: Call) -> str:
         raise UnsupportedSchema("no adapter matched")
     trace = adapter.to_trace(payload)
 
-    audio = _load_audio(db, call)  # None when the WAV never arrived — join degrades
-    analysis = join(trace, audio, t0_offset_s=call.audio_t0_offset_s)
+    # Audio analysis is the opt-in overlay: OTLP is the engine's account, audio is our own
+    # independent one. Off by default and per-tenant — when off we never fetch the WAV.
+    audio_enabled = _audio_enabled(db, call.tenant_id)
+    audio = _load_audio(db, call) if audio_enabled else None
+    analysis = join(
+        trace, audio, t0_offset_s=call.audio_t0_offset_s, audio_enabled=audio_enabled
+    )
 
     _persist(db, call, trace, analysis, adapter.version, audio)
 
@@ -88,21 +104,45 @@ def process(db: Session, call: Call) -> str:
     return run.status
 
 
+def _env_default() -> bool:
+    return os.getenv("VOICEOBS_AUDIO_ANALYSIS", "0").strip().lower() in ("1", "true", "on", "yes")
+
+
+def _audio_enabled(db: Session, tenant_id: str) -> bool:
+    """Is the audio overlay on for this tenant? Per-tenant setting wins; a null (unset)
+    setting falls back to the global VOICEOBS_AUDIO_ANALYSIS default (off)."""
+    s = db.scalar(select(TenantSettings).where(TenantSettings.tenant_id == tenant_id))
+    if s is not None and s.audio_analysis_enabled is not None:
+        return s.audio_analysis_enabled
+    return _env_default()
+
+
 def _load_audio(db: Session, call: Call) -> AudioAnalysis | None:
-    """Fetch the WAV and run Layer 1. None if no audio was registered."""
-    media = db.scalar(
-        select(Media).where(Media.call_id == call.id, Media.kind == "audio")
-    )
-    if media is None or not media.uri:
+    """Fetch the audio and run Layer 1. Accepts either one stereo `audio` artifact or
+    two mono ones (`audio_caller` + `audio_agent`, e.g. LiveKit track egress), which we
+    combine into a caller/agent stereo stream. None if no audio was registered."""
+    kinds = {m.kind: m for m in db.scalars(select(Media).where(Media.call_id == call.id))}
+    wav, sr = _audio_bytes(kinds)
+    if wav is None:
         return None
     ref = AudioRef(
-        uri=media.uri, sha256=media.sha256 or "",
-        channels=media.channels or 2, sample_rate=media.sample_rate or 8000,
+        uri="", sha256="", channels=2, sample_rate=sr,
         duration_s=call.duration_s or 0.0,
-        channel_map={int(k): v for k, v in (call.channel_map or {}).items()},
+        channel_map={int(k): v for k, v in (call.channel_map or {"0": "caller", "1": "agent"}).items()},
         t0_offset_s=call.audio_t0_offset_s,
     )
-    return analyze_audio(fetch_bytes(media.uri), ref)
+    return analyze_audio(wav, ref)
+
+
+def _audio_bytes(kinds: dict[str, Media]) -> tuple[bytes | None, int]:
+    stereo = kinds.get("audio")
+    if stereo is not None and stereo.uri:
+        return fetch_bytes(stereo.uri), stereo.sample_rate or 8000
+    caller, agent = kinds.get("audio_caller"), kinds.get("audio_agent")
+    if caller and caller.uri and agent and agent.uri:
+        return combine_stereo(fetch_bytes(caller.uri), fetch_bytes(agent.uri)), \
+            caller.sample_rate or 8000
+    return None, 8000
 
 
 def _persist(

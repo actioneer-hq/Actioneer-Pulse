@@ -35,3 +35,8 @@ class JudgeConfigIn(BaseModel):
     api_key: str | None = None
     params: dict | None = None  # provider-specific passthrough (reasoning, temperature…)
     enabled: bool = True
+
+
+class SettingsIn(BaseModel):
+    audio_analysis_enabled: bool | None = None  # null = defer to global default
+    audio_store_prefix: str | None = None

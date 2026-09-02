@@ -42,8 +42,13 @@ def join(
     audio: AudioAnalysis | None,
     cfg: MetricConfig | None = None,
     t0_offset_s: float | None = None,
+    audio_enabled: bool = True,
 ) -> Analysis:
-    """Join spans to audio and compute turns, metrics, and the trust report."""
+    """Join spans to audio and compute turns, metrics, and the trust report.
+
+    `audio_enabled` distinguishes "audio overlay is off for this tenant" (a choice) from
+    "audio never arrived" (an outage) in the trust report — the numbers are identical, the
+    reason is not."""
     cfg = cfg or MetricConfig()
     offset = t0_offset_s or 0.0
 
@@ -54,8 +59,8 @@ def join(
     utterances = audio.utterances if audio else []
 
     turns = [
-        _build_turn(ts, trace.spans, utterances, offset)
-        for ts in turn_spans
+        _build_turn(ts, trace.spans, utterances, offset, position)
+        for position, ts in enumerate(turn_spans)
     ]
 
     agent_iv = _agent_intervals(trace, offset)  # agent-side truth: spans, not VAD
@@ -66,7 +71,7 @@ def join(
     if has_spans and turn_spans:
         metrics.extend(_layer2_metrics(turns))
 
-    trust = _trust_report(trace, audio, turns, offset, cfg)
+    trust = _trust_report(trace, audio, turns, offset, cfg, audio_enabled)
 
     return Analysis(
         turns=turns,
@@ -77,12 +82,14 @@ def join(
     )
 
 
-def _turn_index(span: Span) -> int:
+def _turn_index(span: Span, default: int = 10**9) -> int:
+    """The producer's turn.index, or `default`. Producers that don't emit it (Pipecat,
+    LiveKit) fall back to positional order so turns don't all collide on one index."""
     v = span.attrs.get("turn.index")
     try:
         return int(v)
     except (TypeError, ValueError):
-        return 10**9
+        return default
 
 
 def _children(spans: list[Span], turn_id: str | None, stage: Stage) -> list[Span]:
@@ -121,7 +128,8 @@ def _agent_intervals(trace: Trace, offset: float) -> list[iv.Interval]:
 
 
 def _build_turn(
-    turn_span: Span, spans: list[Span], utterances: list[Utterance], offset: float
+    turn_span: Span, spans: list[Span], utterances: list[Utterance], offset: float,
+    position: int = 0,
 ) -> Turn:
     tid = turn_span.turn_id or f"{turn_span.span_id}"
     trigger = str(turn_span.attrs.get("turn.trigger", "endpoint"))
@@ -130,6 +138,10 @@ def _build_turn(
     stt = _children(spans, tid, Stage.STT)
     llm = _children(spans, tid, Stage.LLM)
     tts = _children(spans, tid, Stage.TTS)
+    # Every span of this exchange. LiveKit parks interruption/endpointing/confidence and
+    # the PII transcript on the turn spans (user_turn/agent_turn), not on the stage spans,
+    # so stage-scoped reads miss them — search the whole exchange for those.
+    related = [s for s in spans if s.turn_id == tid]
 
     # The caller stopped talking here. Backdated by the producer to the real instant,
     # not the moment its VAD noticed — that gap IS the endpointing hold below.
@@ -158,27 +170,35 @@ def _build_turn(
     # the waterfall (ms); each segment is None unless both endpoints exist.
     # endpointing is the VAD silence hold — how long we waited to be sure the caller
     # was done. See docs/vas-telemetry-semantics.md §3 "Endpointing".
-    endpointing = _ms(speech_end, stt_start)
     stt_lag = _ms(stt_start, stt_final)
-    llm_ttft = _ms(_to_audio(llm_start, offset), llm_first_token)
     assembly = _ms(llm_first_token, tts_start)
-    tts_ttfb = _ms(tts_start, tts_first_audio)
     # playout = sent -> heard (span vs caller-recording); the network tail, reported
     # but not summed into response_latency, which ends when the engine sent audio.
     playout = _ms(tts_first_audio, agent_vad_start)
     response_latency = _ms(caller_stop, agent_out)
 
+    # producer-reported latency (seconds -> ms): LiveKit hands the number as a span
+    # attribute instead of a first-token/first-audio event. Store it, and bridge it into
+    # the waterfall when the event-derived value is absent, so the timeline reads complete
+    # from OTLP alone. `*_reported_ms` keeps the provenance.
+    llm_ttft_reported = _sec_to_ms(_attr(llm, "metrics.ttft"))
+    tts_ttfb_reported = _sec_to_ms(_attr(tts, "metrics.ttfb"))
+    endpointing = _ms(speech_end, stt_start)
+    if endpointing is None:  # LiveKit reports the endpointing hold as an attribute
+        endpointing = _sec_to_ms(_attr(related, "endpointing.delay"))
+    llm_ttft = _ms(_to_audio(llm_start, offset), llm_first_token)
+    if llm_ttft is None:
+        llm_ttft = llm_ttft_reported
+    tts_ttfb = _ms(tts_start, tts_first_audio)
+    if tts_ttfb is None:
+        tts_ttfb = tts_ttfb_reported
+
     parts = [p for p in (endpointing, stt_lag, llm_ttft, assembly, tts_ttfb) if p]
     total = response_latency
     unattributed = round(total - sum(parts), 1) if total is not None else None
 
-    # producer-reported latency (seconds -> ms): Pipecat/LiveKit hand the number as a
-    # span attribute instead of a first-token/first-audio event. Store it too.
-    llm_ttft_reported = _sec_to_ms(llm[0].attrs.get("metrics.ttft")) if llm else None
-    tts_ttfb_reported = _sec_to_ms(tts[0].attrs.get("metrics.ttfb")) if tts else None
-
     return Turn(
-        turn_index=_turn_index(turn_span),
+        turn_index=_turn_index(turn_span, default=position),
         turn_id=tid,
         trigger=trigger,
         audio_start_s=caller_end,
@@ -200,19 +220,22 @@ def _build_turn(
         unattributed_ms=unattributed,
         llm_ttft_reported_ms=llm_ttft_reported,
         tts_ttfb_reported_ms=tts_ttfb_reported,
-        language=stt[0].attrs.get("stt.language") if stt else None,
-        stt_confidence=_f(stt[0].attrs.get("stt.confidence")) if stt else None,
-        tokens_in=_i(llm[0].attrs.get("gen_ai.usage.input_tokens")) if llm else None,
-        tokens_out=_i(llm[0].attrs.get("gen_ai.usage.output_tokens")) if llm else None,
-        finish_reason=llm[0].attrs.get("llm.finish_reason") if llm else None,
-        tts_chars=_i(tts[0].attrs.get("tts.chars")) if tts else None,
-        tts_chars_cut=_i(tts[0].attrs.get("tts.chars_cut")) if tts else None,
-        cut_reason=tts[0].attrs.get("tts.cut_reason") if tts else None,
-        interrupted=bool(turn_span.attrs.get("turn.interrupted", False)),
-        abandoned=bool(turn_span.attrs.get("turn.abandoned", False)),
-        transcript=_transcript(stt),
-        llm_raw=llm[0].content.get("llm_raw") if llm else None,
-        llm_spoken=tts[0].content.get("llm_spoken") if tts else None,
+        language=_attr(stt, "stt.language"),
+        stt_confidence=_f(_attr(stt, "stt.confidence") or _attr(related, "stt.confidence")),
+        tokens_in=_i(_attr(llm, "gen_ai.usage.input_tokens")),
+        tokens_out=_i(_attr(llm, "gen_ai.usage.output_tokens")),
+        finish_reason=_attr(llm, "llm.finish_reason"),
+        tts_chars=_i(_attr(tts, "tts.chars")),
+        tts_chars_cut=_i(_attr(tts, "tts.chars_cut")),
+        cut_reason=_attr(tts, "tts.cut_reason"),
+        interrupted=bool(_attr(related, "turn.interrupted")),
+        interruption_probability=_f(_attr(related, "turn.interruption_probability")),
+        e2e_latency_ms=_sec_to_ms(_attr(related, "metrics.e2e_latency")),
+        abandoned=bool(_attr(related, "turn.abandoned")),
+        transcript=_transcript(stt) or _content(related, "transcript"),
+        llm_raw=(llm[0].content.get("llm_raw") if llm else None) or _content(related, "llm_raw"),
+        llm_spoken=(tts[0].content.get("llm_spoken") if tts else None)
+        or _content(related, "llm_spoken"),
     )
 
 
@@ -318,12 +341,15 @@ def _trust_report(
     turns: list[Turn],
     offset: float,
     cfg: MetricConfig,
+    audio_enabled: bool = True,
 ) -> TrustReport:
     reasons: list[TrustReason] = []
     layers_run: list[str] = []
 
     if audio is not None:
         layers_run.append("audio")
+    elif not audio_enabled:
+        reasons.append(TrustReason.AUDIO_DISABLED)  # OTLP-only by choice, not an outage
     else:
         reasons.append(TrustReason.AUDIO_MISSING)
 
@@ -390,6 +416,26 @@ def _barge_in_agreement(
     if audio_bi == 0 and span_bi == 0:
         return 1.0
     return round(min(audio_bi, span_bi) / max(audio_bi, span_bi), 4)
+
+
+def _attr(spans: list[Span], key: str):
+    """First non-None value of `key` across spans of a stage. A stage can span several
+    OTLP spans (LiveKit puts ttft on llm_node, tokens on llm_request)."""
+    for s in spans:
+        v = s.attrs.get(key)
+        if v is not None:
+            return v
+    return None
+
+
+def _content(spans: list[Span], kind: str) -> str | None:
+    """First non-empty `kind` content across spans. Producers that carry the transcript
+    as an attribute (LiveKit's lk.pii.*) land it here via the adapter's content_attrs."""
+    for s in spans:
+        v = s.content.get(kind)
+        if v:
+            return " ".join(map(str, v)) if isinstance(v, list) else str(v)
+    return None
 
 
 def _f(v: object) -> float | None:
