@@ -10,11 +10,17 @@ from sqlalchemy import create_engine, inspect
 
 from voiceobs.db import Base
 
-EXPECTED_TABLES = {
+# Data tables carry the loose `tenant_id` (= Organization.id). Identity tables DEFINE
+# tenancy (real FKs among themselves) and deliberately do NOT carry tenant_id.
+DATA_TABLES = {
     "prompt", "call", "raw_fragment", "event", "utterance", "turn", "metric",
     "metric_def", "media", "ingest_run", "annotation", "label", "tombstone",
     "transcript", "judge_config", "judgment", "tenant_settings",
 }
+IDENTITY_TABLES = {
+    "organization", "app_user", "membership", "agent", "agent_access", "ingest_token",
+}
+EXPECTED_TABLES = DATA_TABLES | IDENTITY_TABLES
 
 
 def _inspector():
@@ -23,16 +29,29 @@ def _inspector():
     return inspect(engine)
 
 
-def test_all_thirteen_tables_created():
+def test_all_tables_created():
     insp = _inspector()
     assert set(insp.get_table_names()) == EXPECTED_TABLES
 
 
-def test_tenant_id_on_every_table():
+def test_tenant_id_on_every_data_table():
     insp = _inspector()
-    for table in EXPECTED_TABLES:
+    for table in DATA_TABLES:
         cols = {c["name"] for c in insp.get_columns(table)}
         assert "tenant_id" in cols, f"{table} missing tenant_id"
+
+
+def test_identity_constraints_and_call_agent_id():
+    insp = _inspector()
+    assert "agent_id" in {c["name"] for c in insp.get_columns("call")}
+    mem_uniques = {tuple(u["column_names"]) for u in insp.get_unique_constraints("membership")}
+    assert ("org_id", "user_id") in mem_uniques
+    agent_uniques = {tuple(u["column_names"]) for u in insp.get_unique_constraints("agent")}
+    assert ("org_id", "slug") in agent_uniques
+    access_uniques = {tuple(u["column_names"]) for u in insp.get_unique_constraints("agent_access")}
+    assert ("membership_id", "agent_id") in access_uniques
+    user_uniques = {tuple(u["column_names"]) for u in insp.get_unique_constraints("app_user")}
+    assert ("email",) in user_uniques
 
 
 def test_call_unique_external_id():
