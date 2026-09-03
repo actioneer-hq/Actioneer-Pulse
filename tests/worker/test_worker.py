@@ -30,6 +30,30 @@ def _split(payload: dict) -> list[bytes]:
     ]
 
 
+def test_rollup_fills_models_and_tokens_from_otlp():
+    """The call-level composition (which STT/LLM/TTS models ran, token totals) is rolled
+    up from the spans. LiveKit names the STT model on the user-turn span, not the STT one."""
+    from voiceobs.adapters.livekit import LiveKitAdapter
+    from voiceobs.core.join import join
+    from voiceobs.db.models import Call
+    from voiceobs.worker.process import _rollup
+
+    otlp = json.loads(
+        (Path(__file__).parents[2] / "tests/e2e/sample-run/otlp.json").read_text()
+    )
+    trace = LiveKitAdapter().to_trace(otlp)
+    analysis = join(trace, None)
+    call = Call(id="x", tenant_id="t", external_call_id="x", source="livekit", environment="prod")
+    _rollup(call, trace, analysis)
+
+    assert call.engine == "cascade"
+    assert call.stt_provider == "gpt-4o-mini-transcribe"
+    assert call.llm_provider == "gpt-4o-mini"
+    assert call.tts_provider == "gpt-4o-mini-tts"
+    assert call.tokens_in and call.tokens_out
+    assert call.tts_chars
+
+
 def test_assemble_merges_fragments():
     merged = assemble(_split(sample_call()))
     names = [s["name"] for s in merged["resourceSpans"][0]["scopeSpans"][0]["spans"]]

@@ -59,14 +59,18 @@ export default function App() {
     ["Calls", String(calls.length)],
     ["Median call p50 v2v", ms(pct(calls.map((c) => c.p50_v2v_ms), 0.5)), "median of per-call medians"],
     ["p95 of call p50s", ms(pct(calls.map((c) => c.p50_v2v_ms), 0.95))],
-    ["Barge-in rate", allTurns ? `${Math.round((100 * bargeIns) / allTurns)}%` : "—"],
+    ["Barge-in rate", allTurns ? `${+((100 * bargeIns) / allTurns).toFixed(1)}%` : "—"],
     ["Without audio", String(calls.filter((c) => !c.media_ready).length), "measured from spans only"],
   ];
 
   return (
     <>
       <div className="top">
-        <div className="brand"><i />Voice Observability</div>
+        <div className="brand">
+          <img className="logo" src="/actioneer-logo.svg" alt="Actioneer" />
+          <span className="brand-sep" />
+          <span className="brand-sub">Voice Observability</span>
+        </div>
         <nav><button className="on">Calls</button></nav>
       </div>
       <div className="page">

@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { STAGES, type Span, type Trace } from "../api";
-import { ms } from "../format";
+import { dur } from "../format";
 
 type Node = { span: Span; depth: number };
 
@@ -23,14 +24,23 @@ function flatten(spans: Span[]): Node[] {
 }
 
 export default function Waterfall({ trace }: { trace: Trace }) {
+  const [open, setOpen] = useState(false);
   const total = Math.max(
     ...trace.spans.map((s) => s.t_start_s + (s.duration_s ?? 0)),
     0.001,
   );
   return (
     <section className="sec">
-      <h3>Trace <span className="right">{trace.spans.length} spans</span></h3>
-      <div className="legend">
+      <h3 className="collapse" role="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        <svg className={`chev${open ? " open" : ""}`} width="12" height="12" viewBox="0 0 24 24"
+             fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+             strokeLinejoin="round" aria-hidden="true">
+          <polyline points="9 6 15 12 9 18" />
+        </svg>
+        Trace <span className="right">{trace.spans.length} spans</span>
+      </h3>
+      {open && (
+      <div className="disclose"><div className="legend">
         {STAGES.map((s) => (
           <span key={s}>
             <i className="dot" style={{ background: `var(--${s})` }} />
@@ -68,7 +78,7 @@ export default function Waterfall({ trace }: { trace: Trace }) {
                   ))}
                 </div>
                 <div className="dur">
-                  {span.duration_s == null ? "open" : ms(span.duration_s * 1000)}
+                  {span.duration_s == null ? "open" : dur(span.duration_s * 1000)}
                 </div>
               </div>
             </summary>
@@ -89,7 +99,8 @@ export default function Waterfall({ trace }: { trace: Trace }) {
             </div>
           </details>
         ))}
-      </div>
+      </div></div>
+      )}
     </section>
   );
 }

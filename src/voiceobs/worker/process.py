@@ -14,9 +14,9 @@ from sqlalchemy.orm import Session
 from voiceobs.adapters import UnsupportedSchema, adapter_for
 from voiceobs.core import analyze_audio
 from voiceobs.core.audio.decode import combine_stereo
-from voiceobs.core.config import METRIC_VERSION
+from voiceobs.core.config import METRIC_VERSION, price_call
 from voiceobs.core.join import join
-from voiceobs.core.model import Analysis, AudioAnalysis, AudioRef, CallHeader, Trace
+from voiceobs.core.model import Analysis, AudioAnalysis, AudioRef, CallHeader, Stage, Trace
 from voiceobs.db.models import (
     Call,
     Event,
@@ -156,9 +156,13 @@ def _persist(
     db.execute(delete(Media).where(Media.call_id == call.id, Media.kind.like("peaks_%")))
 
     _apply_header(call, trace.header)
+    _rollup(call, trace, analysis)
     call.unattributed_spans = sum(
-        1 for s in trace.spans if s.turn_id is None and s.parent_span_id is not None
+        1 for s in trace.spans
+        if s.turn_id is None and s.parent_span_id is not None and s.stage is not Stage.CALL
     )
+    # 0 once analysed (a known "none dropped"), not null — null reads as "unknown".
+    call.span_dropped_events = analysis.trust.span_dropped_events
     call.metric_version = analysis.metric_version
     call.adapter_version = adapter_version
     call.app_version = APP_VERSION
@@ -171,6 +175,49 @@ def _persist(
     if audio is not None:
         db.add_all(_utterance_rows(audio, call, analysis.metric_version))
         db.add_all(_peaks_rows(audio, call))
+
+
+def _rollup(call: Call, trace: Trace, analysis: Analysis) -> None:
+    """Call-level facts the OTLP already carries per span/turn: which models ran, and the
+    token totals. The header has the call's identity; this is its composition. Left null
+    when the producer never said (LiveKit, e.g., names no STT model) — never guessed."""
+    spans = trace.spans
+
+    def model(stage: Stage) -> str | None:
+        return next(
+            (s.attrs.get("gen_ai.request.model") for s in spans
+             if s.stage is stage and s.attrs.get("gen_ai.request.model")),
+            None,
+        )
+
+    stages = {s.stage for s in spans}
+    # STT: LiveKit names the transcription model on the user-turn span (with the transcript
+    # and confidence), not on the endpointing STT span — so fall back to the turn span.
+    call.stt_provider = model(Stage.STT) or model(Stage.TURN) or call.stt_provider
+    call.llm_provider = model(Stage.LLM) or call.llm_provider
+    call.tts_provider = model(Stage.TTS) or call.tts_provider
+    if call.engine is None and Stage.LLM in stages:
+        # distinct STT/LLM/TTS spans => a cascade; a single realtime span => s2s.
+        call.engine = "cascade" if {Stage.STT, Stage.TTS} & stages else "s2s"
+
+    def total(attr: str) -> int | None:
+        return sum(getattr(t, attr) or 0 for t in analysis.turns) or None
+
+    call.tokens_in = total("tokens_in")
+    call.tokens_out = total("tokens_out")
+    call.tokens_cached = total("tokens_cached")
+    call.tts_chars = total("tts_chars")
+
+    # cost from the configured per-model pricing (MODEL_PRICING). Stays null for any
+    # model with no registered price — a call is never billed on a guess.
+    cost = price_call(
+        llm_model=call.llm_provider, stt_model=call.stt_provider, tts_model=call.tts_provider,
+        tokens_in=call.tokens_in, tokens_out=call.tokens_out, tokens_cached=call.tokens_cached,
+        tts_chars=call.tts_chars, stt_seconds=call.stt_seconds,
+    )
+    call.cost_llm, call.cost_stt, call.cost_tts = cost.llm, cost.stt, cost.tts
+    call.cost_total = cost.total
+    call.cost_currency = cost.currency if cost.total is not None else None
 
 
 def _utterance_rows(audio: AudioAnalysis, call: Call, metric_version: int):

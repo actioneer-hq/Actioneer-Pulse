@@ -58,6 +58,7 @@ export type Turn = {
   stt_lag_ms: number | null;
   llm_ttft_ms: number | null;
   assembly_ms: number | null;
+  dispatch_ms: number | null;
   tts_ttfb_ms: number | null;
   unattributed_ms: number | null;
   language: string | null;
@@ -109,6 +110,7 @@ export type Audio = {
 export type Trust = {
   spans_complete: boolean;
   media_ready: boolean;
+  audio_analysis: boolean;
   capture_coverage: Record<string, number> | number[] | Record<string, never>;
   span_dropped_events: number | null;
   unattributed_spans: number | null;

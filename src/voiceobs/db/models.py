@@ -221,6 +221,7 @@ class Turn(Base):
     endpointing_ms: Mapped[float | None] = mapped_column(Float)
     llm_ttft_ms: Mapped[float | None] = mapped_column(Float)
     assembly_ms: Mapped[float | None] = mapped_column(Float)
+    dispatch_ms: Mapped[float | None] = mapped_column(Float)  # first token -> TTS request
     tts_ttfb_ms: Mapped[float | None] = mapped_column(Float)
     playout_ms: Mapped[float | None] = mapped_column(Float)
     unattributed_ms: Mapped[float | None] = mapped_column(Float)
