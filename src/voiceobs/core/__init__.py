@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from voiceobs.core.audio import analyze_audio
+from voiceobs.core.calculator import Calculator
 from voiceobs.core.config import (
     METRIC_DEFS,
     METRIC_DEFS_BY_NAME,
@@ -34,6 +35,7 @@ __all__ = [
     "Analysis",
     "AudioAnalysis",
     "AudioRef",
+    "Calculator",
     "CallHeader",
     "MetricConfig",
     "MetricDef",

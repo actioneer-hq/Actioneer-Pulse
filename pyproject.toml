@@ -62,6 +62,7 @@ source_modules = ["voiceobs.core"]
 forbidden_modules = [
     "voiceobs.api",
     "voiceobs.adapters",
+    "voiceobs.frameworks",
     "voiceobs.storage",
     "voiceobs.worker",
     "voiceobs.db",
