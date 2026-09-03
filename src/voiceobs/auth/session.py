@@ -45,3 +45,24 @@ def read_session(cookie: str | None) -> str | None:
     except (BadSignature, SignatureExpired):
         return None
     return data.get("uid") if isinstance(data, dict) else None
+
+
+_INVITE_SALT = "vo-invite"
+INVITE_MAX_AGE_S = 7 * 24 * 3600
+
+
+def issue_invite(user_id: str) -> str:
+    """A signed, expiring invite token carrying the invited user's id."""
+    return URLSafeTimedSerializer(_secret(), salt=_INVITE_SALT).dumps({"uid": user_id})
+
+
+def read_invite(token: str | None) -> str | None:
+    if not token:
+        return None
+    try:
+        data = URLSafeTimedSerializer(_secret(), salt=_INVITE_SALT).loads(
+            token, max_age=INVITE_MAX_AGE_S
+        )
+    except (BadSignature, SignatureExpired):
+        return None
+    return data.get("uid") if isinstance(data, dict) else None

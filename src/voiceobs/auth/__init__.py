@@ -17,7 +17,14 @@ from voiceobs.auth.deps import (
 )
 from voiceobs.auth.password import PasswordProvider, hash_password, normalize_email
 from voiceobs.auth.registry import provider_for, providers, register_provider
-from voiceobs.auth.session import COOKIE_NAME, MAX_AGE_S, issue_session, read_session
+from voiceobs.auth.session import (
+    COOKIE_NAME,
+    MAX_AGE_S,
+    issue_invite,
+    issue_session,
+    read_invite,
+    read_session,
+)
 from voiceobs.auth.tokens import mint_ingest_token, resolve_ingest_token
 
 # Register the shipped providers (import side-effect, like frameworks/__init__.py).
@@ -31,11 +38,13 @@ __all__ = [
     "current_user",
     "get_scoped_call",
     "hash_password",
+    "issue_invite",
     "issue_session",
     "mint_ingest_token",
     "normalize_email",
     "provider_for",
     "providers",
+    "read_invite",
     "read_session",
     "register_provider",
     "require_role",
