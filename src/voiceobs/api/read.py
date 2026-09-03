@@ -6,13 +6,14 @@ from __future__ import annotations
 import base64
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import session_dep
+from voiceobs.auth import current_membership, get_scoped_call, visible_agent_ids
 from voiceobs.core.config import METRIC_DEFS
-from voiceobs.db.models import Call, Event, Media, Metric, Turn
+from voiceobs.db.models import Call, Event, Media, Membership, Metric, Turn
 from voiceobs.storage import presign
 from voiceobs.transcript import resolve
 
@@ -22,6 +23,7 @@ router = APIRouter(prefix="/v1")
 
 @router.get("/calls")
 def list_calls(
+    mem: Membership = Depends(current_membership),
     db: Session = Depends(session_dep),
     environment: str | None = None,
     status: str | None = None,
@@ -30,11 +32,15 @@ def list_calls(
 ) -> dict:
     stmt = (
         select(Call)
+        .where(Call.tenant_id == mem.org_id)  # never leak across orgs
         # nulls_last: an unprocessed call has no started_at yet and would otherwise
         # sort to the top of every list forever.
         .order_by(Call.started_at.desc().nulls_last(), Call.created_at.desc())
         .limit(limit)
     )
+    ids = visible_agent_ids(db, mem)  # None = all org agents (coarse); else restricted
+    if ids is not None:
+        stmt = stmt.where(Call.agent_id.in_(ids))
     if environment:
         stmt = stmt.where(Call.environment == environment)
     if status:
@@ -71,11 +77,12 @@ def _turn_stats(db: Session, call_ids: list[str]) -> dict[str, dict]:
 
 
 @router.get("/calls/{call_id}")
-def get_call(call_id: str, db: Session = Depends(session_dep)) -> dict:
+def get_call(
+    call: Call = Depends(get_scoped_call), db: Session = Depends(session_dep)
+) -> dict:
     """The whole analysis for one call in a single round trip: header, turns,
     metrics, trust, the span/waterfall tree, waveform peaks, and a presigned audio
     URL. Audio bytes are streamed by the browser from that URL, never through here."""
-    call = _get_call(db, call_id)
     turns = db.scalars(
         select(Turn).where(Turn.call_id == call.id).order_by(Turn.turn_index)
     ).all()
@@ -101,21 +108,16 @@ def get_call(call_id: str, db: Session = Depends(session_dep)) -> dict:
 
 
 @router.get("/calls/{call_id}/transcript")
-def get_transcript(call_id: str, db: Session = Depends(session_dep)) -> dict:
+def get_transcript(
+    call: Call = Depends(get_scoped_call), db: Session = Depends(session_dep)
+) -> dict:
     """BYO transcript if uploaded, else derived from turn content. Feeds the judge."""
-    return resolve(db, _get_call(db, call_id))
+    return resolve(db, call)
 
 
 @router.get("/metric-defs")
 def metric_defs() -> list[dict]:
     return [d.model_dump() for d in METRIC_DEFS]
-
-
-def _get_call(db: Session, call_id: str) -> Call:
-    call = db.scalar(select(Call).where(Call.external_call_id == call_id))
-    if call is None:
-        raise HTTPException(404, "call not found")
-    return call
 
 
 def _list_item(c: Call, stats: dict | None) -> dict:

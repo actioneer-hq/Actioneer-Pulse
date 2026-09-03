@@ -52,19 +52,36 @@ def _dev_open(monkeypatch) -> None:
 
 
 @pytest.fixture
-def authed_client(client, db_sessionmaker) -> TestClient:
-    """A `client` already signed in as an owner of the default org (id="default"), with the
-    session cookie set. Existing read/settings/judge tests use this once those endpoints
-    require auth."""
+def login_as(client, db_sessionmaker):
+    """Sign `client` in as a member of `org_id` with `role`, seeding the org/user/membership
+    on demand. Returns the same client (cookie set). Call it as the org a test's calls
+    belong to — e.g. `login_as("vastu-hfc")` for sample_call data."""
+    from sqlalchemy import select
+
     from voiceobs.auth import COOKIE_NAME, hash_password, issue_session
     from voiceobs.db.models import AppUser, Membership, Organization
 
-    with db_sessionmaker() as db:
-        db.add(AppUser(id="u-owner", email="owner@test.co",
-                       password_hash=hash_password("pw"), is_active=True))
-        db.add(Organization(id="default", name="Default", slug="default"))
-        db.flush()
-        db.add(Membership(id="m-owner", org_id="default", user_id="u-owner", role="owner"))
-        db.commit()
-    client.cookies.set(COOKIE_NAME, issue_session("u-owner"))
-    return client
+    def _login(org_id: str = "default", role: str = "owner") -> TestClient:
+        uid = f"u-{org_id}-{role}"
+        with db_sessionmaker() as db:
+            if db.get(AppUser, uid) is None:
+                db.add(AppUser(id=uid, email=f"{uid}@test.co",
+                               password_hash=hash_password("pw"), is_active=True))
+            if db.get(Organization, org_id) is None:
+                db.add(Organization(id=org_id, name=org_id, slug=org_id))
+            db.flush()
+            has = db.scalar(select(Membership).where(
+                Membership.org_id == org_id, Membership.user_id == uid))
+            if has is None:
+                db.add(Membership(org_id=org_id, user_id=uid, role=role))
+            db.commit()
+        client.cookies.set(COOKIE_NAME, issue_session(uid))
+        return client
+
+    return _login
+
+
+@pytest.fixture
+def authed_client(login_as) -> TestClient:
+    """Signed in as an owner of the default org."""
+    return login_as("default")
