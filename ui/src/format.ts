@@ -1,5 +1,12 @@
+// Exact — an observability tool must not hide precision. Values are stored to 0.1ms;
+// show them as-is (integer when whole, else one decimal), always in ms.
 export const ms = (v: number | null | undefined): string =>
-  v == null ? "—" : v >= 1000 ? `${(v / 1000).toFixed(2)} s` : `${Math.round(v)} ms`;
+  v == null ? "—" : `${Number.isInteger(v) ? v : Number(v.toFixed(3))} ms`;
+
+// Compact duration for dense views (the trace tree): ms under a second, seconds above,
+// so long spans don't wrap. The precise value always lives in the Latency table / span detail.
+export const dur = (v: number | null | undefined): string =>
+  v == null ? "—" : v >= 1000 ? `${+(v / 1000).toFixed(2)} s` : `${Number.isInteger(v) ? v : Number(v.toFixed(2))} ms`;
 
 export const secs = (v: number | null | undefined): string =>
   v == null ? "—" : v >= 60 ? `${Math.floor(v / 60)}m ${Math.round(v % 60)}s` : `${v.toFixed(1)}s`;

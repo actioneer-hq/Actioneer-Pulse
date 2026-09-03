@@ -1,5 +1,5 @@
-"""join() invariants: waterfall parts + unattributed = whole, clock anchoring,
-signed residual, and every missing-evidence path -> the right TrustReason."""
+"""join() invariants: unattributed = uncovered wall-clock (interval union, never negative),
+clock anchoring, signed residual, and every missing-evidence path -> the right TrustReason."""
 
 from __future__ import annotations
 
@@ -64,17 +64,16 @@ def _audio(offset_applied: float) -> AudioAnalysis:
     )
 
 
-def test_waterfall_parts_sum_to_whole():
+def test_unattributed_is_the_uncovered_gap():
     off = 0.5
     analysis = join(_cascade_trace(), _audio(off), t0_offset_s=off)
     assert len(analysis.turns) == 1
     t = analysis.turns[0]
-    parts = [t.stt_lag_ms, t.endpointing_ms, t.llm_ttft_ms, t.assembly_ms,
-             t.tts_ttfb_ms, t.playout_ms]
-    present = [p for p in parts if p is not None]
     assert t.response_latency_ms is not None
-    # parts + unattributed == response_latency (found by subtraction, never assumed)
-    assert abs(sum(present) + t.unattributed_ms - t.response_latency_ms) < 0.5
+    assert t.unattributed_ms is not None and t.unattributed_ms >= 0  # never negative
+    # v2v window is [stt_final=1.0, first_audio=1.7]; the LLM/TTS spans cover [1.1, 1.7],
+    # so the only uncovered wall-clock is the 0.1s gap between STT finishing and LLM start.
+    assert abs(t.unattributed_ms - 100) < 1
 
 
 def test_anchor_shifts_span_times_onto_audio_clock():

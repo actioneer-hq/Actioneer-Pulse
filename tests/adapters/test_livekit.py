@@ -73,6 +73,27 @@ def test_agent_turn_folds_into_the_caller_turn():
     assert t.tts_span_present is True
 
 
+def test_unattributed_is_the_uncovered_gap_never_negative():
+    """Unattributed is wall-clock the spans left uncovered (interval union), not a sum of
+    reported durations — so it is never negative even when streaming stages overlap, and a
+    genuine gap (a real pause) still shows up as a positive residual."""
+    import json as _json
+    from pathlib import Path
+
+    otlp = _json.loads((Path(__file__).parents[1] / "e2e/sample-run/otlp.json").read_text())
+    turns = join(LiveKitAdapter().to_trace(otlp), None).turns
+    measured = [t for t in turns if t.response_latency_ms is not None]
+    assert measured
+    for t in measured:
+        assert t.unattributed_ms is not None
+        assert t.unattributed_ms >= 0                         # never negative, by construction
+        assert t.unattributed_ms <= t.response_latency_ms + 1  # bounded by the window
+        assert t.response_latency_ms > (t.tts_ttfb_ms or 0)   # v2v spans past tts_start
+    # a fully-covered streaming turn leaves a near-zero gap; a real pause leaves a big one.
+    assert any(t.unattributed_ms < 50 for t in measured)
+    assert any(t.unattributed_ms > 500 for t in measured)
+
+
 def _metrics_tree() -> dict:
     """LiveKit's per-request metrics arrive as a JSON *string* under one attribute:
     lk.llm_metrics on llm_request, lk.tts_metrics on tts_request."""

@@ -131,7 +131,8 @@ class Turn(Frozen):
     stt_lag_ms: float | None = None
     endpointing_ms: float | None = None
     llm_ttft_ms: float | None = None
-    assembly_ms: float | None = None
+    assembly_ms: float | None = None  # first token -> TTS node opens (~0 for streaming)
+    dispatch_ms: float | None = None  # first token -> TTS provider request fires
     tts_ttfb_ms: float | None = None
     playout_ms: float | None = None
     unattributed_ms: float | None = None  # turn duration minus children

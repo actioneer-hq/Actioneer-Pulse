@@ -52,8 +52,7 @@ def join(
     cfg = cfg or MetricConfig()
     offset = t0_offset_s or 0.0
 
-    turn_spans = [s for s in trace.spans if s.stage is Stage.TURN]
-    turn_spans.sort(key=lambda s: (_turn_index(s), s.t_start))
+    turn_spans = _turn_spans(trace.spans)
     has_spans = bool(trace.spans)
 
     utterances = audio.utterances if audio else []
@@ -80,6 +79,28 @@ def join(
         metric_version=METRIC_VERSION,
         adapter_version=ADAPTER_VERSION,
     )
+
+
+def _turn_spans(spans: list[Span]) -> list[Span]:
+    """One turn span per exchange. A producer may emit several TURN-stage spans for the
+    same exchange (LiveKit's user_turn + agent_turn); they share a turn_id once paired.
+    Keep the caller-side one — the TURN span that parents an STT/SPEECH span — so the turn
+    is anchored on the caller, and the others still render, just not as separate turns."""
+    caller_side = {
+        s.parent_span_id for s in spans if s.stage in (Stage.STT, Stage.SPEECH)
+    }
+    best: dict[str, Span] = {}
+    for s in (t for t in spans if t.stage is Stage.TURN):
+        key = s.turn_id or s.span_id
+        cur = best.get(key)
+        primary = s.span_id in caller_side
+        if (
+            cur is None
+            or (primary and cur.span_id not in caller_side)
+            or (primary == (cur.span_id in caller_side) and s.t_start < cur.t_start)
+        ):
+            best[key] = s
+    return sorted(best.values(), key=lambda s: (_turn_index(s), s.t_start))
 
 
 def _turn_index(span: Span, default: int = 10**9) -> int:
@@ -127,6 +148,32 @@ def _agent_intervals(trace: Trace, offset: float) -> list[iv.Interval]:
     return iv.merge([(a, b) for a, b in windows if a is not None and b is not None])
 
 
+def _uncovered(
+    caller_stop: float | None,
+    agent_out: float | None,
+    speech_end: float | None,
+    stt_start: float | None,
+    spans: list[Span],
+    offset: float,
+) -> float | None:
+    """Milliseconds inside [caller_stop, agent_out] that no span (nor the endpointing hold)
+    covered — the genuinely unexplained gap. Overlap-safe: it unions the intervals, so
+    stages that run concurrently in a streaming pipeline are counted once, never negative."""
+    if caller_stop is None or agent_out is None or agent_out <= caller_stop:
+        return None
+    lo, hi = caller_stop, agent_out
+    segs: list[iv.Interval] = []
+    if speech_end is not None and stt_start is not None:  # the endpointing hold (no span)
+        segs.append((speech_end, stt_start))
+    for s in spans:
+        a, b = _to_audio(s.t_start, offset), _to_audio(s.t_end, offset)
+        if a is not None and b is not None:
+            segs.append((a, b))
+    clipped = [(max(lo, a), min(hi, b)) for a, b in segs if min(hi, b) > max(lo, a)]
+    covered = iv.total(iv.merge(clipped))
+    return round(max(0.0, (hi - lo) - covered) * 1000.0, 1)
+
+
 def _build_turn(
     turn_span: Span, spans: list[Span], utterances: list[Utterance], offset: float,
     position: int = 0,
@@ -143,14 +190,21 @@ def _build_turn(
     # so stage-scoped reads miss them — search the whole exchange for those.
     related = [s for s in spans if s.turn_id == tid]
 
-    # The caller stopped talking here. Backdated by the producer to the real instant,
-    # not the moment its VAD noticed — that gap IS the endpointing hold below.
-    speech_end = _to_audio(speech[0].t_end, offset) if speech and speech[0].t_end else None
+    # The caller stopped talking here — the last end across their speech segments (a turn
+    # may hold several). This is the real instant; the gap to STT IS the endpointing hold.
+    speech_ends = [s.t_end for s in speech if s.t_end is not None]
+    speech_end = _to_audio(max(speech_ends), offset) if speech_ends else None
     stt_start = _to_audio(stt[0].t_start, offset) if stt else None
     stt_final = _to_audio(stt[0].t_end, offset) if stt else None
     llm_start = llm[0].t_start if llm else None
     llm_first_token = _to_audio(_first_event_t(spans, "llm.first_token", tid), offset)
-    tts_start = _to_audio(tts[0].t_start, offset) if tts else None
+    # TTS "start" = the earliest TTS span opening (the pipeline node accepts text, ~first
+    # token). The provider *request* is the sub-span that carries the synthesis metrics
+    # (characters count) — it fires a little later; the gap between them is the dispatch.
+    tts_starts = [s.t_start for s in tts]
+    tts_start = _to_audio(min(tts_starts), offset) if tts_starts else None
+    tts_req_starts = [s.t_start for s in tts if s.attrs.get("tts.chars") is not None]
+    tts_req_start = _to_audio(min(tts_req_starts), offset) if tts_req_starts else None
     tts_first_audio = _to_audio(_first_event_t(spans, "tts.first_audio", tid), offset)
     committed = _to_audio(_first_event_t(spans, "turn.committed", tid), offset)
     if committed is None:  # fall back to the turn span start
@@ -162,16 +216,46 @@ def _build_turn(
     win_end = _to_audio(turn_span.t_end, offset)
     caller_end, agent_vad_start = _audio_endpoints(utterances, win_start, win_end)
 
-    # agent response = when the engine sent first audio (span). caller stop = the end
-    # of speech per spans. response_latency is span-side, per the OTLP-for-agent rule.
-    agent_out = tts_first_audio if tts_first_audio is not None else tts_start
-    caller_stop = speech_end if speech_end is not None else stt_final
-
-    # the waterfall (ms); each segment is None unless both endpoints exist.
-    # endpointing is the VAD silence hold — how long we waited to be sure the caller
-    # was done. See docs/vas-telemetry-semantics.md §3 "Endpointing".
+    # the waterfall pieces (ms). endpointing is the silence hold — how long we waited to
+    # be sure the caller had finished. See docs/vas-telemetry-semantics.md §3.
     stt_lag = _ms(stt_start, stt_final)
-    assembly = _ms(llm_first_token, tts_start)
+    # producer-reported latency (seconds -> ms): LiveKit hands ttft/ttfb as span
+    # attributes instead of first-token/first-audio events. Store them, and bridge them
+    # into the waterfall when the event is absent, so the timeline reads complete from
+    # OTLP alone. `*_reported_ms` keeps the provenance.
+    llm_ttft_reported = _sec_to_ms(_attr(llm, "metrics.ttft"))
+    tts_ttfb_reported = _sec_to_ms(_attr(tts, "metrics.ttfb"))
+    endpointing = _ms(speech_end, stt_start)
+    if endpointing is None:  # LiveKit reports the endpointing hold as an attribute
+        endpointing = _sec_to_ms(_attr(related, "endpointing.delay"))
+    llm_ttft = _ms(_to_audio(llm_start, offset), llm_first_token)
+    if llm_ttft is None:
+        llm_ttft = llm_ttft_reported
+    tts_ttfb = _ms(tts_start, tts_first_audio)
+    if tts_ttfb is None:
+        tts_ttfb = tts_ttfb_reported
+
+    # assembly = first token -> TTS start. When the first-token event is absent, place it
+    # at llm_start + reported ttft (the same first token, reconstructed), so the column
+    # fills instead of dashing out.
+    first_token = llm_first_token
+    if first_token is None and llm_start is not None and llm_ttft_reported is not None:
+        first_token = round(_to_audio(llm_start, offset) + llm_ttft_reported / 1000.0, 4)
+    assembly = _ms(first_token, tts_start)          # first token -> TTS node opens (~0)
+    dispatch = _ms(first_token, tts_req_start)      # first token -> provider request fires
+
+    # v2v runs the caller's end of speech -> first agent audio, and MUST share the pieces'
+    # anchors or the residual goes negative. Both anchors can be missing as events, so:
+    #   start: the caller's real end of speech (SPEECH span), not the STT-final fallback.
+    #   end:   first audio = tts start + reported ttfb, when no first-audio event exists.
+    caller_stop = speech_end if speech_end is not None else stt_final
+    if tts_first_audio is not None:
+        agent_out = tts_first_audio
+    elif tts_start is not None and tts_ttfb is not None:
+        agent_out = round(tts_start + tts_ttfb / 1000.0, 4)
+    else:
+        agent_out = tts_start
+
     # playout = sent -> heard (span vs caller-recording); the network tail, reported
     # but not summed into response_latency, which ends when the engine sent audio.
     playout = _ms(tts_first_audio, agent_vad_start)
@@ -185,25 +269,15 @@ def _build_turn(
     if cut_reason is None and tts_cancelled:
         cut_reason = "barge_in" if interrupted else "hangup"
 
-    # producer-reported latency (seconds -> ms): LiveKit hands the number as a span
-    # attribute instead of a first-token/first-audio event. Store it, and bridge it into
-    # the waterfall when the event-derived value is absent, so the timeline reads complete
-    # from OTLP alone. `*_reported_ms` keeps the provenance.
-    llm_ttft_reported = _sec_to_ms(_attr(llm, "metrics.ttft"))
-    tts_ttfb_reported = _sec_to_ms(_attr(tts, "metrics.ttfb"))
-    endpointing = _ms(speech_end, stt_start)
-    if endpointing is None:  # LiveKit reports the endpointing hold as an attribute
-        endpointing = _sec_to_ms(_attr(related, "endpointing.delay"))
-    llm_ttft = _ms(_to_audio(llm_start, offset), llm_first_token)
-    if llm_ttft is None:
-        llm_ttft = llm_ttft_reported
-    tts_ttfb = _ms(tts_start, tts_first_audio)
-    if tts_ttfb is None:
-        tts_ttfb = tts_ttfb_reported
-
-    parts = [p for p in (endpointing, stt_lag, llm_ttft, assembly, tts_ttfb) if p]
-    total = response_latency
-    unattributed = round(total - sum(parts), 1) if total is not None else None
+    # Unattributed = wall-clock inside the v2v window that NO stage covered — computed from
+    # the actual span intervals (their union), NOT by subtracting reported durations. In a
+    # streaming pipeline stages overlap (the LLM still emits while TTS speaks), so summing
+    # durations double-counts and would go negative; a union counts overlap once and is
+    # non-negative by construction. The endpointing hold is a real gap with no span of its
+    # own, so it is added as attributed time.
+    unattributed = _uncovered(
+        caller_stop, agent_out, speech_end, stt_start, stt + llm + tts, offset
+    )
 
     return Turn(
         turn_index=_turn_index(turn_span, default=position),
@@ -223,6 +297,7 @@ def _build_turn(
         endpointing_ms=endpointing,
         llm_ttft_ms=llm_ttft,
         assembly_ms=assembly,
+        dispatch_ms=dispatch,
         tts_ttfb_ms=tts_ttfb,
         playout_ms=playout,
         unattributed_ms=unattributed,

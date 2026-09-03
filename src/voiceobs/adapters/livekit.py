@@ -50,13 +50,23 @@ class LiveKitAdapter(OTLPAdapter):
 
     stages: ClassVar[dict[str, Stage]] = {
         "agent_session": Stage.CALL,
+        # session lifecycle — the agent joining/leaving, not a pipeline stage
+        "start_agent_activity": Stage.CALL,
+        "on_enter": Stage.CALL,
+        "on_exit": Stage.CALL,
+        "drain_agent_activity": Stage.CALL,
         "user_turn": Stage.TURN,
+        "agent_turn": Stage.TURN,        # the agent's half; folded into the exchange below
+        "user_speaking": Stage.SPEECH,   # caller's speech window; its end = real end of speech
         "agent_speaking": Stage.PLAYOUT,
         "eou_detection": Stage.STT,
         "llm_request": Stage.LLM,
+        "llm_request_run": Stage.LLM,    # retry wrapper around llm_request
         "llm_node": Stage.LLM,
         "tts_node": Stage.TTS,
-        "tts_request": Stage.TTS,   # carries lk.tts_metrics (chars, audio duration, ttfb)
+        "tts_request": Stage.TTS,        # carries lk.tts_metrics (chars, audio duration, ttfb)
+        "tts_request_run": Stage.TTS,    # retry wrapper around tts_request
+        "tts_stream_adapter": Stage.TTS, # pipes LLM output into TTS as it streams
         "function_tool": Stage.TOOL,
     }
 
@@ -115,8 +125,10 @@ def _pair_agent_turns(spans: list[Span]) -> list[Span]:
     """Give each `agent_turn` subtree the turn_id of the preceding `user_turn`, so the
     agent's LLM/TTS spans land in the same exchange as the caller's STT."""
     by_id = {s.span_id: s for s in spans}
+    # by name, not stage: agent_turn is also stage TURN, but it is the side we are folding
+    # IN — the anchor is the caller's user_turn.
     user_turns = sorted(
-        (s for s in spans if s.stage is Stage.TURN), key=lambda s: s.t_start
+        (s for s in spans if s.name == "user_turn"), key=lambda s: s.t_start
     )
     if not user_turns:
         return spans
