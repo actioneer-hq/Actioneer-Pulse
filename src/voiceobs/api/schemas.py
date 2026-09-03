@@ -72,3 +72,20 @@ class RoleIn(BaseModel):
 class OrgIn(BaseModel):
     name: str
     slug: str | None = None
+
+
+class AgentIn(BaseModel):
+    name: str
+    slug: str | None = None
+
+
+class AgentPatchIn(BaseModel):
+    name: str
+
+
+class IngestTokenIn(BaseModel):
+    name: str | None = None
+
+
+class AgentAccessIn(BaseModel):
+    agent_ids: list[str]  # replace the member's grant set (empty = coarse "all org agents")

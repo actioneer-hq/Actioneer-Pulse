@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import now, session_dep
 from voiceobs.api.schemas import ArtifactIn, PromptIn, TranscriptIn
+from voiceobs.auth import resolve_ingest_token
+from voiceobs.auth.env import dev_open
 from voiceobs.db.models import (
     Annotation,
     Call,
@@ -58,17 +60,44 @@ async def otlp_payload(request: Request) -> dict:
         raise HTTPException(400, f"unreadable OTLP body: {e}") from e
 
 
+def ingest_identity(
+    db: Session = Depends(session_dep),
+    authorization: str | None = Header(None),
+    x_token: str | None = Header(None, alias="X-Voiceobs-Token"),
+) -> tuple[str | None, str | None]:
+    """(org_id, agent_id) a producer authenticated as, or (None, None) under dev-open.
+
+    A per-agent ingest token (Bearer or X-Voiceobs-Token) is authoritative — it routes the
+    call to its org+agent regardless of any voice.tenant_id/header. Without a token, ingest
+    is refused UNLESS dev-open (local/tests), where it falls back to the span/header tenant
+    and no agent."""
+    token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+    token = token or x_token
+    if token:
+        resolved = resolve_ingest_token(db, token)
+        if resolved is None:
+            raise HTTPException(401, "invalid ingest token")
+        return resolved
+    if dev_open():
+        return (None, None)
+    raise HTTPException(401, "ingest token required")
+
+
 @router.post("/traces")
 def ingest_traces(
     payload: dict = Depends(otlp_payload),
     db: Session = Depends(session_dep),
+    identity: tuple[str | None, str | None] = Depends(ingest_identity),
     header_tenant: str | None = Header(None, alias="X-Voiceobs-Tenant"),
 ) -> dict:
-    """OTLP receiver. Always 200 — never 4xx a partial batch."""
+    """OTLP receiver. Always 200 — never 4xx a partial batch (auth aside)."""
+    token_org, token_agent = identity
     batch_id = uuid4().hex
     rejected = 0
     for seq, (resource, spans) in enumerate(_shard(payload).values()):
-        batch = _identify(db, resource, spans, header_tenant)
+        batch = _identify(db, resource, spans, header_tenant, token_org, token_agent)
         if _tombstoned(db, batch.tenant, batch.call_id):
             rejected += len(spans)
             continue
@@ -171,6 +200,7 @@ class _Batch(NamedTuple):
     resource: dict  # raw OTLP resource — archived verbatim
     attrs: dict  # the same, flattened
     spans: list[dict]
+    agent_id: str | None = None  # from the ingest token; None under dev-open
 
 
 def _shard(payload: dict) -> dict[str, tuple[dict, list[dict]]]:
@@ -190,16 +220,20 @@ def _shard(payload: dict) -> dict[str, tuple[dict, list[dict]]]:
 
 
 def _identify(
-    db: Session, resource: dict, spans: list[dict], header_tenant: str | None
+    db: Session, resource: dict, spans: list[dict], header_tenant: str | None,
+    token_org: str | None = None, token_agent: str | None = None,
 ) -> _Batch:
-    """Who this batch belongs to. The root closes last, so its batch lands after its
-    children and may carry no identity at all: fall back resource -> spans -> header ->
+    """Who this batch belongs to. An ingest token is authoritative for the org+agent. Only
+    when there is no token (dev-open) do we fall back to resource -> spans -> header ->
     what this trace already resolved to -> the trace id itself."""
     attrs = attrs_to_dict(resource.get("attributes"))
     trace_id = next((s["traceId"] for s in spans if s.get("traceId")), "")
     root = _root(spans)
 
-    tenant = _hint(attrs, spans, _TENANT_HINTS) or header_tenant
+    if token_org is not None:  # authenticated ingest — token wins over any span/header
+        tenant = token_org
+    else:
+        tenant = _hint(attrs, spans, _TENANT_HINTS) or header_tenant
     # root first — a producer that stamps the call id on the root alone is still found
     call_id = _hint(attrs, [root, *spans] if root else spans, _CALL_ID_HINTS)
     if (tenant is None or call_id is None) and trace_id:
@@ -213,6 +247,7 @@ def _identify(
         tenant=str(tenant or "default"),
         call_id=call_id or trace_id or None,
         trace_id=trace_id, root=root, resource=resource, attrs=attrs, spans=spans,
+        agent_id=token_agent,
     )
 
 
@@ -248,11 +283,13 @@ def _upsert_call(db: Session, b: _Batch) -> None:
             source=b.attrs.get("service.name", "unknown"),
             environment=b.attrs.get("deployment.environment", "prod"),
             schema_version=b.attrs.get("voice.schema_version"),
-            status="awaiting_media",
+            agent_id=b.agent_id, status="awaiting_media",
         )
         db.add(call)
     if call.trace_id is None and b.trace_id:
         call.trace_id = b.trace_id
+    if call.agent_id is None and b.agent_id:  # a later authenticated batch names the agent
+        call.agent_id = b.agent_id
     if b.root is not None:
         call.spans_complete = True
     call.last_activity_at = now()

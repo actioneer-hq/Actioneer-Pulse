@@ -11,9 +11,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import session_dep
-from voiceobs.api.schemas import MemberIn, OrgIn, RoleIn
+from voiceobs.api.schemas import AgentAccessIn, MemberIn, OrgIn, RoleIn
 from voiceobs.auth import current_user, issue_invite, normalize_email
-from voiceobs.db.models import AppUser, Membership, Organization
+from voiceobs.db.models import Agent, AgentAccess, AppUser, Membership, Organization
 
 router = APIRouter(prefix="/v1/orgs")
 
@@ -138,3 +138,26 @@ def remove_member(
         raise HTTPException(404, "member not found")
     db.delete(mem)
     return {"status": "ok"}
+
+
+@router.put("/{org_id}/members/{mid}/agent-access")
+def set_agent_access(
+    org_id: str, mid: str, body: AgentAccessIn,
+    user: AppUser = Depends(current_user), db: Session = Depends(session_dep),
+) -> dict:
+    """Replace a member's granular grant set. Empty list = coarse default (all org agents).
+    Agent ids must belong to this org."""
+    _require_admin(db, org_id, user)
+    mem = db.get(Membership, mid)
+    if mem is None or mem.org_id != org_id:
+        raise HTTPException(404, "member not found")
+    valid = {a.id for a in db.scalars(select(Agent).where(Agent.org_id == org_id))}
+    bad = [a for a in body.agent_ids if a not in valid]
+    if bad:
+        raise HTTPException(400, f"agents not in this org: {bad}")
+    db.execute(
+        AgentAccess.__table__.delete().where(AgentAccess.membership_id == mid)
+    )
+    for aid in dict.fromkeys(body.agent_ids):  # dedupe, preserve order
+        db.add(AgentAccess(membership_id=mid, agent_id=aid))
+    return {"status": "ok", "agent_ids": list(dict.fromkeys(body.agent_ids))}
