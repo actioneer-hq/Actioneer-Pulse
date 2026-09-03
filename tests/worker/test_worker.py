@@ -8,7 +8,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from tests.adapters.fixtures.vas_call import sample_call
+from tests.fixtures.vas_call import sample_call
 from voiceobs.db.models import Call, Event, IngestRun, Metric
 from voiceobs.db.models import Turn as DBTurn
 from voiceobs.worker.process import assemble, process
@@ -33,9 +33,9 @@ def _split(payload: dict) -> list[bytes]:
 def test_rollup_fills_models_and_tokens_from_otlp():
     """The call-level composition (which STT/LLM/TTS models ran, token totals) is rolled
     up from the spans. LiveKit names the STT model on the user-turn span, not the STT one."""
-    from voiceobs.adapters.livekit import LiveKitAdapter
     from voiceobs.core.join import join
     from voiceobs.db.models import Call
+    from voiceobs.frameworks.livekit.adapter import LiveKitAdapter
     from voiceobs.worker.process import _rollup
 
     otlp = json.loads(
@@ -136,7 +136,7 @@ def test_unsupported_producer_is_not_retried_forever(client, db_sessionmaker, mo
     client.post("/v1/traces", json=sample_call())
     with db_sessionmaker() as db:
         import voiceobs.worker.run as run_mod
-        from voiceobs.adapters import UnsupportedSchema
+        from voiceobs.frameworks import UnsupportedSchema
 
         def boom(*_a, **_kw):
             raise UnsupportedSchema("nope")
@@ -150,7 +150,7 @@ def test_unsupported_producer_is_not_retried_forever(client, db_sessionmaker, mo
 
 def test_worker_names_no_producer():
     """The constraint, enforced. `worker/` may not know a producer exists — that is
-    `adapters/`' job, and it is what keeps Pipecat and LiveKit a config change."""
+    `frameworks/`' job, and it is what keeps Pipecat and LiveKit a config change."""
     src = Path(__file__).parents[2] / "src" / "voiceobs" / "worker"
     for f in src.glob("*.py"):
         text = f.read_text()

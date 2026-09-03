@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from tests.adapters.fixtures.vas_call import sample_call
-from voiceobs.adapters import otlp
+from tests.fixtures.vas_call import sample_call
+from voiceobs.frameworks import otlp
 
 
 def test_unwrap_each_value_kind():

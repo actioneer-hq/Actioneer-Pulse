@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from tests.adapters.fixtures.otlp_build import payload, span
-from voiceobs.adapters import adapter_for
-from voiceobs.adapters.livekit import LiveKitAdapter
+from tests.fixtures.otlp_build import payload, span
 from voiceobs.core import join
 from voiceobs.core.model import Stage
+from voiceobs.frameworks import adapter_for
+from voiceobs.frameworks.livekit.adapter import LiveKitAdapter
 
 
 def _call() -> dict:
@@ -80,7 +80,7 @@ def test_unattributed_is_the_uncovered_gap_never_negative():
     import json as _json
     from pathlib import Path
 
-    otlp = _json.loads((Path(__file__).parents[1] / "e2e/sample-run/otlp.json").read_text())
+    otlp = _json.loads((Path(__file__).parents[3] / "tests/e2e/sample-run/otlp.json").read_text())
     turns = join(LiveKitAdapter().to_trace(otlp), None).turns
     measured = [t for t in turns if t.response_latency_ms is not None]
     assert measured

@@ -11,11 +11,9 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from voiceobs.adapters import UnsupportedSchema, adapter_for
 from voiceobs.core import analyze_audio
 from voiceobs.core.audio.decode import combine_stereo
 from voiceobs.core.config import METRIC_VERSION, price_call
-from voiceobs.core.join import join
 from voiceobs.core.model import Analysis, AudioAnalysis, AudioRef, CallHeader, Stage, Trace
 from voiceobs.db.models import (
     Call,
@@ -28,6 +26,7 @@ from voiceobs.db.models import (
     Utterance,
 )
 from voiceobs.db.models import Turn as DBTurn
+from voiceobs.frameworks import UnsupportedSchema, framework_for
 from voiceobs.storage import fetch_bytes
 
 log = logging.getLogger(__name__)
@@ -82,20 +81,20 @@ def process(db: Session, call: Call) -> str:
     ).all()
     payload = assemble(list(payloads))
 
-    adapter = adapter_for(payload)
-    if adapter is None:  # only reachable if the generic adapter is unregistered
-        raise UnsupportedSchema("no adapter matched")
-    trace = adapter.to_trace(payload)
+    fw = framework_for(payload)
+    if fw is None:  # only reachable if the generic framework is unregistered
+        raise UnsupportedSchema("no framework matched")
+    trace = fw.adapter.to_trace(payload)
 
     # Audio analysis is the opt-in overlay: OTLP is the engine's account, audio is our own
     # independent one. Off by default and per-tenant — when off we never fetch the WAV.
     audio_enabled = _audio_enabled(db, call.tenant_id)
     audio = _load_audio(db, call) if audio_enabled else None
-    analysis = join(
+    analysis = fw.calculator.analyze(
         trace, audio, t0_offset_s=call.audio_t0_offset_s, audio_enabled=audio_enabled
     )
 
-    _persist(db, call, trace, analysis, adapter.version, audio)
+    _persist(db, call, trace, analysis, fw.adapter.version, audio)
 
     reasons = [r.value for r in analysis.trust.reasons]
     run.status = "partial" if reasons else "ok"

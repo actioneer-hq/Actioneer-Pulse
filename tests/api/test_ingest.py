@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from tests.adapters.fixtures.vas_call import sample_call
+from tests.fixtures.vas_call import sample_call
 
 
 def _artifact(**kw) -> dict:
@@ -134,8 +134,8 @@ def test_archived_fragment_keeps_the_resource(client, db_sessionmaker):
     import gzip
     import json
 
-    from voiceobs.adapters import adapter_for
     from voiceobs.db.models import RawFragment
+    from voiceobs.frameworks import adapter_for
 
     client.post("/v1/traces", json=sample_call())
     with db_sessionmaker() as db:

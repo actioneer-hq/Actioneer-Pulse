@@ -13,7 +13,6 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
-from voiceobs.adapters.otlp import attrs_to_dict, decode_protobuf
 from voiceobs.api.deps import now, session_dep
 from voiceobs.api.schemas import ArtifactIn, PromptIn, TranscriptIn
 from voiceobs.db.models import (
@@ -32,6 +31,7 @@ from voiceobs.db.models import (
     Turn,
     Utterance,
 )
+from voiceobs.frameworks.otlp import attrs_to_dict, decode_protobuf
 
 router = APIRouter(prefix="/v1")
 

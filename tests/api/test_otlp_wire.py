@@ -20,9 +20,9 @@ from opentelemetry.sdk.trace.export import (
 )
 from sqlalchemy import select
 
-from voiceobs.adapters import adapter_for
 from voiceobs.core.join import join
 from voiceobs.db.models import Call, RawFragment
+from voiceobs.frameworks import adapter_for
 
 PROTOBUF = {"content-type": "application/x-protobuf"}
 

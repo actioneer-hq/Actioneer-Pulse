@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from voiceobs.adapters import OTLPAdapter, adapter_for
 from voiceobs.core.model import Stage
+from voiceobs.frameworks import OTLPAdapter, adapter_for
 
 
 def _pipecat() -> dict:
@@ -78,7 +78,7 @@ def test_a_new_producer_is_two_dicts():
 def test_turns_without_turn_index_get_distinct_positions():
     """Two turn spans with no turn.index must not collide on one index (the bug that
     crashed the first real LiveKit call: UNIQUE(call_id, turn_index))."""
-    from tests.adapters.fixtures.otlp_build import payload, span
+    from tests.fixtures.otlp_build import payload, span
     from voiceobs.core import join
     from voiceobs.core.model import Stage
 

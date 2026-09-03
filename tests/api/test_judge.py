@@ -6,7 +6,7 @@ import sys
 
 from sqlalchemy import func, select
 
-from tests.adapters.fixtures.vas_call import sample_call
+from tests.fixtures.vas_call import sample_call
 from voiceobs.db.models import Call, JudgeConfig, Judgment
 from voiceobs.judge.schema import JudgeOutput
 from voiceobs.worker.process import process

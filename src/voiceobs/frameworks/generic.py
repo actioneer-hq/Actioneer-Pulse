@@ -27,15 +27,15 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
-from voiceobs.adapters.base import UnsupportedSchema
-from voiceobs.adapters.otlp import (
+from voiceobs.core.model import CallHeader, Span, SpanEvent, Stage, Trace
+from voiceobs.frameworks.base import UnsupportedSchema
+from voiceobs.frameworks.otlp import (
     attrs_to_dict,
     iter_spans,
     span_end_ns,
     span_events,
     span_start_ns,
 )
-from voiceobs.core.model import CallHeader, Span, SpanEvent, Stage, Trace
 
 # Nothing is dropped: VO is the place you go to see what actually happened, and an
 # observability tool that hides the conversation cannot explain the call. Erasure is

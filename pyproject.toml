@@ -56,12 +56,11 @@ extend-exclude = ["alembic", "tests/e2e"]
 root_package = "voiceobs"
 
 [[tool.importlinter.contracts]]
-name = "core is pure — must not import api, adapters, storage, worker, db"
+name = "core is pure — must not import api, frameworks, storage, worker, db"
 type = "forbidden"
 source_modules = ["voiceobs.core"]
 forbidden_modules = [
     "voiceobs.api",
-    "voiceobs.adapters",
     "voiceobs.frameworks",
     "voiceobs.storage",
     "voiceobs.worker",

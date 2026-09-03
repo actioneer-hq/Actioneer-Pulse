@@ -1,4 +1,4 @@
-"""Internal types the pipeline produces after adapters run. See CONTRACTS.md."""
+"""Internal types the pipeline produces after a framework adapter runs. See CONTRACTS.md."""
 
 from __future__ import annotations
 
