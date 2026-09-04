@@ -285,7 +285,14 @@ tbody tr.on{background:var(--sel);box-shadow:inset 2px 0 0 var(--amber)}
 .g4{grid-template-columns:repeat(4,1fr)}
 .g3{grid-template-columns:repeat(3,1fr)}
 /* recording */
-canvas.wave{width:100%;height:56px;display:block;border-radius:var(--r-sm);background:var(--soft)}
+canvas.wave{width:100%;height:56px;display:block;border-radius:var(--r-sm);background:var(--soft);cursor:pointer}
+/* recording channel controls */
+.rec-controls{display:flex;align-items:center;gap:8px;margin-top:12px}
+.rec-btn{height:32px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--ink);font-size:12.5px;font-weight:500}
+.rec-btn:hover:not(:disabled){border-color:var(--amber-line);background:var(--soft)}
+.rec-btn.on{background:var(--sel);border-color:var(--amber-line)}
+.rec-btn:disabled{opacity:.4;cursor:not-allowed}
+.rec-time{margin-left:auto;font-size:12px;color:var(--dim);font-variant-numeric:tabular-nums}
 .wave-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--dim);margin:6px 2px 3px}
 .player{width:100%;margin-top:10px;height:32px}
 /* transcript */

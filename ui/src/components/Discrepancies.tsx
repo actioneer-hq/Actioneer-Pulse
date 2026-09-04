@@ -39,7 +39,7 @@ export default function Discrepancies(
       {open && (
         <div className="disclose">
           {n === 0 ? (
-            <p className="dimtxt">Audio agrees with the reported spans — nothing beyond tolerance.</p>
+            <p className="dimtxt">Audio agrees with reported spans.</p>
           ) : (
             discrepancies.map((d, i) => (
               <div className="disc" key={i}>
