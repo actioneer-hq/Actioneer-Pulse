@@ -6,6 +6,12 @@ import os
 
 _TRUE = ("1", "true", "on", "yes")
 
+# The seeded dev account. Used by `python -m voiceobs.auth bootstrap` under dev-open and
+# surfaced by GET /v1/auth/config so the login form prefills for a one-click sign-in. These
+# are only ever exposed / created when dev_open() is true — never in a real deployment.
+DEV_EMAIL = "dev@actioneer.local"
+DEV_PASSWORD = "actioneer-dev"  # not a real credential; dev-only seed default
+
 
 def dev_open() -> bool:
     """True in a source checkout / test run: VOICEOBS_DEV_OPEN is set, or the DB is SQLite.

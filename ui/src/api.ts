@@ -136,12 +136,110 @@ export type Trace = {
   spans: Span[];
 };
 
-async function get<T>(path: string): Promise<T> {
-  const r = await fetch(path);
-  if (!r.ok) throw new Error(`${path} -> ${r.status}`);
-  return r.json() as Promise<T>;
+// ---- identity types (mirror src/voiceobs/api/{auth,orgs,agents}.py) ----
+export type AuthConfig = {
+  dev_open: boolean;
+  signup_open: boolean;
+  dev_email: string | null;
+  dev_password: string | null;
+};
+export type Role = "owner" | "admin" | "member" | "viewer";
+export type Membership = { org_id: string; org_name: string | null; role: Role };
+export type Me = {
+  user: { id: string; email: string; name: string | null };
+  memberships: Membership[];
+};
+export type Agent = { id: string; name: string; slug: string; org_id: string };
+export type IngestTokenRow = {
+  id: string;
+  prefix: string;
+  name: string | null;
+  revoked: boolean;
+  last_used_at: string | null;
+};
+export type MintedToken = { id: string; token: string; prefix: string };
+export type Member = {
+  membership_id: string;
+  user_id: string;
+  email: string | null;
+  role: Role;
+};
+
+// The active org rides on X-Voiceobs-Org; it only *selects among* the caller's own orgs
+// server-side, so it can never widen access. The AuthProvider keeps this in sync.
+let activeOrg: string | null = null;
+export const setApiOrg = (org: string | null) => { activeOrg = org; };
+
+// A 401 means the cookie is gone/expired; bounce to /login unless we're already there.
+let onUnauthorized: (() => void) | null = null;
+export const setUnauthorizedHandler = (fn: () => void) => { onUnauthorized = fn; };
+
+type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+
+async function req<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (activeOrg) headers["X-Voiceobs-Org"] = activeOrg;
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const r = await fetch(path, {
+    method,
+    credentials: "include",
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (r.status === 401) {
+    onUnauthorized?.();
+    throw new Error("unauthorized");
+  }
+  if (!r.ok) {
+    const detail = await r.json().catch(() => null);
+    throw new Error(detail?.detail ?? `${path} -> ${r.status}`);
+  }
+  return (r.status === 204 ? undefined : await r.json()) as T;
 }
 
-export const listCalls = (limit = 200) =>
-  get<{ items: Call[] }>(`/v1/calls?limit=${limit}`).then((d) => d.items);
+const get = <T>(path: string) => req<T>("GET", path);
+
+// ---- auth ----
+export const getAuthConfig = () => get<AuthConfig>("/v1/auth/config");
+export const login = (email: string, password: string) =>
+  req<{ user: Me["user"] }>("POST", "/v1/auth/login", { email, password });
+export const signup = (email: string, password: string, org_name?: string, name?: string) =>
+  req("POST", "/v1/auth/signup", { email, password, org_name, name });
+export const acceptInvite = (token: string, password: string, name?: string) =>
+  req("POST", "/v1/auth/accept-invite", { token, password, name });
+export const logout = () => req("POST", "/v1/auth/logout");
+export const getMe = () => get<Me>("/v1/auth/me");
+
+// ---- agents + ingest tokens ----
+export const listAgents = () => get<{ items: Agent[] }>("/v1/agents").then((d) => d.items);
+export const createAgent = (name: string) => req<Agent>("POST", "/v1/agents", { name });
+export const renameAgent = (id: string, name: string) =>
+  req<Agent>("PATCH", `/v1/agents/${id}`, { name });
+export const deleteAgent = (id: string) => req("DELETE", `/v1/agents/${id}`);
+export const listTokens = (agentId: string) =>
+  get<{ items: IngestTokenRow[] }>(`/v1/agents/${agentId}/ingest-tokens`).then((d) => d.items);
+export const mintToken = (agentId: string, name?: string) =>
+  req<MintedToken>("POST", `/v1/agents/${agentId}/ingest-tokens`, { name });
+export const rotateToken = (agentId: string, tid: string) =>
+  req<MintedToken>("POST", `/v1/agents/${agentId}/ingest-tokens/${tid}/rotate`);
+export const revokeToken = (agentId: string, tid: string) =>
+  req("DELETE", `/v1/agents/${agentId}/ingest-tokens/${tid}`);
+
+// ---- orgs + members ----
+export const listMembers = (orgId: string) =>
+  get<{ items: Member[] }>(`/v1/orgs/${orgId}/members`).then((d) => d.items);
+export const addMember = (orgId: string, email: string, role: Role) =>
+  req<{ invite_token: string | null }>("POST", `/v1/orgs/${orgId}/members`, { email, role });
+export const setRole = (orgId: string, mid: string, role: Role) =>
+  req("PATCH", `/v1/orgs/${orgId}/members/${mid}`, { role });
+export const removeMember = (orgId: string, mid: string) =>
+  req("DELETE", `/v1/orgs/${orgId}/members/${mid}`);
+export const setAgentAccess = (orgId: string, mid: string, agent_ids: string[]) =>
+  req("PUT", `/v1/orgs/${orgId}/members/${mid}/agent-access`, { agent_ids });
+
+// ---- calls (now scoped server-side by the session + active org) ----
+export const listCalls = (limit = 200, agentId?: string) =>
+  get<{ items: Call[] }>(
+    `/v1/calls?limit=${limit}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ""}`,
+  ).then((d) => d.items);
 export const getCall = (id: string) => get<CallDetail>(`/v1/calls/${encodeURIComponent(id)}`);

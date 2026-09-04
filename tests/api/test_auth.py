@@ -4,6 +4,25 @@ accept-invite, org create/list, member management + admin gating."""
 from __future__ import annotations
 
 
+def test_config_dev_open_exposes_seed_and_signup(client):
+    # autouse dev-open is on → the login page can prefill, and signup is open (no users yet)
+    cfg = client.get("/v1/auth/config").json()
+    assert cfg["dev_open"] is True
+    assert cfg["signup_open"] is True
+    assert cfg["dev_email"] and cfg["dev_password"]
+    # once a user exists, signup closes
+    client.post("/v1/auth/signup", json={"email": "a@co.com", "password": "pw"})
+    assert client.get("/v1/auth/config").json()["signup_open"] is False
+
+
+def test_config_hides_dev_creds_when_not_dev_open(client, monkeypatch):
+    monkeypatch.delenv("VOICEOBS_DEV_OPEN", raising=False)
+    monkeypatch.setattr("voiceobs.api.auth.dev_open", lambda: False)
+    cfg = client.get("/v1/auth/config").json()
+    assert cfg["dev_open"] is False
+    assert cfg["dev_email"] is None and cfg["dev_password"] is None
+
+
 def test_signup_open_only_for_first_user(client):
     r = client.post("/v1/auth/signup", json={"email": "a@co.com", "password": "pw",
                                              "org_name": "Acme"})

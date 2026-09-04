@@ -3,6 +3,8 @@ stateless signed cookies; the app only ever reads current_user afterwards."""
 
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -20,10 +22,26 @@ from voiceobs.auth import (
     provider_for,
     read_invite,
 )
-from voiceobs.auth.env import dev_open
+from voiceobs.auth.env import DEV_EMAIL, DEV_PASSWORD, dev_open
 from voiceobs.db.models import AppUser, Membership, Organization
 
 router = APIRouter(prefix="/v1/auth")
+
+
+@router.get("/config")
+def config(db: Session = Depends(session_dep)) -> dict:
+    """Public bootstrap probe the login page calls first. `signup_open` is true only on a
+    fresh install (no users yet). `dev_email`/`dev_password` are non-null ONLY under dev-open,
+    so the form can prefill for a one-click sign-in; they are always null in a real deployment.
+    """
+    signup_open = not db.scalar(select(func.count()).select_from(AppUser))
+    dev = dev_open()
+    return {
+        "dev_open": dev,
+        "signup_open": signup_open,
+        "dev_email": (os.getenv("VOICEOBS_BOOTSTRAP_EMAIL") or DEV_EMAIL) if dev else None,
+        "dev_password": DEV_PASSWORD if dev else None,
+    }
 
 
 def _set_cookie(response: Response, user_id: str) -> None:
