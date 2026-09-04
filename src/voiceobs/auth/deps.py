@@ -14,7 +14,7 @@ from fastapi import Depends, Header, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from voiceobs.auth.session import COOKIE_NAME, read_session
+from voiceobs.auth.session import ACCESS_COOKIE, read_access
 from voiceobs.db.models import AgentAccess, AppUser, Call, Membership
 from voiceobs.db.session import get_session
 
@@ -22,7 +22,7 @@ _ADMIN_ROLES = ("owner", "admin")
 
 
 def current_user(request: Request, db: Session = Depends(get_session)) -> AppUser:
-    uid = read_session(request.cookies.get(COOKIE_NAME))
+    uid = read_access(request.cookies.get(ACCESS_COOKIE))
     if not uid:
         raise HTTPException(401, "not authenticated")
     user = db.get(AppUser, uid)

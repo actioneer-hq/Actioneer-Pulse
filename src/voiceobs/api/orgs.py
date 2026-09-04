@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import session_dep
 from voiceobs.api.schemas import AgentAccessIn, MemberIn, OrgIn, RoleIn
-from voiceobs.auth import current_user, issue_invite, normalize_email
+from voiceobs.auth import current_user, encode_invite, normalize_email
 from voiceobs.db.models import Agent, AgentAccess, AppUser, Membership, Organization
 
 router = APIRouter(prefix="/v1/orgs")
@@ -105,7 +105,7 @@ def add_member(
         target = AppUser(email=email, is_active=True)
         db.add(target)
         db.flush()
-        invite = issue_invite(target.id)
+        invite = encode_invite(target.id)
     elif _membership(db, org_id, target.id) is not None:
         raise HTTPException(409, "already a member")
     db.add(Membership(org_id=org_id, user_id=target.id, role=body.role))

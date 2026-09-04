@@ -544,3 +544,28 @@ class IngestToken(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = created_col()
+
+
+class RefreshToken(Base):
+    """A revocable login session. The rotating plaintext `vor_<prefix>_<secret>` lives only in
+    the httpOnly refresh cookie; only its argon2 hash is stored. `family_id` groups the rotation
+    chain — presenting a revoked token revokes the whole family (theft response). Access JWTs are
+    stateless and short; revocation happens here."""
+
+    __tablename__ = "refresh_token"
+    __table_args__ = (
+        Index("ix_refresh_token_prefix", "token_prefix"),
+        Index("ix_refresh_token_user", "user_id"),
+        Index("ix_refresh_token_family", "family_id"),
+    )
+
+    id: Mapped[str] = pk()
+    user_id: Mapped[str] = mapped_column(ForeignKey("app_user.id"), nullable=False)
+    family_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    token_prefix: Mapped[str] = mapped_column(String(12), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    user_agent: Mapped[str | None] = mapped_column(String(256))
+    created_at: Mapped[datetime] = created_col()

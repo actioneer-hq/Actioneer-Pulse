@@ -49,6 +49,38 @@ def test_me_requires_auth(client):
     assert client.get("/v1/auth/me").status_code == 401
 
 
+def test_login_sets_access_and_refresh_cookies(client):
+    client.post("/v1/auth/signup", json={"email": "a@co.com", "password": "pw"})
+    client.post("/v1/auth/logout")
+    r = client.post("/v1/auth/login", json={"email": "a@co.com", "password": "pw"})
+    assert r.status_code == 200
+    assert "vo_access" in r.cookies and "vo_refresh" in r.cookies
+
+
+def test_refresh_rotates_and_keeps_session_alive(client):
+    r = client.post("/v1/auth/signup", json={"email": "a@co.com", "password": "pw"})
+    refresh_cookie = r.cookies["vo_refresh"]
+    # simulate an expired access token: keep only the refresh cookie
+    client.cookies.clear()
+    assert client.get("/v1/auth/me").status_code == 401
+    client.cookies.set("vo_refresh", refresh_cookie, path="/v1/auth")
+    assert client.post("/v1/auth/refresh").status_code == 200
+    assert client.get("/v1/auth/me").status_code == 200  # access restored
+
+
+def test_logout_revokes_the_refresh_token(client):
+    client.post("/v1/auth/signup", json={"email": "a@co.com", "password": "pw"})
+    client.post("/v1/auth/logout")
+    # the refresh token is revoked server-side: a stale refresh cookie can't revive the session
+    assert client.post("/v1/auth/refresh").status_code == 401
+
+
+def test_logout_all_kills_every_session(client):
+    client.post("/v1/auth/signup", json={"email": "a@co.com", "password": "pw"})
+    assert client.post("/v1/auth/logout-all").json()["revoked"] >= 1
+    assert client.post("/v1/auth/refresh").status_code == 401
+
+
 def test_org_create_and_list(client):
     client.post("/v1/auth/signup", json={"email": "a@co.com", "password": "pw", "org_name": "First"})
     r = client.post("/v1/orgs", json={"name": "Second"})
@@ -76,7 +108,7 @@ def test_member_invite_and_accept(client):
 
 
 def test_member_management_requires_admin(client, db_sessionmaker):
-    from voiceobs.auth import COOKIE_NAME, hash_password, issue_session
+    from voiceobs.auth import ACCESS_COOKIE, hash_password, issue_access
     from voiceobs.db.models import AppUser, Membership
 
     client.post("/v1/auth/signup", json={"email": "owner@co.com", "password": "pw"})
@@ -88,7 +120,7 @@ def test_member_management_requires_admin(client, db_sessionmaker):
         db.flush()
         db.add(Membership(id="m-mem", org_id=org_id, user_id="u-mem", role="member"))
         db.commit()
-    client.cookies.set(COOKIE_NAME, issue_session("u-mem"))
+    client.cookies.set(ACCESS_COOKIE, issue_access("u-mem"))
     # member can list but not invite
     assert client.get(f"/v1/orgs/{org_id}/members").status_code == 200
     assert client.post(f"/v1/orgs/{org_id}/members",
