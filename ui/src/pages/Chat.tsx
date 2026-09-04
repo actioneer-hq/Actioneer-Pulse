@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback, useEffect, useMemo, useRef, useState,
+  type KeyboardEvent, type ReactNode,
+} from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   createConversation,
   deleteConversation,
   getConversation,
+  listCalls,
   listConversations,
   streamChat,
   type ChatMsg,
@@ -12,6 +16,8 @@ import {
   type Conversation,
 } from "../api";
 import { useAuth } from "../auth";
+
+const MENTION = /@([\w-]+)/g;  // @<callId> token
 
 // A message that's mid-stream: content grows, steps accumulate, `streaming` until done.
 type LiveMsg = ChatMsg & { streaming?: boolean };
@@ -86,9 +92,6 @@ export default function Chat() {
     loadConvos();  // refresh titles/order
   }
 
-  function onKey(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
-  }
 
   return (
     <div className="chat">
@@ -116,15 +119,108 @@ export default function Chat() {
           )}
           {messages.map((m, i) => <Bubble key={i} msg={m} />)}
         </div>
-        <div className="composer">
-          <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onKey}
-            rows={1} placeholder="Ask about your calls…" />
-          <button className="composer-send" disabled={!input.trim() || sending} onClick={send}
-            aria-label="Send">↑</button>
-        </div>
+        <Composer value={input} onChange={setInput} onSend={send} sending={sending} />
       </div>
     </div>
   );
+}
+
+// Chat composer with @call-id mentions: a transparent textarea over a mirror div that renders
+// the @<callId> token highlighted. Typing @ opens a call-id autocomplete. UI only for now —
+// the mention doesn't yet load that call's context (harness comes later).
+function Composer(
+  { value, onChange, onSend, sending }:
+  { value: string; onChange: (v: string) => void; onSend: () => void; sending: boolean },
+) {
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  const hlRef = useRef<HTMLDivElement>(null);
+  const [callIds, setCallIds] = useState<string[]>([]);
+  const [menu, setMenu] = useState<{ query: string; start: number; sel: number } | null>(null);
+
+  useEffect(() => { listCalls(200).then((cs) => setCallIds(cs.map((c) => c.id))).catch(() => {}); }, []);
+
+  const suggestions = useMemo(() => {
+    if (menu === null) return [];
+    const q = menu.query.toLowerCase();
+    return callIds.filter((id) => id.toLowerCase().includes(q)).slice(0, 6);
+  }, [menu, callIds]);
+
+  function syncScroll() {
+    if (hlRef.current && taRef.current) hlRef.current.scrollTop = taRef.current.scrollTop;
+  }
+
+  function detect(v: string, caret: number) {
+    // an @token immediately before the caret opens the menu
+    const m = /@([\w-]*)$/.exec(v.slice(0, caret));
+    setMenu(m ? { query: m[1], start: caret - m[0].length, sel: 0 } : null);
+  }
+
+  function change(v: string) {
+    onChange(v);
+    const caret = taRef.current?.selectionStart ?? v.length;
+    detect(v, caret);
+  }
+
+  function pick(id: string) {
+    if (menu === null) return;
+    const before = value.slice(0, menu.start);
+    const after = value.slice(menu.start + 1 + menu.query.length);
+    const next = `${before}@${id} ${after}`;
+    onChange(next);
+    setMenu(null);
+    requestAnimationFrame(() => {
+      const pos = before.length + id.length + 2;
+      taRef.current?.focus();
+      taRef.current?.setSelectionRange(pos, pos);
+    });
+  }
+
+  function onKey(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (menu && suggestions.length) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setMenu({ ...menu, sel: (menu.sel + 1) % suggestions.length }); return; }
+      if (e.key === "ArrowUp") { e.preventDefault(); setMenu({ ...menu, sel: (menu.sel - 1 + suggestions.length) % suggestions.length }); return; }
+      if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pick(suggestions[menu.sel]); return; }
+      if (e.key === "Escape") { setMenu(null); return; }
+    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); }
+  }
+
+  return (
+    <div className="composer">
+      {menu && suggestions.length > 0 && (
+        <div className="mention-menu">
+          {suggestions.map((id, i) => (
+            <button key={id} className={`mention-opt ${i === menu.sel ? "on" : ""}`}
+              onMouseDown={(e) => { e.preventDefault(); pick(id); }}>
+              <span className="mention-at">@</span><span className="mono">{id}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="composer-box">
+        <div className="composer-hl" ref={hlRef} aria-hidden="true">{highlight(value)}</div>
+        <textarea ref={taRef} value={value} rows={1}
+          onChange={(e) => change(e.target.value)} onKeyDown={onKey} onScroll={syncScroll}
+          placeholder="Ask about your calls…  (type @ to reference a call)" />
+        <button className="composer-send" disabled={!value.trim() || sending} onClick={onSend}
+          aria-label="Send">↑</button>
+      </div>
+    </div>
+  );
+}
+
+// Render text with @<callId> tokens wrapped in a highlight mark (for the mirror layer).
+function highlight(text: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(MENTION)) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push(<mark className="mention" key={m.index}>{m[0]}</mark>);
+    last = m.index + m[0].length;
+  }
+  out.push(text.slice(last));
+  out.push("\n");  // trailing newline so the mirror matches the textarea's height growth
+  return out;
 }
 
 function Bubble({ msg }: { msg: LiveMsg }) {

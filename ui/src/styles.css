@@ -153,10 +153,30 @@ button.link.bad:hover{background:var(--bad-bg)}
 .step{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--dim);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px 10px;align-self:flex-start}
 .step-dot{width:6px;height:6px;border-radius:50%;background:var(--amber);flex:none}
 .composer{max-width:44rem;margin:0 auto;width:100%;padding:0 24px 20px;position:relative}
-.composer textarea{width:100%;min-height:52px;max-height:180px;resize:none;border:1px solid var(--line);border-radius:14px;background:var(--panel);color:var(--ink);font:inherit;font-size:14px;line-height:1.5;padding:14px 46px 14px 16px;box-shadow:0 4px 16px -8px rgb(0 0 0 /.08),0 1px 2px rgb(0 0 0 /.04)}
-.composer textarea:focus{outline:none;border-color:var(--amber-line)}
-.composer-send{position:absolute;right:34px;bottom:31px;width:30px;height:30px;border-radius:999px;background:var(--amber);color:var(--amber-ink);font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.composer-box{position:relative;border:1px solid var(--line);border-radius:14px;background:var(--panel);box-shadow:0 4px 16px -8px rgb(0 0 0 /.08),0 1px 2px rgb(0 0 0 /.04)}
+.composer-box:focus-within{border-color:var(--amber-line)}
+/* the textarea and its mirror must share identical box metrics so the highlight lines up */
+.composer textarea,.composer-hl{width:100%;min-height:52px;max-height:180px;box-sizing:border-box;
+  font:inherit;font-size:14px;line-height:1.5;padding:14px 46px 14px 16px;
+  white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;border:0;margin:0}
+.composer-hl{position:absolute;inset:0;overflow:hidden;color:var(--ink);pointer-events:none;
+  background:transparent}
+.composer textarea{position:relative;resize:none;background:transparent;color:transparent;
+  caret-color:var(--ink);overflow-y:auto}
+.composer textarea:focus{outline:none}
+.composer textarea::placeholder{color:var(--dim)}
+/* the @callId mention pill (ADS: soft fill + rounded) */
+mark.mention{background:var(--sel);color:var(--amber-ink);border-radius:var(--r-sm);
+  padding:1px 3px;box-shadow:inset 0 0 0 1px var(--amber-line)}
+.composer-send{position:absolute;right:10px;bottom:11px;width:30px;height:30px;border-radius:999px;background:var(--amber);color:var(--amber-ink);font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center}
 .composer-send:disabled{opacity:.4;cursor:default}
+/* @-mention autocomplete */
+.mention-menu{position:absolute;left:24px;right:24px;bottom:calc(100% - 8px);background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--r);box-shadow:0 8px 24px rgb(0 0 0 /.12);
+  overflow:hidden;z-index:20;max-width:44rem;margin:0 auto}
+.mention-opt{display:flex;align-items:center;gap:6px;width:100%;text-align:left;padding:8px 12px;font-size:13px}
+.mention-opt:hover,.mention-opt.on{background:var(--hover)}
+.mention-at{color:var(--amber-ink);font-weight:600}
 /* agent script textarea */
 .script-area{width:100%;border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 11px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px;line-height:1.5;resize:vertical}
 .script-area:focus{outline:none;border-color:var(--amber-line);box-shadow:0 0 0 3px rgb(239 177 74 /.18)}
