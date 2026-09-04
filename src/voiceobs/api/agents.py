@@ -10,9 +10,10 @@ from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import now, session_dep
 from voiceobs.api.orgs import slugify
-from voiceobs.api.schemas import AgentIn, AgentPatchIn, IngestTokenIn
+from voiceobs.api.schemas import AgentIn, AgentPatchIn, AudioConfigIn, IngestTokenIn
 from voiceobs.auth import current_membership, mint_ingest_token, require_role, visible_agent_ids
-from voiceobs.db.models import Agent, IngestToken, Membership
+from voiceobs.auth.crypto import encrypt
+from voiceobs.db.models import Agent, AgentAudioConfig, IngestToken, Membership
 
 router = APIRouter(prefix="/v1/agents")
 
@@ -63,6 +64,8 @@ def create_agent(
                   slug=_unique_agent_slug(db, mem.org_id, body.slug or body.name))
     db.add(agent)
     db.flush()
+    if body.audio is not None:
+        _apply_audio_config(db, agent.id, body.audio)
     return _agent_dict(agent)
 
 
@@ -145,3 +148,60 @@ def revoke_token(
         raise HTTPException(404, "token not found")
     tok.revoked_at = now()
     return {"status": "ok"}
+
+
+# --- audio analysis config (per-agent S3, pull path) --------------------------- #
+
+
+def _apply_audio_config(db: Session, agent_id: str, body: AudioConfigIn) -> AgentAudioConfig:
+    cfg = db.scalar(select(AgentAudioConfig).where(AgentAudioConfig.agent_id == agent_id))
+    if cfg is None:
+        cfg = AgentAudioConfig(agent_id=agent_id)
+        db.add(cfg)
+    cfg.enabled = body.enabled
+    cfg.s3_bucket = body.s3_bucket
+    cfg.s3_prefix = body.s3_prefix
+    cfg.s3_region = body.s3_region
+    cfg.s3_endpoint_url = body.s3_endpoint_url
+    cfg.access_key_id = body.access_key_id
+    if body.secret_access_key is not None:  # write-only: omit to keep the stored secret
+        cfg.secret_ciphertext = encrypt(body.secret_access_key)
+    cfg.updated_at = now()
+    return cfg
+
+
+def _audio_config_dict(cfg: AgentAudioConfig | None) -> dict:
+    if cfg is None:
+        return {"enabled": False, "has_secret": False}
+    return {
+        "enabled": cfg.enabled,
+        "s3_bucket": cfg.s3_bucket,
+        "s3_prefix": cfg.s3_prefix,
+        "s3_region": cfg.s3_region,
+        "s3_endpoint_url": cfg.s3_endpoint_url,
+        "access_key_id": cfg.access_key_id,
+        "has_secret": cfg.secret_ciphertext is not None,  # never echo the secret itself
+    }
+
+
+@router.get("/{agent_id}/audio-config")
+def get_audio_config(
+    agent_id: str,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(require_role("owner", "admin")),
+) -> dict:
+    _org_agent(db, mem, agent_id)
+    cfg = db.scalar(select(AgentAudioConfig).where(AgentAudioConfig.agent_id == agent_id))
+    return _audio_config_dict(cfg)
+
+
+@router.put("/{agent_id}/audio-config")
+def set_audio_config(
+    agent_id: str, body: AudioConfigIn,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(require_role("owner", "admin")),
+) -> dict:
+    _org_agent(db, mem, agent_id)
+    cfg = _apply_audio_config(db, agent_id, body)
+    db.flush()
+    return _audio_config_dict(cfg)

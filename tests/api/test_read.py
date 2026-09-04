@@ -33,7 +33,7 @@ def test_list_and_filter(client, login_as):
 
 def test_list_carries_turn_stats(client, login_as, db_sessionmaker, monkeypatch):
     monkeypatch.setattr(
-        sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri: _wav()
+        sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri, creds=None: _wav()
     )
     client.post("/v1/traces", json=sample_call())
     with db_sessionmaker() as db:
@@ -66,7 +66,7 @@ def test_spans_endpoint_is_gone(client):
 def test_full_analysis_after_worker(client, login_as, db_sessionmaker, monkeypatch):
     monkeypatch.setenv("VOICEOBS_AUDIO_ANALYSIS", "1")  # audio overlay is off by default
     monkeypatch.setattr(
-        sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri: _wav()
+        sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri, creds=None: _wav()
     )
     monkeypatch.setattr("voiceobs.api.read.presign", lambda uri, **kw: "https://signed/x.wav")
     client.post("/v1/traces", json=sample_call())

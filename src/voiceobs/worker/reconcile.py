@@ -1,94 +1,111 @@
-"""Backfill audio the artifact POST never delivered. S3 is the source of truth:
-the POST is a latency optimization, this is the guarantee.
+"""Pull-path audio backfill. For each agent with audio analysis enabled, scan its configured
+S3 bucket/prefix and register any settled recording whose Call has no audio yet — matching on
+the call_id (= OTLP trace_id) embedded in the key:
 
-Scans the recordings prefix and, for any WAV whose Call has no audio Media row,
-registers it — the same effect as POST /v1/calls/{id}/artifacts, minus the caller."""
+    s3://<bucket>/<prefix>/<call_id>/audio.wav            (stereo), or
+    s3://<bucket>/<prefix>/<call_id>/audio_caller.wav + audio_agent.wav
+
+S3 is the source of truth; the artifact POST is just a latency optimization on top."""
 
 from __future__ import annotations
 
 import logging
 import os
+import time
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from voiceobs.db.models import Call, Media, Tombstone
+from voiceobs.db.models import AgentAudioConfig, Call, Media, Tombstone
 from voiceobs.db.session import get_session
-from voiceobs.storage import list_objects
+from voiceobs.storage import list_objects, resolve_s3_creds
 
 session_scope = contextmanager(get_session)
-
 log = logging.getLogger(__name__)
 
 GRACE_S = float(os.getenv("VOICEOBS_RECONCILE_GRACE_S", "600"))
 
+# filename -> Media.kind (what the worker's _audio_bytes looks for)
+_KINDS = {"audio.wav": "audio", "audio_caller.wav": "audio_caller", "audio_agent.wav": "audio_agent"}
 
-def reconcile(db: Session, prefix: str, grace_s: float = GRACE_S) -> int:
-    """Register every settled, unregistered WAV under `prefix`. Returns the count."""
+
+def reconcile(db: Session, grace_s: float = GRACE_S) -> int:
+    """Register every settled, unregistered recording across all audio-enabled agents."""
     cutoff = datetime.now(UTC) - timedelta(seconds=grace_s)
     backfilled = 0
-    for uri, modified in list_objects(prefix):
-        if not uri.endswith(".wav") or _aware(modified) > cutoff:
+    for cfg in db.scalars(select(AgentAudioConfig).where(AgentAudioConfig.enabled.is_(True))):
+        if not cfg.s3_bucket:
             continue
-        ident = _parse_key(uri)
-        if ident is None:
-            continue
-        tenant, call_id = ident
-        if _register(db, tenant, call_id, uri):
-            backfilled += 1
+        backfilled += _reconcile_agent(db, cfg, cutoff)
     return backfilled
 
 
-def _register(db: Session, tenant: str, call_id: str, uri: str) -> bool:
-    if db.get(Tombstone, {"tenant_id": tenant, "call_id": call_id}) is not None:
-        return False
+def _reconcile_agent(db: Session, cfg: AgentAudioConfig, cutoff: datetime) -> int:
+    prefix = (cfg.s3_prefix or "").strip("/")
+    base = f"s3://{cfg.s3_bucket}/{prefix}".rstrip("/")
+    creds = resolve_s3_creds(db, cfg.agent_id)
+    n = 0
+    try:
+        objects = list_objects(base + "/", creds)
+    except Exception as e:  # noqa: BLE001 — one agent's bad bucket must not stall the rest
+        log.warning("reconcile: list failed for agent %s: %s", cfg.agent_id, e)
+        return 0
+    for uri, modified in objects:
+        kind = _KINDS.get(uri.rsplit("/", 1)[-1])
+        if kind is None or _aware(modified) > cutoff:
+            continue
+        call_id = _parse_call_id(uri, cfg.s3_bucket, prefix)
+        if call_id and _register(db, cfg.agent_id, call_id, uri, kind):
+            n += 1
+    return n
+
+
+def _parse_call_id(uri: str, bucket: str, prefix: str) -> str | None:
+    """The <call_id> directory in `<prefix>/<call_id>/<file>`, relative to the configured prefix."""
+    key = uri.removeprefix(f"s3://{bucket}/")
+    if prefix:
+        key = key.removeprefix(prefix.strip("/") + "/")
+    parts = [p for p in key.split("/") if p]
+    return parts[0] if len(parts) >= 2 else None  # <call_id>/<file>
+
+
+def _register(db: Session, agent_id: str, call_id: str, uri: str, kind: str) -> bool:
     call = db.scalar(
-        select(Call).where(Call.tenant_id == tenant, Call.external_call_id == call_id)
+        select(Call).where(Call.agent_id == agent_id, Call.external_call_id == call_id)
     )
     if call is None:
         return False  # spans never arrived either — nothing to attach audio to yet
-    if db.scalar(select(Media).where(Media.call_id == call.id, Media.kind == "audio")):
+    if db.get(Tombstone, {"tenant_id": call.tenant_id, "call_id": call_id}) is not None:
+        return False
+    if db.scalar(select(Media).where(Media.call_id == call.id, Media.kind == kind)):
         return False  # already registered (POST won, or a prior reconcile)
 
-    db.add(Media(call_id=call.id, tenant_id=tenant, kind="audio", uri=uri))
+    db.add(Media(call_id=call.id, tenant_id=call.tenant_id, kind=kind, uri=uri))
     call.media_ready = True
     if call.spans_complete:
         call.status = "ingested"
     return True
 
 
-def _parse_key(uri: str) -> tuple[str, str] | None:
-    """tenant + call_id from the recordings layout
-    voice/{tenant}/{app}/{campaign}/{recipient}/{call_id}/audio.wav."""
-    parts = uri.removeprefix("s3://").split("/")
-    parts = [p for p in parts[1:] if p]  # drop bucket
-    if len(parts) < 3 or parts[0] != "voice":
-        return None
-    return parts[1], parts[-2]
-
-
 def _aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
 
 
-def _run_once(prefix: str) -> None:  # pragma: no cover
+def _run_once() -> None:  # pragma: no cover
     with session_scope() as db:
-        log.info("reconciled %d call(s)", reconcile(db, prefix))
+        log.info("reconciled %d recording(s)", reconcile(db))
 
 
 def main() -> None:  # pragma: no cover — entrypoint
     """One-shot, or a sidecar loop when VOICEOBS_RECONCILE_INTERVAL_S is set."""
-    prefix = os.environ["VOICEOBS_RECORDINGS_PREFIX"]
     interval = os.getenv("VOICEOBS_RECONCILE_INTERVAL_S")
     if not interval:
-        _run_once(prefix)
+        _run_once()
         return
-    import time
-
     while True:
-        _run_once(prefix)
+        _run_once()
         time.sleep(float(interval))
 
 

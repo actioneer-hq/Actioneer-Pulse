@@ -25,7 +25,7 @@ def _patch_fetch(monkeypatch) -> None:
     wav = SynthCall(duration_s=6.0,
                     speech=[("caller", 1.0, 2.0, 0.8), ("agent", 2.5, 4.0, 0.8)]).build()
     monkeypatch.setattr(
-        sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri: wav
+        sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri, creds=None: wav
     )
 
 

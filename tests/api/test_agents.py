@@ -19,6 +19,39 @@ def test_agent_create_requires_admin(client, login_as):
     assert client.post("/v1/agents", json={"name": "X"}).status_code == 403
 
 
+def test_audio_config_set_get_never_echoes_secret(client, login_as):
+    login_as("default")
+    aid = client.post("/v1/agents", json={"name": "Bot"}).json()["id"]
+    r = client.put(f"/v1/agents/{aid}/audio-config", json={
+        "enabled": True, "s3_bucket": "my-bucket", "s3_prefix": "recordings",
+        "s3_region": "us-east-1", "access_key_id": "AKIA123",
+        "secret_access_key": "super-secret",
+    })
+    assert r.status_code == 200
+    got = client.get(f"/v1/agents/{aid}/audio-config").json()
+    assert got["enabled"] and got["s3_bucket"] == "my-bucket"
+    assert got["access_key_id"] == "AKIA123"
+    assert got["has_secret"] is True
+    assert "secret_access_key" not in got and "secret_ciphertext" not in got  # never echoed
+
+
+def test_audio_config_at_agent_creation(client, login_as):
+    login_as("default")
+    aid = client.post("/v1/agents", json={
+        "name": "Voiced", "audio": {"enabled": True, "s3_bucket": "b", "s3_prefix": "rec",
+                                    "access_key_id": "AK", "secret_access_key": "sk"},
+    }).json()["id"]
+    got = client.get(f"/v1/agents/{aid}/audio-config").json()
+    assert got["enabled"] and got["has_secret"] is True
+
+
+def test_audio_config_requires_admin(client, login_as):
+    login_as("default")
+    aid = client.post("/v1/agents", json={"name": "Bot"}).json()["id"]
+    login_as("default", role="viewer")
+    assert client.put(f"/v1/agents/{aid}/audio-config", json={"enabled": True}).status_code == 403
+
+
 def test_ingest_token_mint_list_rotate_revoke(client, login_as):
     login_as("default")
     aid = client.post("/v1/agents", json={"name": "Bot"}).json()["id"]

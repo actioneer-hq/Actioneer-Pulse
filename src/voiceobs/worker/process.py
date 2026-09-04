@@ -27,7 +27,7 @@ from voiceobs.db.models import (
 )
 from voiceobs.db.models import Turn as DBTurn
 from voiceobs.frameworks import UnsupportedSchema, framework_for
-from voiceobs.storage import fetch_bytes
+from voiceobs.storage import S3Creds, audio_config, fetch_bytes, resolve_s3_creds
 
 log = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ def process(db: Session, call: Call) -> str:
 
     # Audio analysis is the opt-in overlay: OTLP is the engine's account, audio is our own
     # independent one. Off by default and per-tenant — when off we never fetch the WAV.
-    audio_enabled = _audio_enabled(db, call.tenant_id)
+    audio_enabled = _audio_enabled(db, call)
     audio = _load_audio(db, call) if audio_enabled else None
     analysis = fw.calculator.analyze(
         trace, audio, t0_offset_s=call.audio_t0_offset_s, audio_enabled=audio_enabled
@@ -107,10 +107,13 @@ def _env_default() -> bool:
     return os.getenv("VOICEOBS_AUDIO_ANALYSIS", "0").strip().lower() in ("1", "true", "on", "yes")
 
 
-def _audio_enabled(db: Session, tenant_id: str) -> bool:
-    """Is the audio overlay on for this tenant? Per-tenant setting wins; a null (unset)
-    setting falls back to the global VOICEOBS_AUDIO_ANALYSIS default (off)."""
-    s = db.scalar(select(TenantSettings).where(TenantSettings.tenant_id == tenant_id))
+def _audio_enabled(db: Session, call: Call) -> bool:
+    """Is the audio overlay on for this call? The per-agent AgentAudioConfig wins; else the
+    per-tenant TenantSettings; else the global VOICEOBS_AUDIO_ANALYSIS default (off)."""
+    cfg = audio_config(db, call.agent_id)
+    if cfg is not None:
+        return cfg.enabled
+    s = db.scalar(select(TenantSettings).where(TenantSettings.tenant_id == call.tenant_id))
     if s is not None and s.audio_analysis_enabled is not None:
         return s.audio_analysis_enabled
     return _env_default()
@@ -121,7 +124,8 @@ def _load_audio(db: Session, call: Call) -> AudioAnalysis | None:
     two mono ones (`audio_caller` + `audio_agent`, e.g. LiveKit track egress), which we
     combine into a caller/agent stereo stream. None if no audio was registered."""
     kinds = {m.kind: m for m in db.scalars(select(Media).where(Media.call_id == call.id))}
-    wav, sr = _audio_bytes(kinds)
+    creds = resolve_s3_creds(db, call.agent_id)
+    wav, sr = _audio_bytes(kinds, creds)
     if wav is None:
         return None
     ref = AudioRef(
@@ -133,13 +137,13 @@ def _load_audio(db: Session, call: Call) -> AudioAnalysis | None:
     return analyze_audio(wav, ref)
 
 
-def _audio_bytes(kinds: dict[str, Media]) -> tuple[bytes | None, int]:
+def _audio_bytes(kinds: dict[str, Media], creds: S3Creds | None) -> tuple[bytes | None, int]:
     stereo = kinds.get("audio")
     if stereo is not None and stereo.uri:
-        return fetch_bytes(stereo.uri), stereo.sample_rate or 8000
+        return fetch_bytes(stereo.uri, creds), stereo.sample_rate or 8000
     caller, agent = kinds.get("audio_caller"), kinds.get("audio_agent")
     if caller and caller.uri and agent and agent.uri:
-        return combine_stereo(fetch_bytes(caller.uri), fetch_bytes(agent.uri)), \
+        return combine_stereo(fetch_bytes(caller.uri, creds), fetch_bytes(agent.uri, creds)), \
             caller.sample_rate or 8000
     return None, 8000
 
