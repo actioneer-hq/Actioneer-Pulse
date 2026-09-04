@@ -14,7 +14,7 @@ from voiceobs.api.deps import session_dep
 from voiceobs.auth import current_membership, get_scoped_call, visible_agent_ids
 from voiceobs.core.config import METRIC_DEFS
 from voiceobs.db.models import Call, Event, Media, Membership, Metric, Turn
-from voiceobs.storage import presign
+from voiceobs.storage import presign, resolve_s3_creds
 from voiceobs.transcript import resolve
 
 log = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ def get_call(
         "trust": _trust(call, metrics),
         "spans": _span_tree(events),
         "peaks": _peaks(media),
-        "audio": _audio(call, media),
+        "audio": _audio(call, media, db),
         "versions": {
             "metric_version": call.metric_version,
             "adapter_version": call.adapter_version,
@@ -219,12 +219,12 @@ def _peaks(media: list[Media]) -> dict[str, str]:
     return out
 
 
-def _audio(call: Call, media: list[Media]) -> dict | None:
+def _audio(call: Call, media: list[Media], db: Session) -> dict | None:
     wav = next((m for m in media if m.kind == "audio" and m.uri), None)
     if wav is None:
         return None
     try:
-        url = presign(wav.uri)
+        url = presign(wav.uri, creds=resolve_s3_creds(db, call.agent_id))
     except Exception as e:  # noqa: BLE001 — a presign failure must not 500 the analysis
         log.warning("presign failed for %s: %s", call.external_call_id, e)
         url = None

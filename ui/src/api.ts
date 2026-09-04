@@ -150,6 +150,18 @@ export type Me = {
   memberships: Membership[];
 };
 export type Agent = { id: string; name: string; slug: string; org_id: string };
+// Sent to the server (secret_access_key write-only). All fields optional so partial edits work.
+export type AudioConfigIn = {
+  enabled: boolean;
+  s3_bucket?: string;
+  s3_prefix?: string;
+  s3_region?: string;
+  s3_endpoint_url?: string;
+  access_key_id?: string;
+  secret_access_key?: string;
+};
+// Returned by the server — never includes the secret, only has_secret.
+export type AudioConfig = Omit<AudioConfigIn, "secret_access_key"> & { has_secret: boolean };
 export type IngestTokenRow = {
   id: string;
   prefix: string;
@@ -243,7 +255,12 @@ export const getMe = () => get<Me>("/v1/auth/me");
 
 // ---- agents + ingest tokens ----
 export const listAgents = () => get<{ items: Agent[] }>("/v1/agents").then((d) => d.items);
-export const createAgent = (name: string) => req<Agent>("POST", "/v1/agents", { name });
+export const createAgent = (name: string, audio?: AudioConfigIn) =>
+  req<Agent>("POST", "/v1/agents", { name, audio });
+export const getAudioConfig = (agentId: string) =>
+  req<AudioConfig>("GET", `/v1/agents/${agentId}/audio-config`);
+export const setAudioConfig = (agentId: string, cfg: AudioConfigIn) =>
+  req<AudioConfig>("PUT", `/v1/agents/${agentId}/audio-config`, cfg);
 export const renameAgent = (id: string, name: string) =>
   req<Agent>("PATCH", `/v1/agents/${id}`, { name });
 export const deleteAgent = (id: string) => req("DELETE", `/v1/agents/${id}`);

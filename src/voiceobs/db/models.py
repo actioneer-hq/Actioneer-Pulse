@@ -546,6 +546,29 @@ class IngestToken(Base):
     created_at: Mapped[datetime] = created_col()
 
 
+class AgentAudioConfig(Base):
+    """Per-agent audio-analysis config (pull path). When `enabled`, a reconcile worker scans
+    `s3://{s3_bucket}/{s3_prefix}` with these creds and attaches recordings to calls, matching
+    on the call_id (= OTLP trace_id) embedded in the key: `<prefix>/<call_id>/audio.wav`.
+    `secret_ciphertext` is the Fernet-encrypted secret access key — write-only over the API,
+    never echoed."""
+
+    __tablename__ = "agent_audio_config"
+    __table_args__ = (UniqueConstraint("agent_id", name="uq_agent_audio_config_agent"),)
+
+    id: Mapped[str] = pk()
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agent.id"), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    s3_bucket: Mapped[str | None] = mapped_column(String(255))
+    s3_prefix: Mapped[str | None] = mapped_column(String(1024))
+    s3_region: Mapped[str | None] = mapped_column(String(64))
+    s3_endpoint_url: Mapped[str | None] = mapped_column(String(512))  # MinIO / R2 / etc.
+    access_key_id: Mapped[str | None] = mapped_column(String(128))
+    secret_ciphertext: Mapped[str | None] = mapped_column(Text)  # Fernet blob
+    created_at: Mapped[datetime] = created_col()
+    updated_at: Mapped[datetime] = created_col()
+
+
 class RefreshToken(Base):
     """A revocable login session. The rotating plaintext `vor_<prefix>_<secret>` lives only in
     the httpOnly refresh cookie; only its argon2 hash is stored. `family_id` groups the rotation

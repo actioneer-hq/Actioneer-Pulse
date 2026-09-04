@@ -31,7 +31,7 @@ def test_audio_produces_utterances_peaks_and_layer1(client, db_sessionmaker, mon
 
     monkeypatch.setenv("VOICEOBS_AUDIO_ANALYSIS", "1")  # audio overlay is off by default
     monkeypatch.setattr(
-        sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri: _synth_wav()
+        sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri, creds=None: _synth_wav()
     )
     _register_audio(client)
 
@@ -53,7 +53,7 @@ def test_reprocess_replaces_audio_rows(client, db_sessionmaker, monkeypatch):
 
     monkeypatch.setenv("VOICEOBS_AUDIO_ANALYSIS", "1")
     monkeypatch.setattr(
-        sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri: _synth_wav()
+        sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri, creds=None: _synth_wav()
     )
     _register_audio(client)
     with db_sessionmaker() as db:

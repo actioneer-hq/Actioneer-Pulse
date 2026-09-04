@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import {
   createAgent,
   deleteAgent,
@@ -10,6 +10,7 @@ import {
   revokeToken,
   rotateToken,
   type Agent,
+  type AudioConfigIn,
   type IngestTokenRow,
   type MintedToken,
 } from "../api";
@@ -38,10 +39,10 @@ export default function Agents() {
 
   useEffect(() => { load(); }, [load, activeOrg]);
 
-  async function add(name: string) {
+  async function add(name: string, audio?: AudioConfigIn) {
     setError(null);
     try {
-      const a = await createAgent(name.trim());
+      const a = await createAgent(name.trim(), audio);
       setCreating(false);
       load();
       setSel(a.id);
@@ -109,14 +110,27 @@ export default function Agents() {
 }
 
 function NewAgentModal(
-  { onClose, onCreate }: { onClose: () => void; onCreate: (name: string) => void },
+  { onClose, onCreate }:
+  { onClose: () => void; onCreate: (name: string, audio?: AudioConfigIn) => void },
 ) {
   const [name, setName] = useState("");
   const [framework, setFramework] = useState("livekit");
+  const [audioOn, setAudioOn] = useState(false);
+  const [s3, setS3] = useState({
+    s3_bucket: "", s3_prefix: "", s3_region: "", s3_endpoint_url: "",
+    access_key_id: "", secret_access_key: "",
+  });
+  const set = (k: keyof typeof s3) => (e: ChangeEvent<HTMLInputElement>) =>
+    setS3((v) => ({ ...v, [k]: e.target.value }));
+
+  function submit() {
+    if (!name.trim()) return;
+    onCreate(name, audioOn ? { enabled: true, ...s3 } : undefined);
+  }
 
   return (
     <div className="modal-scrim" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
         <h3>New agent</h3>
         <p className="sub">An agent is a project / OTLP routing target. Pick the framework your
           voice agent runs on, then connect it with an ingest token.</p>
@@ -124,7 +138,6 @@ function NewAgentModal(
           <label htmlFor="agent-name">Name</label>
           <input id="agent-name" autoFocus value={name}
             onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && name.trim() && onCreate(name)}
             placeholder="e.g. Sales Bot" />
         </div>
         <div className="field">
@@ -140,10 +153,47 @@ function NewAgentModal(
             ))}
           </div>
         </div>
+
+        <label className="audio-toggle">
+          <input type="checkbox" checked={audioOn} onChange={(e) => setAudioOn(e.target.checked)} />
+          <span><b>Enable audio analysis</b> — we pull call recordings from your S3 bucket and run
+            the audio-ground-truth overlay (barge-ins, dead air, talk ratio). Off = OTLP only.</span>
+        </label>
+
+        {audioOn && (
+          <div className="audio-fields">
+            <div className="s3-hint">
+              <div className="s3-hint-hd">Store recordings so each call's audio sits under its
+                trace id:</div>
+              <code>s3://&lt;bucket&gt;/&lt;prefix&gt;/&lt;call_id&gt;/audio.wav</code>
+              <div className="dimtxt">…or two mono tracks <code>audio_caller.wav</code> +
+                <code>audio_agent.wav</code>. <b>call_id = the OTLP trace_id</b> your agent
+                exports — that's how we match a recording to its trace.</div>
+            </div>
+            <div className="grid2">
+              <div className="field"><label>S3 bucket</label>
+                <input value={s3.s3_bucket} onChange={set("s3_bucket")} placeholder="my-recordings" /></div>
+              <div className="field"><label>Prefix</label>
+                <input value={s3.s3_prefix} onChange={set("s3_prefix")} placeholder="calls/" /></div>
+              <div className="field"><label>Region</label>
+                <input value={s3.s3_region} onChange={set("s3_region")} placeholder="us-east-1" /></div>
+              <div className="field"><label>Endpoint (optional)</label>
+                <input value={s3.s3_endpoint_url} onChange={set("s3_endpoint_url")}
+                  placeholder="for MinIO / R2" /></div>
+              <div className="field"><label>Access key ID</label>
+                <input value={s3.access_key_id} onChange={set("access_key_id")}
+                  placeholder="AKIA…" /></div>
+              <div className="field"><label>Secret access key</label>
+                <input type="password" value={s3.secret_access_key} onChange={set("secret_access_key")}
+                  placeholder="stored encrypted" autoComplete="new-password" /></div>
+            </div>
+          </div>
+        )}
+
         <div className="modal-foot">
           <button className="link" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" disabled={!name.trim()}
-            onClick={() => onCreate(name)}>Create agent</button>
+          <button className="btn-primary" disabled={!name.trim()} onClick={submit}>
+            Create agent</button>
         </div>
       </div>
     </div>

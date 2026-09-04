@@ -1,40 +1,60 @@
-"""Object store access. S3 only for now; other schemes raise."""
+"""Object store access. S3 only for now; other schemes raise.
+
+Credentials: pass an `S3Creds` to use a specific bucket's access key/secret (per-agent audio
+config); omit it to fall back to boto3's default credential chain (env / IAM role)."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlparse
 
 
-def fetch_bytes(uri: str) -> bytes:
-    if uri.startswith("s3://"):
-        import boto3  # lazy — only the worker path needs it
+@dataclass(frozen=True)
+class S3Creds:
+    access_key_id: str
+    secret_access_key: str
+    region: str | None = None
+    endpoint_url: str | None = None
 
+
+def _client(creds: S3Creds | None):
+    import boto3  # lazy — only the worker/presign paths need it
+
+    if creds is None:
+        return boto3.client("s3")
+    return boto3.client(
+        "s3",
+        aws_access_key_id=creds.access_key_id,
+        aws_secret_access_key=creds.secret_access_key,
+        region_name=creds.region,
+        endpoint_url=creds.endpoint_url,
+    )
+
+
+def fetch_bytes(uri: str, creds: S3Creds | None = None) -> bytes:
+    if uri.startswith("s3://"):
         bucket, key = _parse_s3(uri)
-        return boto3.client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
+        return _client(creds).get_object(Bucket=bucket, Key=key)["Body"].read()
     raise NotImplementedError(f"unsupported storage scheme: {uri}")
 
 
-def presign(uri: str, expires_s: int = 900) -> str:
+def presign(uri: str, expires_s: int = 900, creds: S3Creds | None = None) -> str:
     """Short-lived GET URL the browser streams directly — the API never proxies bytes."""
     if not uri.startswith("s3://"):
         raise NotImplementedError(f"unsupported storage scheme: {uri}")
-    import boto3
-
     bucket, key = _parse_s3(uri)
-    return boto3.client("s3").generate_presigned_url(
+    return _client(creds).generate_presigned_url(
         "get_object", Params={"Bucket": bucket, "Key": key}, ExpiresIn=expires_s
     )
 
 
-def list_objects(prefix: str) -> list[tuple[str, datetime]]:
+def list_objects(prefix: str, creds: S3Creds | None = None) -> list[tuple[str, datetime]]:
     """(s3://uri, last_modified) for every object under an s3:// prefix."""
     if not prefix.startswith("s3://"):
         raise NotImplementedError(f"unsupported storage scheme: {prefix}")
-    import boto3
-
     bucket, key_prefix = _parse_s3(prefix)
-    client = boto3.client("s3")
+    client = _client(creds)
     out: list[tuple[str, datetime]] = []
     for page in client.get_paginator("list_objects_v2").paginate(
         Bucket=bucket, Prefix=key_prefix

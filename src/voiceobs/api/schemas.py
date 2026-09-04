@@ -74,9 +74,20 @@ class OrgIn(BaseModel):
     slug: str | None = None
 
 
+class AudioConfigIn(BaseModel):
+    enabled: bool = False
+    s3_bucket: str | None = None
+    s3_prefix: str | None = None
+    s3_region: str | None = None
+    s3_endpoint_url: str | None = None
+    access_key_id: str | None = None
+    secret_access_key: str | None = None  # write-only; omit to keep the stored secret
+
+
 class AgentIn(BaseModel):
     name: str
     slug: str | None = None
+    audio: AudioConfigIn | None = None  # optional: configure audio at create time
 
 
 class AgentPatchIn(BaseModel):
