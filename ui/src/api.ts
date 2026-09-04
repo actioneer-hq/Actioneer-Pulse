@@ -156,6 +156,7 @@ export type CallDetail = {
   audio: Audio | null;
   discrepancies: Discrepancy[];
   judgment: Judgment | null;
+  script: { sha256: string | null; version: number | null; created_by: string | null } | null;
 };
 
 // The span sub-view Waterfall renders; built from CallDetail, not fetched.
@@ -285,8 +286,23 @@ export const getMe = () => get<Me>("/v1/auth/me");
 
 // ---- agents + ingest tokens ----
 export const listAgents = () => get<{ items: Agent[] }>("/v1/agents").then((d) => d.items);
-export const createAgent = (name: string, audio?: AudioConfigIn) =>
-  req<Agent>("POST", "/v1/agents", { name, audio });
+export type AgentScript = {
+  version: number | null;
+  sha256?: string | null;
+  text?: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  active?: boolean;
+};
+
+export const createAgent = (name: string, audio?: AudioConfigIn, script?: string) =>
+  req<Agent>("POST", "/v1/agents", { name, audio, script });
+export const getAgentScript = (agentId: string) =>
+  req<AgentScript>("GET", `/v1/agents/${agentId}/script`);
+export const setAgentScript = (agentId: string, text: string) =>
+  req<AgentScript>("PUT", `/v1/agents/${agentId}/script`, { text });
+export const listAgentScripts = (agentId: string) =>
+  req<{ items: AgentScript[] }>("GET", `/v1/agents/${agentId}/scripts`).then((d) => d.items);
 export const getAudioConfig = (agentId: string) =>
   req<AudioConfig>("GET", `/v1/agents/${agentId}/audio-config`);
 export const setAudioConfig = (agentId: string, cfg: AudioConfigIn) =>

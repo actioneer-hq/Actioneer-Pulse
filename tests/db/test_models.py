@@ -19,7 +19,7 @@ DATA_TABLES = {
 }
 IDENTITY_TABLES = {
     "organization", "app_user", "membership", "agent", "agent_access", "ingest_token",
-    "refresh_token", "agent_audio_config",
+    "refresh_token", "agent_audio_config", "agent_script",
 }
 EXPECTED_TABLES = DATA_TABLES | IDENTITY_TABLES
 

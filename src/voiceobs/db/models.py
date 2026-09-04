@@ -519,6 +519,27 @@ class Agent(Base):
     created_at: Mapped[datetime] = created_col()
 
 
+class AgentScript(Base):
+    """A versioned pointer to the script (system prompt) an agent is meant to follow. Content is
+    the immutable, hash-addressed Prompt; this row adds per-agent version + author + active flag,
+    so history is auditable and each call pins the version it ran under. Exactly one active row
+    per agent (enforced in code)."""
+
+    __tablename__ = "agent_script"
+    __table_args__ = (
+        UniqueConstraint("agent_id", "version", name="uq_agent_script_version"),
+        Index("ix_agent_script_active", "agent_id", "active"),
+    )
+
+    id: Mapped[str] = pk()
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agent.id"), nullable=False)
+    prompt_id: Mapped[str] = mapped_column(ForeignKey("prompt.id"), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_user.id"))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = created_col()
+
+
 class AgentAccess(Base):
     """A granular grant: this membership may see this agent. A member with ZERO grants sees
     ALL org agents (coarse default); with ≥1, is restricted to the granted set."""

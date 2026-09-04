@@ -89,10 +89,15 @@ class AudioConfigIn(BaseModel):
     stt_api_key: str | None = None  # write-only; omit to keep the stored key
 
 
+class ScriptIn(BaseModel):
+    text: str
+
+
 class AgentIn(BaseModel):
     name: str
     slug: str | None = None
     audio: AudioConfigIn | None = None  # optional: configure audio at create time
+    script: str | None = None  # optional: the script the agent follows (creates v1)
 
 
 class AgentPatchIn(BaseModel):

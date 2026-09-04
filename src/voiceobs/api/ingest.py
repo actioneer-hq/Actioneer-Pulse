@@ -17,6 +17,7 @@ from voiceobs.api.schemas import ArtifactIn, PromptIn, TranscriptIn
 from voiceobs.auth import resolve_ingest_token
 from voiceobs.auth.env import dev_open
 from voiceobs.db.models import (
+    AgentScript,
     Annotation,
     Call,
     Event,
@@ -290,9 +291,22 @@ def _upsert_call(db: Session, b: _Batch) -> None:
         call.trace_id = b.trace_id
     if call.agent_id is None and b.agent_id:  # a later authenticated batch names the agent
         call.agent_id = b.agent_id
+    # Pin the agent's active script version to this call once, so analysis shows which script it
+    # ran under; a producer-sent prompt (already set) wins and is never overwritten.
+    if call.prompt_id is None and call.agent_id:
+        call.prompt_id = _active_script_prompt(db, call.agent_id)
     if b.root is not None:
         call.spans_complete = True
     call.last_activity_at = now()
+
+
+def _active_script_prompt(db: Session, agent_id: str) -> str | None:
+    """The Prompt id of the agent's currently-active script, or None if it has no script."""
+    return db.scalar(
+        select(AgentScript.prompt_id).where(
+            AgentScript.agent_id == agent_id, AgentScript.active.is_(True)
+        )
+    )
 
 
 def _promote(db: Session, b: _Batch) -> Call | None:

@@ -4,16 +4,25 @@ create/modify and token management require admin. The plaintext token is shown o
 
 from __future__ import annotations
 
+import hashlib
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import now, session_dep
 from voiceobs.api.orgs import slugify
-from voiceobs.api.schemas import AgentIn, AgentPatchIn, AudioConfigIn, IngestTokenIn
+from voiceobs.api.schemas import AgentIn, AgentPatchIn, AudioConfigIn, IngestTokenIn, ScriptIn
 from voiceobs.auth import current_membership, mint_ingest_token, require_role, visible_agent_ids
 from voiceobs.auth.crypto import encrypt
-from voiceobs.db.models import Agent, AgentAudioConfig, IngestToken, Membership
+from voiceobs.db.models import (
+    Agent,
+    AgentAudioConfig,
+    AgentScript,
+    IngestToken,
+    Membership,
+    Prompt,
+)
 
 router = APIRouter(prefix="/v1/agents")
 
@@ -66,6 +75,8 @@ def create_agent(
     db.flush()
     if body.audio is not None:
         _apply_audio_config(db, agent.id, body.audio)
+    if body.script:
+        set_agent_script(db, agent, body.script, mem.user_id)
     return _agent_dict(agent)
 
 
@@ -189,6 +200,83 @@ def _audio_config_dict(cfg: AgentAudioConfig | None) -> dict:
         "stt_model": cfg.stt_model,
         "has_stt_key": cfg.stt_key_ciphertext is not None,
     }
+
+
+# --- agent script (versioned, hash-addressed, pinned per call) ----------------- #
+
+
+def set_agent_script(db: Session, agent: Agent, text: str, user_id: str | None) -> AgentScript:
+    """Set/replace the agent's script. Content dedupes into Prompt by sha256; a new AgentScript
+    version is minted only when the text actually changes. Returns the active version."""
+    sha = hashlib.sha256(text.encode()).hexdigest()
+    prompt = db.scalar(select(Prompt).where(
+        Prompt.tenant_id == agent.org_id, Prompt.template_sha256 == sha))
+    if prompt is None:
+        prompt = Prompt(tenant_id=agent.org_id, template_sha256=sha, text=text)
+        db.add(prompt)
+        db.flush()
+
+    active = db.scalar(select(AgentScript).where(
+        AgentScript.agent_id == agent.id, AgentScript.active.is_(True)))
+    if active is not None and active.prompt_id == prompt.id:
+        return active  # identical script — no new version
+
+    if active is not None:
+        active.active = False
+    last = db.scalar(select(AgentScript.version).where(AgentScript.agent_id == agent.id)
+                     .order_by(AgentScript.version.desc()))
+    row = AgentScript(agent_id=agent.id, prompt_id=prompt.id, version=(last or 0) + 1,
+                      created_by=user_id, active=True)
+    db.add(row)
+    db.flush()
+    return row
+
+
+def _script_dict(db: Session, s: AgentScript | None, *, with_text: bool = False) -> dict | None:
+    if s is None:
+        return None
+    p = db.get(Prompt, s.prompt_id)
+    out = {"version": s.version, "sha256": p.template_sha256 if p else None,
+           "created_by": s.created_by, "created_at": s.created_at}
+    if with_text:
+        out["text"] = p.text if p else None
+    return out
+
+
+@router.put("/{agent_id}/script")
+def set_script(
+    agent_id: str, body: ScriptIn,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(require_role("owner", "admin")),
+) -> dict:
+    agent = _org_agent(db, mem, agent_id)
+    row = set_agent_script(db, agent, body.text, mem.user_id)
+    db.flush()
+    return _script_dict(db, row) or {}
+
+
+@router.get("/{agent_id}/script")
+def get_script(
+    agent_id: str,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(current_membership),
+) -> dict:
+    _org_agent(db, mem, agent_id)
+    active = db.scalar(select(AgentScript).where(
+        AgentScript.agent_id == agent_id, AgentScript.active.is_(True)))
+    return _script_dict(db, active, with_text=True) or {"version": None, "text": None}
+
+
+@router.get("/{agent_id}/scripts")
+def list_scripts(
+    agent_id: str,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(current_membership),
+) -> dict:
+    _org_agent(db, mem, agent_id)
+    rows = db.scalars(select(AgentScript).where(AgentScript.agent_id == agent_id)
+                      .order_by(AgentScript.version.desc())).all()
+    return {"items": [{**_script_dict(db, r), "active": r.active} for r in rows]}
 
 
 @router.get("/{agent_id}/audio-config")

@@ -14,6 +14,7 @@ from voiceobs.api.deps import session_dep
 from voiceobs.auth import current_membership, get_scoped_call, visible_agent_ids
 from voiceobs.core.config import METRIC_DEFS
 from voiceobs.db.models import (
+    AgentScript,
     AudioDiscrepancy,
     Call,
     Event,
@@ -21,6 +22,7 @@ from voiceobs.db.models import (
     Media,
     Membership,
     Metric,
+    Prompt,
     Turn,
 )
 from voiceobs.storage import presign, resolve_s3_creds
@@ -113,6 +115,7 @@ def get_call(
         "audio": _audio(call, media, db),
         "discrepancies": _discrepancies(db, call),
         "judgment": _judgment(db, call),
+        "script": _script(db, call),
         "versions": {
             "metric_version": call.metric_version,
             "adapter_version": call.adapter_version,
@@ -245,6 +248,23 @@ def _judgment(db: Session, call: Call) -> dict | None:
         return None
     return {"disposition": j.disposition, "status": j.status, "model": j.model,
             **{f: getattr(j, f) for f in _JUDGE_FIELDS}}
+
+
+def _script(db: Session, call: Call) -> dict | None:
+    """Which script version this call ran under (pinned at ingest). sha256 = the script ID;
+    version/author from the AgentScript row. None when the call had no script."""
+    if call.prompt_id is None:
+        return None
+    p = db.get(Prompt, call.prompt_id)
+    row = None
+    if call.agent_id:
+        row = db.scalar(select(AgentScript).where(
+            AgentScript.agent_id == call.agent_id, AgentScript.prompt_id == call.prompt_id))
+    return {
+        "sha256": p.template_sha256 if p else None,
+        "version": row.version if row else None,
+        "created_by": row.created_by if row else None,
+    }
 
 
 def _discrepancies(db: Session, call: Call) -> list[dict]:

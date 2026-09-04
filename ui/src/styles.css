@@ -108,6 +108,9 @@ button.link.bad:hover{background:var(--bad-bg)}
 .conn-status{font-size:12.5px;font-weight:500;padding:8px 12px;border-radius:var(--r-sm);border:1px solid var(--line)}
 .conn-status.wait{background:var(--soft);color:var(--dim)}
 .conn-status.ok{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok)}
+/* agent script textarea */
+.script-area{width:100%;border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 11px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px;line-height:1.5;resize:vertical}
+.script-area:focus{outline:none;border-color:var(--amber-line);box-shadow:0 0 0 3px rgb(239 177 74 /.18)}
 /* new-agent audio config */
 .modal.wide{width:520px}
 .audio-toggle{display:flex;gap:10px;align-items:flex-start;margin:14px 0 4px;font-size:12.5px;line-height:1.5;cursor:pointer}

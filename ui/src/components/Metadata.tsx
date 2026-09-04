@@ -28,6 +28,9 @@ export default function Metadata({ data }: { data: CallDetail }) {
     ["Cost", h.cost_total != null ? `${+h.cost_total.toFixed(6)} ${h.cost_currency ?? ""}` : "—"],
     ["Capture coverage", coverage],
     ["Dropped span events", dash(t.span_dropped_events)],
+    ["Script", data.script?.sha256
+      ? `v${data.script.version ?? "?"} · ${data.script.sha256.slice(0, 8)}`
+      : "—"],
   ];
   return (
     <section className="sec">
