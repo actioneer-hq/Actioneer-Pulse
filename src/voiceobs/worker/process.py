@@ -94,12 +94,45 @@ def process(db: Session, call: Call) -> str:
     )
 
     _persist(db, call, trace, analysis, fw.adapter.version, audio)
+    if audio_enabled:
+        _reconcile(db, call, analysis)
 
     reasons = [r.value for r in analysis.trust.reasons]
     run.status = "partial" if reasons else "ok"
     run.error = ", ".join(reasons) or None
     run.finished_at = _now()
     return run.status
+
+
+def _reconcile(db: Session, call: Call, analysis: Analysis) -> None:
+    """Ground-truth overlay: cross-check the analysis against the audio + BYO STT, and persist
+    the material discrepancies. Rewritten each run. Never raises into the caller."""
+    from voiceobs.db.models import AudioDiscrepancy
+    from voiceobs.groundtruth import reconcile, resolve_stt
+
+    try:
+        kinds = {m.kind: m for m in db.scalars(select(Media).where(Media.call_id == call.id))}
+        creds = resolve_s3_creds(db, call.agent_id)
+        caller = _mono_bytes(kinds.get("audio_caller"), creds)
+        agent = _mono_bytes(kinds.get("audio_agent"), creds)
+        report = reconcile(analysis.turns, caller, agent, stt=resolve_stt(db, call.agent_id))
+    except Exception:
+        log.exception("groundtruth reconcile failed for %s", call.external_call_id)
+        return
+
+    db.execute(delete(AudioDiscrepancy).where(AudioDiscrepancy.call_id == call.id))
+    for d in report.material():  # persist only the surfaced disagreements
+        db.add(AudioDiscrepancy(
+            call_id=call.id, tenant_id=call.tenant_id, turn_index=d.turn_index,
+            dimension=d.dimension.value, field=d.field,
+            reported=None if d.reported is None else str(d.reported),
+            measured=None if d.measured is None else str(d.measured),
+            delta=d.delta, band=d.band, verdict=d.verdict.value, note=d.note,
+        ))
+
+
+def _mono_bytes(media: Media | None, creds: S3Creds | None) -> bytes | None:
+    return fetch_bytes(media.uri, creds) if media and media.uri else None
 
 
 def _env_default() -> bool:

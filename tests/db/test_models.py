@@ -15,7 +15,7 @@ from voiceobs.db import Base
 DATA_TABLES = {
     "prompt", "call", "raw_fragment", "event", "utterance", "turn", "metric",
     "metric_def", "media", "ingest_run", "annotation", "label", "tombstone",
-    "transcript", "llm_config", "judgment", "tenant_settings",
+    "transcript", "llm_config", "judgment", "tenant_settings", "audio_discrepancy",
 }
 IDENTITY_TABLES = {
     "organization", "app_user", "membership", "agent", "agent_access", "ingest_token",

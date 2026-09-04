@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from voiceobs.api.deps import session_dep
 from voiceobs.auth import current_membership, get_scoped_call, visible_agent_ids
 from voiceobs.core.config import METRIC_DEFS
-from voiceobs.db.models import Call, Event, Media, Membership, Metric, Turn
+from voiceobs.db.models import AudioDiscrepancy, Call, Event, Media, Membership, Metric, Turn
 from voiceobs.storage import presign, resolve_s3_creds
 from voiceobs.transcript import resolve
 
@@ -102,6 +102,7 @@ def get_call(
         "spans": _span_tree(events),
         "peaks": _peaks(media),
         "audio": _audio(call, media, db),
+        "discrepancies": _discrepancies(db, call),
         "versions": {
             "metric_version": call.metric_version,
             "adapter_version": call.adapter_version,
@@ -217,6 +218,19 @@ def _peaks(media: list[Media]) -> dict[str, str]:
         if m.kind.startswith("peaks_") and m.peaks:
             out[m.kind.removeprefix("peaks_")] = base64.b64encode(m.peaks).decode()
     return out
+
+
+def _discrepancies(db: Session, call: Call) -> list[dict]:
+    """Ground-truth vs reported: where the audio disagrees with the OTLP self-report."""
+    rows = db.scalars(
+        select(AudioDiscrepancy).where(AudioDiscrepancy.call_id == call.id)
+        .order_by(AudioDiscrepancy.turn_index)
+    ).all()
+    return [{
+        "turn_index": r.turn_index, "dimension": r.dimension, "field": r.field,
+        "reported": r.reported, "measured": r.measured, "delta": r.delta,
+        "band": r.band, "verdict": r.verdict, "note": r.note,
+    } for r in rows]
 
 
 def _audio(call: Call, media: list[Media], db: Session) -> dict | None:

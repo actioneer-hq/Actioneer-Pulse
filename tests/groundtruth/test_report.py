@@ -24,6 +24,6 @@ def test_material_filters_to_confident_disagreements():
 
 
 def test_default_policy_has_bands():
-    assert DEFAULT_POLICY.v2v_band_ms > 0
+    assert DEFAULT_POLICY.first_audio_band_ms > 0
     assert 0 < DEFAULT_POLICY.min_coverage <= 1
     assert 0 < DEFAULT_POLICY.transcript_wer_band < 1

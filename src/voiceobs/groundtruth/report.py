@@ -4,8 +4,9 @@ between what OTLP self-reported and what the audio actually shows.
 Design rules (load-bearing):
 - Nothing here raises. A check that can't run contributes `unverifiable`, never an error.
 - Short mismatches are expected noise: a delta within the tolerance band is `agree` and is NOT
-  emitted as a discrepancy. Only material, confident disagreements surface.
-- Confidence is gated by capture coverage — bad audio can never read as "the producer lied."
+  emitted as a discrepancy. Only beyond-band disagreements are `material`.
+- The comparison is delta-only (no confidence scoring). Coverage still GATES: too little real
+  audio → `unverifiable`, never `material` — bad capture can't read as "the producer lied."
 """
 
 from __future__ import annotations
@@ -17,9 +18,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class Verdict(StrEnum):
     AGREE = "agree"              # within the tolerance band — not surfaced as a discrepancy
-    MINOR = "minor"             # outside the band but small / low-confidence
-    MATERIAL = "material"       # a real, confident disagreement
-    UNVERIFIABLE = "unverifiable"  # audio couldn't determine this (missing/short/low-coverage)
+    MATERIAL = "material"       # a real disagreement beyond the band
+    UNVERIFIABLE = "unverifiable"  # audio couldn't determine this (missing/short audio)
 
 
 class Dimension(StrEnum):
@@ -41,9 +41,8 @@ class Discrepancy(BaseModel):
     turn_index: int | None = None
     reported: float | str | None = None   # OTLP self-report
     measured: float | str | None = None   # audio ground truth
-    delta: float | None = None            # measured - reported (numeric dims only)
+    delta: float | None = None            # measured - reported (ms), or WER for transcript
     band: float | None = None             # tolerance applied
-    confidence: float = 0.0               # 0..1, gated by coverage
     verdict: Verdict = Verdict.UNVERIFIABLE
     note: str | None = None
 
@@ -78,20 +77,14 @@ class AudioReport(BaseModel):
 
 
 class TolerancePolicy(BaseModel):
-    """Committed default bands + weights ("open config"). A delta within `*_band_ms` is agreement.
-    `min_confidence` is the floor below which even a large delta stays `minor` (untrusted)."""
+    """Committed default bands ("open config"). A delta within a band is agreement; beyond it is
+    material. Coverage below `min_coverage` gates a channel's checks to unverifiable."""
 
     model_config = ConfigDict(frozen=True)
 
-    v2v_band_ms: float = 150.0
-    endpointing_band_ms: float = 120.0
-    interruption_overlap_ms: float = 120.0     # min caller/agent overlap to count a real barge-in
-    truncation_tail_ms: float = 120.0          # agent speech active in the last N ms = abrupt cut
-    transcript_wer_band: float = 0.15          # ≤15% word error = agree
-    dead_air_band_s: float = 1.5
-    # confidence: coverage below this makes a channel's checks unverifiable
-    min_coverage: float = 0.80
-    min_confidence: float = 0.50               # material requires at least this confidence
+    first_audio_band_ms: float = 150.0     # span-reported first agent audio vs audio-measured onset
+    transcript_wer_band: float = 0.20      # ≤20% word error = agree (STT has its own ~5-10% error)
+    min_coverage: float = 0.80             # below this real-audio fraction → unverifiable
 
 
 DEFAULT_POLICY = TolerancePolicy()

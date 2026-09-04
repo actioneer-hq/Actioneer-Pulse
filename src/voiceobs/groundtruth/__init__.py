@@ -20,6 +20,7 @@ from voiceobs.groundtruth.report import (
     TolerancePolicy,
     Verdict,
 )
+from voiceobs.groundtruth.service import reconcile
 from voiceobs.groundtruth.stt import STTConfig, resolve_stt, transcribe
 
 __all__ = [
@@ -31,6 +32,7 @@ __all__ = [
     "STTConfig",
     "TolerancePolicy",
     "Verdict",
+    "reconcile",
     "resolve_stt",
     "transcribe",
 ]

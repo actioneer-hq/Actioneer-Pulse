@@ -550,6 +550,29 @@ class IngestToken(Base):
     created_at: Mapped[datetime] = created_col()
 
 
+class AudioDiscrepancy(Base):
+    """One reconciled field where the audio ground truth disagrees with the OTLP self-report.
+    Written by the ground-truth service; surfaced in the call inspector. Rewritten each analysis
+    (deleted + reinserted), like metrics."""
+
+    __tablename__ = "audio_discrepancy"
+    __table_args__ = (Index("ix_audio_discrepancy_call", "call_id"),)
+
+    id: Mapped[str] = pk()
+    call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
+    tenant_id: Mapped[str] = tenant_col()
+    turn_index: Mapped[int | None] = mapped_column(Integer)
+    dimension: Mapped[str] = mapped_column(String(32), nullable=False)
+    field: Mapped[str] = mapped_column(String(64), nullable=False)
+    reported: Mapped[str | None] = mapped_column(Text)
+    measured: Mapped[str | None] = mapped_column(Text)
+    delta: Mapped[float | None] = mapped_column(Float)
+    band: Mapped[float | None] = mapped_column(Float)
+    verdict: Mapped[str] = mapped_column(String(16), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = created_col()
+
+
 class AgentAudioConfig(Base):
     """Per-agent audio-analysis config (pull path). When `enabled`, a reconcile worker scans
     `s3://{s3_bucket}/{s3_prefix}` with these creds and attaches recordings to calls, matching
