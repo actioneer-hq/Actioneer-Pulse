@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from tests.fixtures.vas_call import sample_call
+from tests.fixtures.livekit_call import sample_call
 
 
 def _artifact(**kw) -> dict:
@@ -149,7 +149,7 @@ def test_archived_fragment_keeps_the_resource(client, db_sessionmaker):
         frag = db.scalars(select(RawFragment)).first()
         replayed = json.loads(gzip.decompress(frag.payload_gz))
     assert replayed["resourceSpans"][0]["resource"]["attributes"]
-    assert adapter_for(replayed).name == "vas"
+    assert adapter_for(replayed).name == "livekit"
 
 
 def test_later_batch_without_root_rejoins_the_same_call(client, login_as):
@@ -184,7 +184,7 @@ def _children_only(payload: dict, trace_id: str) -> dict:
     payload = _with_trace_id(payload, trace_id)
     for rs in payload["resourceSpans"]:
         for scope in rs["scopeSpans"]:
-            scope["spans"] = [s for s in scope["spans"] if s["name"] != "voice.call"]
+            scope["spans"] = [s for s in scope["spans"] if s["name"] != "agent_session"]
             for span in scope["spans"]:
                 span["attributes"] = [
                     a for a in span["attributes"] if a["key"] != "voice.call_id"
@@ -193,7 +193,7 @@ def _children_only(payload: dict, trace_id: str) -> dict:
 
 
 def _pipecat_batch(trace_id: str, with_root: bool) -> dict:
-    """A producer that has never heard of voice-cascade: generic span names, no
+    """A producer that has never heard of our dialect: generic span names, no
     voice.* attributes, no call id. Only traceId and the parent chain."""
     spans = [
         {"traceId": trace_id, "spanId": "s2", "parentSpanId": "s1",

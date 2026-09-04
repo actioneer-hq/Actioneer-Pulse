@@ -29,4 +29,4 @@ Conventions for coding agents on this repo (VO — voice observability). Living 
 - `ruff check .` — clean
 - `pytest -q` — green
 - `lint-imports` — core purity KEPT
-- Design docs (`PLAN.md`, `CONTRACTS.md`, `MODELS.md`, `CONTEXT.md`, `vas-contract.md`) and `*.pdf` are gitignored — kept local, not committed.
+- Design docs (`PLAN.md`, `CONTRACTS.md`, `MODELS.md`, `CONTEXT.md`) and `*.pdf` are gitignored — kept local, not committed.

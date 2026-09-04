@@ -47,9 +47,19 @@ def _unknown() -> dict:
     }]}
 
 
-def test_unknown_producer_still_parses():
+def test_unknown_producer_is_not_auto_routed():
+    """Strict LiveKit-only routing: a producer VO doesn't ship a dialect for is NOT
+    silently reshaped — the registry returns nothing (a future BYO-OTLP path re-enables
+    the generic fallback explicitly)."""
+    assert adapter_for(_unknown()) is None
+    assert adapter_for(_pipecat()) is None
+
+
+def test_generic_base_still_parses_anything():
+    """The generic OTLPAdapter class stays the framework-agnostic base: used directly it
+    turns any OTLP payload into a call + timeline. This is what a BYO-OTLP framework builds on."""
     payload = _unknown()
-    adapter = adapter_for(payload)
+    adapter = OTLPAdapter()
     assert adapter.name == "otlp"
 
     trace = adapter.to_trace(payload)

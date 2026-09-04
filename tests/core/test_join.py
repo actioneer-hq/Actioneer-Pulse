@@ -22,7 +22,7 @@ from voiceobs.core.model import (
 
 def _header(engine="cascade", **kw) -> CallHeader:
     return CallHeader(
-        call_id="c1", source="voice-cascade", environment="prod",
+        call_id="c1", source="livekit", environment="prod",
         started_at=datetime(2026, 8, 20, tzinfo=UTC), engine=engine, **kw,
     )
 

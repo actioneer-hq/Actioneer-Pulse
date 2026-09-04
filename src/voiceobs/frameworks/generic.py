@@ -3,10 +3,10 @@
 Writing an adapter (LiveKit, your own) is two dicts:
 
     class MyAdapter(OTLPAdapter):
-        name = "myvas"
-        service_name = "myvas"
+        name = "myframework"
+        service_name = "myframework"
         stages = {"stt_service": Stage.STT, "llm_service": Stage.LLM}
-        attr_aliases = {"myvas.turn": "turn.id"}
+        attr_aliases = {"myframework.turn": "turn.id"}
 
 Everything else — the span tree, timings, content splitting, PII dropping — is the
 same for every producer, because it is OTLP, not dialect.
@@ -48,9 +48,9 @@ def _dt(ns: int) -> datetime:
 
 
 def _propagate_turn_ids(spans: list[Span]) -> list[Span]:
-    """Attach each span to its turn. VAS stamps turn.id on every span; LiveKit
-    instead nests a turn's STT/LLM/TTS spans UNDER the turn span, so a child's turn is
-    its nearest turn-stage ancestor. Only fills a missing turn_id — never overrides one
+    """Attach each span to its turn. Some producers stamp turn.id on every span; others
+    (LiveKit) instead nest a turn's STT/LLM/TTS spans UNDER the turn span, so a child's turn
+    is its nearest turn-stage ancestor. Only fills a missing turn_id — never overrides one
     the producer set. A turn span's own id becomes its turn_id so children can match it."""
     by_id = {s.span_id: s for s in spans}
 

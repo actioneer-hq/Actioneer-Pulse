@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tests.fixtures.vas_call import sample_call
+from tests.fixtures.livekit_call import sample_call
 from voiceobs.frameworks import otlp
 
 
@@ -24,16 +24,16 @@ def test_attrs_to_dict_flattens():
 
 def test_iter_spans_carries_resource():
     rows = list(otlp.iter_spans(sample_call()))
-    assert len(rows) == 5
+    assert len(rows) == 8
     res, span = rows[0]
-    assert res["service.name"] == "voice-cascade"
+    assert res["service.name"] == "livekit"
     assert res["voice.schema_version"] == 1
     assert "name" in span
 
 
 def test_span_events_parsed():
     _, llm = next(
-        (r, s) for r, s in otlp.iter_spans(sample_call()) if s["name"] == "llm.generate"
+        (r, s) for r, s in otlp.iter_spans(sample_call()) if s["name"] == "llm_request"
     )
     events = otlp.span_events(llm)
     assert events[0][0] == "llm.first_token"

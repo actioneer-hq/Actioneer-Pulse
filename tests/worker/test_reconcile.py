@@ -15,7 +15,7 @@ URI = "s3://bucket/voice/vastu-hfc/app/camp/recip/c1/audio.wav"
 
 def _seed_call(db, *, spans_complete=True, status="awaiting_media") -> Call:
     call = Call(
-        tenant_id="vastu-hfc", external_call_id="c1", source="voice-cascade",
+        tenant_id="vastu-hfc", external_call_id="c1", source="livekit",
         environment="prod", status=status, spans_complete=spans_complete,
     )
     db.add(call)
