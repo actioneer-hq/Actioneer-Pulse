@@ -569,6 +569,11 @@ class AgentAudioConfig(Base):
     s3_endpoint_url: Mapped[str | None] = mapped_column(String(512))  # MinIO / R2 / etc.
     access_key_id: Mapped[str | None] = mapped_column(String(128))
     secret_ciphertext: Mapped[str | None] = mapped_column(Text)  # Fernet blob
+    # BYO STT for transcript verification — an OpenAI-style /audio/transcriptions endpoint.
+    # Optional: absent = transcript reconciliation is skipped gracefully. Key encrypted at rest.
+    stt_base_url: Mapped[str | None] = mapped_column(String(512))
+    stt_model: Mapped[str | None] = mapped_column(String(128))
+    stt_key_ciphertext: Mapped[str | None] = mapped_column(Text)  # Fernet blob
     created_at: Mapped[datetime] = created_col()
     updated_at: Mapped[datetime] = created_col()
 

@@ -73,6 +73,7 @@ forbidden_modules = [
     "voiceobs.judge",
     "voiceobs.transcript",
     "voiceobs.auth",
+    "voiceobs.groundtruth",
 ]
 
 # auth sits above core/frameworks (it's an API concern that touches db); they must not

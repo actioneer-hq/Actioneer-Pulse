@@ -83,6 +83,10 @@ class AudioConfigIn(BaseModel):
     s3_endpoint_url: str | None = None
     access_key_id: str | None = None
     secret_access_key: str | None = None  # write-only; omit to keep the stored secret
+    # BYO STT for transcript verification (OpenAI-style /audio/transcriptions). Optional.
+    stt_base_url: str | None = None
+    stt_model: str | None = None
+    stt_api_key: str | None = None  # write-only; omit to keep the stored key
 
 
 class AgentIn(BaseModel):

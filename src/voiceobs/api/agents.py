@@ -166,6 +166,10 @@ def _apply_audio_config(db: Session, agent_id: str, body: AudioConfigIn) -> Agen
     cfg.access_key_id = body.access_key_id
     if body.secret_access_key is not None:  # write-only: omit to keep the stored secret
         cfg.secret_ciphertext = encrypt(body.secret_access_key)
+    cfg.stt_base_url = body.stt_base_url
+    cfg.stt_model = body.stt_model
+    if body.stt_api_key is not None:  # write-only
+        cfg.stt_key_ciphertext = encrypt(body.stt_api_key)
     cfg.updated_at = now()
     return cfg
 
@@ -181,6 +185,9 @@ def _audio_config_dict(cfg: AgentAudioConfig | None) -> dict:
         "s3_endpoint_url": cfg.s3_endpoint_url,
         "access_key_id": cfg.access_key_id,
         "has_secret": cfg.secret_ciphertext is not None,  # never echo the secret itself
+        "stt_base_url": cfg.stt_base_url,
+        "stt_model": cfg.stt_model,
+        "has_stt_key": cfg.stt_key_ciphertext is not None,
     }
 
 
