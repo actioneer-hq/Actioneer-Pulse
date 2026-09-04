@@ -58,7 +58,7 @@ def login_as(client, db_sessionmaker):
     belong to — e.g. `login_as("vastu-hfc")` for sample_call data."""
     from sqlalchemy import select
 
-    from voiceobs.auth import COOKIE_NAME, hash_password, issue_session
+    from voiceobs.auth import ACCESS_COOKIE, hash_password, issue_access
     from voiceobs.db.models import AppUser, Membership, Organization
 
     def _login(org_id: str = "default", role: str = "owner") -> TestClient:
@@ -75,7 +75,7 @@ def login_as(client, db_sessionmaker):
             if has is None:
                 db.add(Membership(org_id=org_id, user_id=uid, role=role))
             db.commit()
-        client.cookies.set(COOKIE_NAME, issue_session(uid))
+        client.cookies.set(ACCESS_COOKIE, issue_access(uid))
         return client
 
     return _login

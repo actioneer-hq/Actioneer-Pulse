@@ -36,7 +36,7 @@ def test_ingest_token_mint_list_rotate_revoke(client, login_as):
 
 
 def test_granular_agent_access_restricts_a_member(client, login_as, db_sessionmaker):
-    from voiceobs.auth import COOKIE_NAME, hash_password, issue_session
+    from voiceobs.auth import ACCESS_COOKIE, hash_password, issue_access
     from voiceobs.db.models import AppUser, Membership
 
     login_as("default")  # owner
@@ -49,13 +49,13 @@ def test_granular_agent_access_restricts_a_member(client, login_as, db_sessionma
         db.commit()
 
     # a member with no grants sees all org agents (coarse default)
-    client.cookies.set(COOKIE_NAME, issue_session("u-x"))
+    client.cookies.set(ACCESS_COOKIE, issue_access("u-x"))
     assert {x["id"] for x in client.get("/v1/agents").json()["items"]} == {a, b}
 
     # owner grants that member access to A only → member now restricted to A
     login_as("default")
     assert client.put("/v1/orgs/default/members/m-x/agent-access",
                       json={"agent_ids": [a]}).status_code == 200
-    client.cookies.set(COOKIE_NAME, issue_session("u-x"))
+    client.cookies.set(ACCESS_COOKIE, issue_access("u-x"))
     assert {x["id"] for x in client.get("/v1/agents").json()["items"]} == {a}
     assert client.get(f"/v1/agents/{b}/ingest-tokens").status_code in (403, 404)

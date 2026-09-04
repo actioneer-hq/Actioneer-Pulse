@@ -11,6 +11,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import {
   getMe,
   logout as apiLogout,
+  logoutEverywhere as apiLogoutAll,
   setApiOrg,
   setUnauthorizedHandler,
   type Me,
@@ -30,7 +31,7 @@ type AuthState = {
   isAdmin: boolean;
   setActiveOrg: (orgId: string) => void;
   refresh: () => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (everywhere?: boolean) => Promise<void>;
 };
 
 const Ctx = createContext<AuthState | null>(null);
@@ -72,8 +73,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setActiveOrgState(orgId);
   }, []);
 
-  const logout = useCallback(async () => {
-    await apiLogout().catch(() => {});
+  const logout = useCallback(async (everywhere = false) => {
+    await (everywhere ? apiLogoutAll() : apiLogout()).catch(() => {});
     setMe(null);
     setActiveOrgState(null);
   }, []);

@@ -64,6 +64,7 @@ function Shell() {
               <div className="menu">
                 <div className="menu-hd">{user?.email}</div>
                 <button onClick={() => void logout()}>Sign out</button>
+                <button onClick={() => void logout(true)}>Sign out everywhere</button>
               </div>
             )}
           </div>

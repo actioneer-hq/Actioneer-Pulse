@@ -170,22 +170,52 @@ export type Member = {
 let activeOrg: string | null = null;
 export const setApiOrg = (org: string | null) => { activeOrg = org; };
 
-// A 401 means the cookie is gone/expired; bounce to /login unless we're already there.
+// A 401 that even a refresh can't fix means the session is truly gone; bounce to /login.
 let onUnauthorized: (() => void) | null = null;
 export const setUnauthorizedHandler = (fn: () => void) => { onUnauthorized = fn; };
 
 type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
-async function req<T>(method: Method, path: string, body?: unknown): Promise<T> {
+// Double-submit CSRF: echo the readable vo_csrf cookie back as a header on unsafe requests.
+function csrfToken(): string | null {
+  const m = document.cookie.match(/(?:^|;\s*)vo_csrf=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+async function rawFetch(method: Method, path: string, body?: unknown): Promise<Response> {
   const headers: Record<string, string> = {};
   if (activeOrg) headers["X-Voiceobs-Org"] = activeOrg;
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  const r = await fetch(path, {
+  if (method !== "GET") {
+    const csrf = csrfToken();
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
+  return fetch(path, {
     method,
     credentials: "include",
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+}
+
+// One in-flight refresh shared by all concurrent 401s, so a burst triggers a single rotate.
+let refreshing: Promise<boolean> | null = null;
+function tryRefresh(): Promise<boolean> {
+  if (!refreshing) {
+    refreshing = rawFetch("POST", "/v1/auth/refresh")
+      .then((r) => r.ok)
+      .catch(() => false)
+      .finally(() => { refreshing = null; });
+  }
+  return refreshing;
+}
+
+async function req<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  let r = await rawFetch(method, path, body);
+  // Access JWT likely expired → refresh once, then retry the original request.
+  if (r.status === 401 && path !== "/v1/auth/refresh") {
+    if (await tryRefresh()) r = await rawFetch(method, path, body);
+  }
   if (r.status === 401) {
     onUnauthorized?.();
     throw new Error("unauthorized");
@@ -208,6 +238,7 @@ export const signup = (email: string, password: string, org_name?: string, name?
 export const acceptInvite = (token: string, password: string, name?: string) =>
   req("POST", "/v1/auth/accept-invite", { token, password, name });
 export const logout = () => req("POST", "/v1/auth/logout");
+export const logoutEverywhere = () => req("POST", "/v1/auth/logout-all");
 export const getMe = () => get<Me>("/v1/auth/me");
 
 // ---- agents + ingest tokens ----
