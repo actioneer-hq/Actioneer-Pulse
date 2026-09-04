@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createAgent,
   deleteAgent,
   listAgents,
+  listCalls,
   listTokens,
   mintToken,
   renameAgent,
@@ -94,16 +95,18 @@ export default function Agents() {
         </div>
         <div className="col">
           {selected
-            ? <TokenPanel agent={selected} />
-            : <div className="empty">Select an agent to manage its ingest tokens.</div>}
+            ? <AgentDetail agent={selected} />
+            : <div className="empty">Select an agent to connect it and manage ingest tokens.</div>}
         </div>
       </div>
     </div>
   );
 }
 
-function TokenPanel({ agent }: { agent: Agent }) {
+function AgentDetail({ agent }: { agent: Agent }) {
   const [tokens, setTokens] = useState<IngestTokenRow[]>([]);
+  // The last plaintext token from this session's mint/rotate — the only time we ever see it.
+  // Shared so the Connect snippet can show a real Bearer header, then management can revoke it.
   const [minted, setMinted] = useState<MintedToken | null>(null);
   const [name, setName] = useState("");
 
@@ -112,14 +115,12 @@ function TokenPanel({ agent }: { agent: Agent }) {
   useEffect(() => { load(); setMinted(null); }, [load]);
 
   async function mint() {
-    const m = await mintToken(agent.id, name.trim() || undefined);
-    setMinted(m);
+    setMinted(await mintToken(agent.id, name.trim() || undefined));
     setName("");
     load();
   }
   async function rotate(t: IngestTokenRow) {
-    const m = await rotateToken(agent.id, t.id);
-    setMinted(m);
+    setMinted(await rotateToken(agent.id, t.id));
     load();
   }
   async function revoke(t: IngestTokenRow) {
@@ -129,42 +130,102 @@ function TokenPanel({ agent }: { agent: Agent }) {
   }
 
   return (
-    <div className="panel-card">
-      <h3>Ingest tokens · {agent.name}</h3>
-      {minted && (
-        <div className="minted">
-          <div className="minted-hd">Copy this token now — it is shown only once.</div>
-          <code className="mono">{minted.token}</code>
-          <button className="link" onClick={() => navigator.clipboard?.writeText(minted.token)}>
-            Copy</button>
+    <>
+      <ConnectPanel agent={agent} token={minted?.token ?? null} onMint={mint} />
+      <div className="panel-card">
+        <h3>Ingest tokens · {agent.name}</h3>
+        {minted && (
+          <div className="minted">
+            <div className="minted-hd">Copy this token now — it is shown only once.</div>
+            <code className="mono">{minted.token}</code>
+            <button className="link" onClick={() => navigator.clipboard?.writeText(minted.token)}>
+              Copy</button>
+          </div>
+        )}
+        <div className="add-row">
+          <input value={name} onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && mint()} placeholder="Label (e.g. prod)…" />
+          <button className="btn-primary" onClick={mint}>Mint token</button>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Prefix</th><th>Label</th><th>Last used</th><th></th></tr>
+          </thead>
+          <tbody>
+            {tokens.map((t) => (
+              <tr key={t.id} className={t.revoked ? "revoked" : undefined}>
+                <td className="mono">{t.prefix}…{t.revoked && <span className="pill bad">revoked</span>}</td>
+                <td>{t.name ?? "—"}</td>
+                <td className="dimtxt">{t.last_used_at ? new Date(t.last_used_at).toLocaleString() : "never"}</td>
+                <td className="r">
+                  {!t.revoked && <>
+                    <button className="link" onClick={() => rotate(t)}>Rotate</button>
+                    <button className="link bad" onClick={() => revoke(t)}>Revoke</button>
+                  </>}
+                </td>
+              </tr>
+            ))}
+            {tokens.length === 0 && <tr><td colSpan={4} className="dimtxt">No tokens yet.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+// "Connect your agent": a copy-paste LiveKit OTLP snippet (endpoint + token prefilled) plus a
+// live "waiting → received" probe. LiveKit is the only shipped framework; BYO-OTLP comes later.
+function ConnectPanel(
+  { agent, token, onMint }: { agent: Agent; token: string | null; onMint: () => void },
+) {
+  const [count, setCount] = useState<number | null>(null);
+  const timer = useRef<number | null>(null);
+
+  // Poll this agent's call count until the first span lands, then stop.
+  useEffect(() => {
+    let stop = false;
+    const tick = async () => {
+      try {
+        const calls = await listCalls(200, agent.id);
+        if (stop) return;
+        setCount(calls.length);
+        if (calls.length > 0) return; // received — stop polling
+      } catch { /* keep waiting */ }
+      if (!stop) timer.current = window.setTimeout(tick, 4000);
+    };
+    setCount(null);
+    tick();
+    return () => { stop = true; if (timer.current) window.clearTimeout(timer.current); };
+  }, [agent.id]);
+
+  const endpoint = window.location.origin;
+  const bearer = token ?? "vo_<mint a token below>";
+  const snippet =
+    `OTEL_EXPORTER_OTLP_ENDPOINT=${endpoint}\n` +
+    `OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer ${bearer}`;
+
+  return (
+    <div className="panel-card connect">
+      <h3>Connect your agent · <span className="fw-tag">LiveKit</span></h3>
+      <p className="sub">Point your LiveKit Agents worker's OTLP exporter here. Set these on the
+        agent process, then run a call — spans arrive under this agent automatically.</p>
+      {!token && (
+        <div className="connect-hint">
+          <span>Mint an ingest token to fill in the <code>Authorization</code> header.</span>
+          <button className="btn-primary" onClick={onMint}>Mint token</button>
         </div>
       )}
-      <div className="add-row">
-        <input value={name} onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && mint()} placeholder="Label (e.g. prod)…" />
-        <button className="btn-primary" onClick={mint}>Mint token</button>
+      <div className="snippet">
+        <button className="copy link" disabled={!token}
+          onClick={() => navigator.clipboard?.writeText(snippet)}>Copy</button>
+        <pre>{snippet}</pre>
       </div>
-      <table>
-        <thead>
-          <tr><th>Prefix</th><th>Label</th><th>Last used</th><th></th></tr>
-        </thead>
-        <tbody>
-          {tokens.map((t) => (
-            <tr key={t.id} className={t.revoked ? "revoked" : undefined}>
-              <td className="mono">{t.prefix}…{t.revoked && <span className="pill bad">revoked</span>}</td>
-              <td>{t.name ?? "—"}</td>
-              <td className="dimtxt">{t.last_used_at ? new Date(t.last_used_at).toLocaleString() : "never"}</td>
-              <td className="r">
-                {!t.revoked && <>
-                  <button className="link" onClick={() => rotate(t)}>Rotate</button>
-                  <button className="link bad" onClick={() => revoke(t)}>Revoke</button>
-                </>}
-              </td>
-            </tr>
-          ))}
-          {tokens.length === 0 && <tr><td colSpan={4} className="dimtxt">No tokens yet.</td></tr>}
-        </tbody>
-      </table>
+      <div className={`conn-status ${count && count > 0 ? "ok" : "wait"}`}>
+        {count === null ? "Checking…"
+          : count > 0
+            ? `✅ Receiving — ${count} call${count === 1 ? "" : "s"} ingested`
+            : "Waiting for first span…"}
+      </div>
     </div>
   );
 }

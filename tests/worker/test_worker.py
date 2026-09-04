@@ -146,6 +146,28 @@ def test_unsupported_producer_is_not_retried_forever(client, db_sessionmaker, mo
         assert claim(db, grace_s=0) == []
 
 
+def test_foreign_producer_is_unsupported_under_strict_routing(client, db_sessionmaker):
+    """Strict LiveKit-only: a producer with no `agent_session` matches no registered
+    framework, so the worker reports it unsupported rather than reshaping it blindly."""
+    import pytest
+
+    from voiceobs.frameworks import UnsupportedSchema
+
+    foreign = {"resourceSpans": [{
+        "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "pipecat"}}]},
+        "scopeSpans": [{"spans": [
+            {"traceId": "ff" * 16, "spanId": "01" * 8, "name": "conversation",
+             "startTimeUnixNano": "1700000000000000000",
+             "endTimeUnixNano": "1700000003000000000", "attributes": []},
+        ]}],
+    }]}
+    client.post("/v1/traces", json=foreign)
+    with db_sessionmaker() as db:
+        call = db.scalars(select(Call)).one()
+        with pytest.raises(UnsupportedSchema):
+            process(db, call)
+
+
 def test_worker_names_no_producer():
     """The constraint, enforced. `worker/` may not know a producer exists — that is
     `frameworks/`' job, and it is what keeps Pipecat and LiveKit a config change."""
