@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   createConversation,
   deleteConversation,
@@ -140,8 +142,10 @@ function Bubble({ msg }: { msg: LiveMsg }) {
           ))}
         </div>
       )}
-      <div className="msg-assistant">
-        {msg.content || (msg.streaming ? <span className="cursor">▍</span> : "")}
+      <div className="msg-assistant prose">
+        {msg.content
+          ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+          : (msg.streaming && <span className="cursor">▍</span>)}
         {msg.content && msg.streaming && <span className="cursor">▍</span>}
       </div>
     </div>
