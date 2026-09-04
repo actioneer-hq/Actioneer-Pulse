@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Sentiment(StrEnum):
@@ -35,8 +35,34 @@ class ScriptAdherence(StrEnum):
     NOT_FOLLOWED = "not_followed"
 
 
+_ENUM_FALLBACK = {
+    "sentiment": Sentiment.NEUTRAL,
+    "objective_achieved": Objective.NOT_ACHIEVED,
+    "answered_by": AnsweredBy.UNKNOWN,
+    "script_adherence": ScriptAdherence.NOT_FOLLOWED,
+}
+
+
 class JudgeOutput(BaseModel):
     """What the LLM returns (only produced for connected calls)."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_enums(cls, data):
+        """Best-effort tolerance: lowercase enum strings, and map an out-of-vocabulary value to a
+        safe fallback rather than failing the whole judgment (models occasionally emit 'AGENT'
+        or 'POOR')."""
+        if not isinstance(data, dict):
+            return data
+        enums = {"sentiment": Sentiment, "objective_achieved": Objective,
+                 "answered_by": AnsweredBy, "script_adherence": ScriptAdherence}
+        for key, enum in enums.items():
+            v = data.get(key)
+            if isinstance(v, str):
+                low = v.strip().lower()
+                valid = {e.value for e in enum}
+                data[key] = low if low in valid else _ENUM_FALLBACK[key].value
+        return data
 
     sentiment: Sentiment
     objective_achieved: Objective
