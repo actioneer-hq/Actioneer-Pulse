@@ -6,7 +6,7 @@ import sys
 
 from sqlalchemy import func, select
 
-from tests.adapters.fixtures.vas_call import sample_call
+from tests.fixtures.vas_call import sample_call
 from voiceobs.db.models import Call, Transcript
 from voiceobs.worker.process import process
 
@@ -19,8 +19,9 @@ def _computed(client, db_sessionmaker) -> None:
         db.commit()
 
 
-def test_tier1_derived_from_turns(client, db_sessionmaker):
+def test_tier1_derived_from_turns(client, login_as, db_sessionmaker):
     _computed(client, db_sessionmaker)
+    login_as("vastu-hfc")
     d = client.get("/v1/calls/c1/transcript").json()
     assert d["source"] == "derived"
     lines = d["lines"]
@@ -28,30 +29,33 @@ def test_tier1_derived_from_turns(client, db_sessionmaker):
     assert any(ln["text"] == "haan ji" for ln in lines)  # caller transcript from the fixture
 
 
-def test_tier2_byo_overrides_derived(client, db_sessionmaker):
+def test_tier2_byo_overrides_derived(client, login_as, db_sessionmaker):
     _computed(client, db_sessionmaker)
     r = client.post("/v1/calls/c1/transcript", json={"format": "text", "text": "MY TRANSCRIPT"})
     assert r.status_code == 200
+    login_as("vastu-hfc")
     d = client.get("/v1/calls/c1/transcript").json()
     assert d["source"] == "byo"
     assert d["text"] == "MY TRANSCRIPT"
 
 
-def test_tier2_reupload_replaces(client, db_sessionmaker):
+def test_tier2_reupload_replaces(client, login_as, db_sessionmaker):
     client.post("/v1/traces", json=sample_call())
     client.post("/v1/calls/c1/transcript", json={"text": "v1"})
     client.post("/v1/calls/c1/transcript", json={"text": "v2"})
     with db_sessionmaker() as db:
         assert db.scalar(select(func.count()).select_from(Transcript)) == 1
+    login_as("vastu-hfc")
     assert client.get("/v1/calls/c1/transcript").json()["text"] == "v2"
 
 
-def test_tier2_by_uri_is_fetched(client, monkeypatch):
+def test_tier2_by_uri_is_fetched(client, login_as, monkeypatch):
     client.post("/v1/traces", json=sample_call())
     monkeypatch.setattr(
         sys.modules["voiceobs.transcript"], "fetch_bytes", lambda uri: b"FROM S3"
     )
     client.post("/v1/calls/c1/transcript", json={"uri": "s3://b/t.txt"})
+    login_as("vastu-hfc")
     assert client.get("/v1/calls/c1/transcript").json()["text"] == "FROM S3"
 
 
@@ -64,5 +68,6 @@ def test_delete_cascades_transcript(client, db_sessionmaker, monkeypatch):
         assert db.scalar(select(func.count()).select_from(Transcript)) == 0
 
 
-def test_transcript_404_for_unknown_call(client):
+def test_transcript_404_for_unknown_call(client, login_as):
+    login_as("default")
     assert client.get("/v1/calls/nope/transcript").status_code == 404

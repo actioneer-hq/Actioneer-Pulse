@@ -40,3 +40,52 @@ class JudgeConfigIn(BaseModel):
 class SettingsIn(BaseModel):
     audio_analysis_enabled: bool | None = None  # null = defer to global default
     audio_store_prefix: str | None = None
+
+
+class SignupIn(BaseModel):
+    email: str
+    password: str
+    name: str | None = None
+    org_name: str | None = None  # first org's display name; defaults to "Default"
+
+
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+
+class AcceptInviteIn(BaseModel):
+    token: str
+    password: str
+    name: str | None = None
+
+
+class MemberIn(BaseModel):
+    email: str
+    role: str = "member"  # owner | admin | member | viewer
+
+
+class RoleIn(BaseModel):
+    role: str
+
+
+class OrgIn(BaseModel):
+    name: str
+    slug: str | None = None
+
+
+class AgentIn(BaseModel):
+    name: str
+    slug: str | None = None
+
+
+class AgentPatchIn(BaseModel):
+    name: str
+
+
+class IngestTokenIn(BaseModel):
+    name: str | None = None
+
+
+class AgentAccessIn(BaseModel):
+    agent_ids: list[str]  # replace the member's grant set (empty = coarse "all org agents")

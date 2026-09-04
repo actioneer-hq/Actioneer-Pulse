@@ -117,6 +117,9 @@ class Call(Base):
     span_dropped_events: Mapped[int | None] = mapped_column(Integer)
     unattributed_spans: Mapped[int | None] = mapped_column(Integer)
     service_instance_id: Mapped[str | None] = mapped_column(String(64))
+    # which registered agent produced this call (loose ref to agent.id, like tenant_id ->
+    # organization.id; nullable for dev-open / pre-identity calls).
+    agent_id: Mapped[str | None] = mapped_column(String(36), index=True)
 
     # gates + status
     spans_complete: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -443,3 +446,101 @@ class Tombstone(Base):
     call_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     deleted_at: Mapped[datetime] = created_col()
     deleted_by: Mapped[str | None] = mapped_column(String(64))
+
+
+# ── Identity / RBAC / agents ────────────────────────────────────────────────────
+# These define and scope tenancy (org = tenant_id) rather than carry it, so they use
+# real FKs among themselves and do NOT use tenant_col(). Data tables above stay on the
+# loose `tenant_id` string (= Organization.id) — see CONTRACTS / the identity plan.
+
+
+class Organization(Base):
+    """A tenant. Its `id` IS the `tenant_id` stamped on every data row. The self-host
+    default org is seeded with id="default"."""
+
+    __tablename__ = "organization"
+
+    id: Mapped[str] = pk()
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    slug: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime] = created_col()
+
+
+class AppUser(Base):
+    """A person who can sign in. `password_hash` is nullable so SSO-only users work later.
+    Table name is `app_user` — `user` is reserved in Postgres."""
+
+    __tablename__ = "app_user"
+
+    id: Mapped[str] = pk()
+    email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True)  # store lowercased
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    name: Mapped[str | None] = mapped_column(String(128))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = created_col()
+
+
+class Membership(Base):
+    """A user's place in an org, with a coarse role. Granular per-agent access is layered
+    on top via AgentAccess."""
+
+    __tablename__ = "membership"
+    __table_args__ = (
+        UniqueConstraint("org_id", "user_id", name="uq_membership"),
+        Index("ix_membership_user", "user_id"),
+        Index("ix_membership_org", "org_id"),
+    )
+
+    id: Mapped[str] = pk()
+    org_id: Mapped[str] = mapped_column(ForeignKey("organization.id"), nullable=False)
+    user_id: Mapped[str] = mapped_column(ForeignKey("app_user.id"), nullable=False)
+    role: Mapped[str] = mapped_column(String(16), nullable=False)  # owner|admin|member|viewer
+    created_at: Mapped[datetime] = created_col()
+
+
+class Agent(Base):
+    """A deployed voice agent — the "project" and the OTLP routing target. Its `id` is what
+    a producer stamps as voiceobs.agent_id and what an ingest token resolves to."""
+
+    __tablename__ = "agent"
+    __table_args__ = (
+        UniqueConstraint("org_id", "slug", name="uq_agent_slug"),
+        Index("ix_agent_org", "org_id"),
+    )
+
+    id: Mapped[str] = pk()
+    org_id: Mapped[str] = mapped_column(ForeignKey("organization.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    slug: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = created_col()
+
+
+class AgentAccess(Base):
+    """A granular grant: this membership may see this agent. A member with ZERO grants sees
+    ALL org agents (coarse default); with ≥1, is restricted to the granted set."""
+
+    __tablename__ = "agent_access"
+    __table_args__ = (UniqueConstraint("membership_id", "agent_id", name="uq_agent_access"),)
+
+    id: Mapped[str] = pk()
+    membership_id: Mapped[str] = mapped_column(ForeignKey("membership.id"), nullable=False)
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agent.id"), nullable=False)
+    created_at: Mapped[datetime] = created_col()
+
+
+class IngestToken(Base):
+    """A per-agent ingest credential (Sentry-DSN style). The plaintext `vo_<prefix>_<secret>`
+    is shown once at mint; only its argon2 hash is stored. Resolves to (org_id, agent_id)."""
+
+    __tablename__ = "ingest_token"
+    __table_args__ = (Index("ix_ingest_token_prefix", "token_prefix"),)
+
+    id: Mapped[str] = pk()
+    org_id: Mapped[str] = mapped_column(ForeignKey("organization.id"), nullable=False)
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agent.id"), nullable=False)
+    token_prefix: Mapped[str] = mapped_column(String(12), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(128))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = created_col()

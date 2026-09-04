@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from tests.adapters.fixtures.vas_call import sample_call
-from voiceobs.adapters import UnsupportedSchema, adapter_for
-from voiceobs.adapters.vas import VASAdapter
+from tests.fixtures.vas_call import sample_call
 from voiceobs.core import join
 from voiceobs.core.model import Stage
+from voiceobs.frameworks import UnsupportedSchema, adapter_for
+from voiceobs.frameworks.vas.adapter import VASAdapter
 
 
 def _trace():
@@ -94,7 +94,7 @@ def test_emitted_span_names_map_to_stages():
     """The worker's real names, not the contract's. vas-contract.md documents
     `stt.finalize`; the running producer emits `transcript`, plus two spans the
     contract never mentions. Both vocabularies must land in the right lane."""
-    from tests.adapters.fixtures.vas_call import _span
+    from tests.fixtures.vas_call import _span
 
     payload = sample_call()
     spans = payload["resourceSpans"][0]["scopeSpans"][0]["spans"]
@@ -116,7 +116,7 @@ def test_emitted_span_names_map_to_stages():
 
 def test_content_keys_normalize_by_stage():
     """VAS labels every content attribute `text`; the span says which text it is."""
-    from tests.adapters.fixtures.vas_call import _span
+    from tests.fixtures.vas_call import _span
 
     payload = sample_call()
     spans = payload["resourceSpans"][0]["scopeSpans"][0]["spans"]

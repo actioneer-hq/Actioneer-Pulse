@@ -9,10 +9,10 @@ from __future__ import annotations
 import logging
 from typing import Any, ClassVar
 
-from voiceobs.adapters.base import UnsupportedSchema
-from voiceobs.adapters.generic import OTLPAdapter, _dt
-from voiceobs.adapters.otlp import attrs_to_dict, span_end_ns, span_start_ns
 from voiceobs.core.model import CallHeader, Stage
+from voiceobs.frameworks.base import UnsupportedSchema
+from voiceobs.frameworks.generic import OTLPAdapter, _dt
+from voiceobs.frameworks.otlp import attrs_to_dict, span_end_ns, span_start_ns
 
 log = logging.getLogger(__name__)
 

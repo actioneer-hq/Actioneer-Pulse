@@ -13,9 +13,9 @@ from __future__ import annotations
 import json
 from typing import ClassVar
 
-from voiceobs.adapters.generic import OTLPAdapter, _propagate_turn_ids
-from voiceobs.adapters.otlp import iter_spans
 from voiceobs.core.model import Span, Stage, Trace
+from voiceobs.frameworks.generic import OTLPAdapter, _propagate_turn_ids
+from voiceobs.frameworks.otlp import iter_spans
 
 # LiveKit's authoritative per-request metrics arrive as a JSON *string* under a single
 # attribute (lk.llm_metrics on llm_request, lk.tts_metrics on tts_request). Unparsed it

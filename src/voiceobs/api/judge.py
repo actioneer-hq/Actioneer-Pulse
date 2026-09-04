@@ -1,14 +1,16 @@
-"""Judge API — BYO model config (per tenant) + per-call judgment."""
+"""Judge API — BYO model config (per org) + per-call judgment. Org comes from the session;
+config writes require admin; calls are resolved through the RBAC-scoped dependency."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import now, session_dep
 from voiceobs.api.schemas import JudgeConfigIn
-from voiceobs.db.models import Call, JudgeConfig, Judgment
+from voiceobs.auth import current_membership, get_scoped_call, require_role
+from voiceobs.db.models import Call, JudgeConfig, Judgment, Membership
 from voiceobs.judge import judge_call
 
 router = APIRouter(prefix="/v1")
@@ -24,11 +26,11 @@ _LLM_FIELDS = (
 def set_judge_config(
     body: JudgeConfigIn,
     db: Session = Depends(session_dep),
-    tenant: str = Header("default", alias="X-Voiceobs-Tenant"),
+    mem: Membership = Depends(require_role("owner", "admin")),
 ) -> dict:
-    cfg = db.scalar(select(JudgeConfig).where(JudgeConfig.tenant_id == tenant))
+    cfg = db.scalar(select(JudgeConfig).where(JudgeConfig.tenant_id == mem.org_id))
     if cfg is None:
-        cfg = JudgeConfig(tenant_id=tenant)
+        cfg = JudgeConfig(tenant_id=mem.org_id)
         db.add(cfg)
     cfg.base_url, cfg.model, cfg.params, cfg.enabled = (
         body.base_url, body.model, body.params, body.enabled
@@ -41,12 +43,11 @@ def set_judge_config(
 
 @router.get("/judge/config")
 def get_judge_config(
-    db: Session = Depends(session_dep),
-    tenant: str = Header("default", alias="X-Voiceobs-Tenant"),
+    db: Session = Depends(session_dep), mem: Membership = Depends(current_membership)
 ) -> dict:
-    cfg = db.scalar(select(JudgeConfig).where(JudgeConfig.tenant_id == tenant))
+    cfg = db.scalar(select(JudgeConfig).where(JudgeConfig.tenant_id == mem.org_id))
     if cfg is None:
-        raise HTTPException(404, "no judge config for tenant")
+        raise HTTPException(404, "no judge config for org")
     return {
         "base_url": cfg.base_url, "model": cfg.model, "params": cfg.params,
         "enabled": cfg.enabled, "has_key": bool(cfg.api_key),  # never echo the key
@@ -54,25 +55,20 @@ def get_judge_config(
 
 
 @router.post("/calls/{call_id}/judge")
-def run_judge(call_id: str, db: Session = Depends(session_dep)) -> dict:
-    call = _get_call(db, call_id)
+def run_judge(
+    call: Call = Depends(get_scoped_call), db: Session = Depends(session_dep)
+) -> dict:
     return _judgment_dict(judge_call(db, call))
 
 
 @router.get("/calls/{call_id}/judgment")
-def get_judgment(call_id: str, db: Session = Depends(session_dep)) -> dict:
-    call = _get_call(db, call_id)
+def get_judgment(
+    call: Call = Depends(get_scoped_call), db: Session = Depends(session_dep)
+) -> dict:
     j = db.scalar(select(Judgment).where(Judgment.call_id == call.id))
     if j is None:
         raise HTTPException(404, "call not judged yet")
     return _judgment_dict(j)
-
-
-def _get_call(db: Session, call_id: str) -> Call:
-    call = db.scalar(select(Call).where(Call.external_call_id == call_id))
-    if call is None:
-        raise HTTPException(404, "call not found")
-    return call
 
 
 def _judgment_dict(j: Judgment) -> dict:

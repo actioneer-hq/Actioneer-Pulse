@@ -6,8 +6,8 @@ import sys
 
 from sqlalchemy import select
 
-from tests.adapters.fixtures.vas_call import sample_call
 from tests.fixtures.synth import SynthCall
+from tests.fixtures.vas_call import sample_call
 from voiceobs.db.models import Call
 from voiceobs.worker.process import process
 
@@ -21,8 +21,9 @@ def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
 
 
-def test_list_and_filter(client):
+def test_list_and_filter(client, login_as):
     client.post("/v1/traces", json=sample_call())
+    login_as("vastu-hfc")  # sample_call's org
     assert len(client.get("/v1/calls").json()["items"]) == 1
     assert len(client.get("/v1/calls?status=awaiting_media").json()["items"]) == 1
     assert client.get("/v1/calls?status=ingested").json()["items"] == []
@@ -30,7 +31,7 @@ def test_list_and_filter(client):
     assert client.get("/v1/calls?q=nomatch").json()["items"] == []
 
 
-def test_list_carries_turn_stats(client, db_sessionmaker, monkeypatch):
+def test_list_carries_turn_stats(client, login_as, db_sessionmaker, monkeypatch):
     monkeypatch.setattr(
         sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri: _wav()
     )
@@ -38,6 +39,7 @@ def test_list_carries_turn_stats(client, db_sessionmaker, monkeypatch):
     with db_sessionmaker() as db:
         process(db, db.scalars(select(Call)).one())
         db.commit()
+    login_as("vastu-hfc")
     item = client.get("/v1/calls").json()["items"][0]
     for key in ("turns", "barge_ins", "p50_v2v_ms", "media_ready", "analysed"):
         assert key in item
@@ -45,8 +47,9 @@ def test_list_carries_turn_stats(client, db_sessionmaker, monkeypatch):
     assert item["analysed"] is True
 
 
-def test_detail_is_one_consolidated_payload(client):
+def test_detail_is_one_consolidated_payload(client, login_as):
     client.post("/v1/traces", json=sample_call())
+    login_as("vastu-hfc")
     d = client.get("/v1/calls/c1").json()
     assert d["call"]["id"] == "c1"
     # everything the viewer needs, one round trip
@@ -60,13 +63,14 @@ def test_spans_endpoint_is_gone(client):
     assert client.get("/v1/calls/c1/spans").status_code == 404
 
 
-def test_full_analysis_after_worker(client, db_sessionmaker, monkeypatch):
+def test_full_analysis_after_worker(client, login_as, db_sessionmaker, monkeypatch):
     monkeypatch.setenv("VOICEOBS_AUDIO_ANALYSIS", "1")  # audio overlay is off by default
     monkeypatch.setattr(
         sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri: _wav()
     )
     monkeypatch.setattr("voiceobs.api.read.presign", lambda uri, **kw: "https://signed/x.wav")
     client.post("/v1/traces", json=sample_call())
+    login_as("vastu-hfc")
     client.post("/v1/calls/c1/artifacts", json={
         "kind": "audio", "uri": "s3://b/c1.wav", "channels": 2, "sample_rate": 8000,
         "channel_map": {0: "caller", 1: "agent"}, "t0_offset_s": 0.0,
@@ -83,8 +87,14 @@ def test_full_analysis_after_worker(client, db_sessionmaker, monkeypatch):
     assert d["trust"]["capture_coverage"]  # pulled from the metric
 
 
-def test_detail_404(client):
+def test_detail_404(client, login_as):
+    login_as("default")
     assert client.get("/v1/calls/nope").status_code == 404
+
+
+def test_reads_require_auth(client):
+    assert client.get("/v1/calls").status_code == 401
+    assert client.get("/v1/calls/c1").status_code == 401
 
 
 def test_metric_defs_cover_emitted_metrics(client):
@@ -93,9 +103,10 @@ def test_metric_defs_cover_emitted_metrics(client):
             "turn_count_agent", "llm_ttft_reported_ms"} <= names
 
 
-def test_ui_is_served_when_built(client):
+def test_ui_is_served_when_built(client, login_as):
     """404 in a source checkout, the app when `ui/` has been built. Either is fine;
     a 500 would mean the mount shadowed the API routes."""
+    login_as("default")
     assert client.get("/").status_code in (200, 404)
     assert client.get("/health").json() == {"status": "ok"}
     assert client.get("/v1/calls").status_code == 200

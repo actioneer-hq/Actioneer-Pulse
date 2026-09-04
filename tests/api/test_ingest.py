@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
-from tests.adapters.fixtures.vas_call import sample_call
+from tests.fixtures.vas_call import sample_call
 
 
 def _artifact(**kw) -> dict:
@@ -17,11 +17,12 @@ def _artifact(**kw) -> dict:
     return body
 
 
-def test_traces_creates_call_and_sets_spans_complete(client):
+def test_traces_creates_call_and_sets_spans_complete(client, login_as):
     r = client.post("/v1/traces", json=sample_call())
     assert r.status_code == 200
     assert r.json() == {"partialSuccess": {}}
 
+    login_as("vastu-hfc")  # sample_call's org
     call = client.get("/v1/calls/c1").json()["call"]
     assert call["id"] == "c1"
     detail = client.get("/v1/calls/c1").json()
@@ -29,19 +30,21 @@ def test_traces_creates_call_and_sets_spans_complete(client):
     assert detail["trust"]["media_ready"] is False
 
 
-def test_traces_idempotent_no_duplicate_call(client):
+def test_traces_idempotent_no_duplicate_call(client, login_as):
     client.post("/v1/traces", json=sample_call())
     client.post("/v1/traces", json=sample_call())
+    login_as("vastu-hfc")
     items = client.get("/v1/calls").json()["items"]
     assert [i["id"] for i in items].count("c1") == 1
 
 
-def test_artifact_sets_media_ready_and_flips_status(client):
+def test_artifact_sets_media_ready_and_flips_status(client, login_as):
     client.post("/v1/traces", json=sample_call())
     r = client.post("/v1/calls/c1/artifacts", json=_artifact())
     assert r.status_code == 200
     assert r.json()["media_ready"] is True
     # spans_complete + media_ready -> ingested
+    login_as("vastu-hfc")
     assert client.get("/v1/calls/c1").json()["call"]["status"] == "ingested"
 
 
@@ -64,11 +67,12 @@ def test_delete_guarded(client):
     assert client.delete("/v1/calls/c1").status_code == 403
 
 
-def test_delete_erases_and_tombstones(client, monkeypatch):
+def test_delete_erases_and_tombstones(client, login_as, monkeypatch):
     monkeypatch.setenv("VOICEOBS_ALLOW_DELETE", "1")
     client.post("/v1/traces", json=sample_call())
     r = client.delete("/v1/calls/c1", headers={"X-Voiceobs-Confirm": "c1"})
     assert r.status_code == 200
+    login_as("vastu-hfc")
     # call gone
     assert client.get("/v1/calls/c1").status_code == 404
     # re-POST after erasure is dropped (tombstoned)
@@ -76,7 +80,7 @@ def test_delete_erases_and_tombstones(client, monkeypatch):
     assert client.get("/v1/calls/c1").status_code == 404
 
 
-def test_unattributed_spans_do_not_crash(client):
+def test_unattributed_spans_do_not_crash(client, login_as):
     payload = sample_call()
     # no call id and no trace id -> nothing to attribute the spans to at all
     for rs in payload["resourceSpans"]:
@@ -87,6 +91,7 @@ def test_unattributed_spans_do_not_crash(client):
                     a for a in span["attributes"] if a["key"] != "voice.call_id"
                 ]
     assert client.post("/v1/traces", json=payload).status_code == 200
+    login_as("vastu-hfc")
     assert client.get("/v1/calls").json()["items"] == []
 
 
@@ -98,7 +103,7 @@ def _with_trace_id(payload: dict, trace_id: str) -> dict:
     return payload
 
 
-def test_shards_by_trace_id_not_call_id(client):
+def test_shards_by_trace_id_not_call_id(client, login_as):
     """Two calls in one batch sharing no call_id still separate — traceId is the only
     call identifier every OTLP producer has."""
     a = _with_trace_id(sample_call(), "aaaa")
@@ -111,10 +116,11 @@ def test_shards_by_trace_id_not_call_id(client):
                         attr["value"] = {"stringValue": "c2"}
     merged = {"resourceSpans": a["resourceSpans"] + b["resourceSpans"]}
     client.post("/v1/traces", json=merged)
+    login_as("vastu-hfc")
     assert {i["id"] for i in client.get("/v1/calls").json()["items"]} == {"c1", "c2"}
 
 
-def test_call_id_falls_back_to_trace_id(client):
+def test_call_id_falls_back_to_trace_id(client, login_as):
     """A producer with no voice.call_id (Pipecat, LiveKit) is still a call, not a
     dropped batch."""
     payload = _with_trace_id(sample_call(), "deadbeef")
@@ -125,6 +131,7 @@ def test_call_id_falls_back_to_trace_id(client):
                     a for a in span["attributes"] if a["key"] != "voice.call_id"
                 ]
     client.post("/v1/traces", json=payload)
+    login_as("vastu-hfc")
     assert [i["id"] for i in client.get("/v1/calls").json()["items"]] == ["deadbeef"]
 
 
@@ -134,8 +141,8 @@ def test_archived_fragment_keeps_the_resource(client, db_sessionmaker):
     import gzip
     import json
 
-    from voiceobs.adapters import adapter_for
     from voiceobs.db.models import RawFragment
+    from voiceobs.frameworks import adapter_for
 
     client.post("/v1/traces", json=sample_call())
     with db_sessionmaker() as db:
@@ -145,23 +152,28 @@ def test_archived_fragment_keeps_the_resource(client, db_sessionmaker):
     assert adapter_for(replayed).name == "vas"
 
 
-def test_later_batch_without_root_rejoins_the_same_call(client):
+def test_later_batch_without_root_rejoins_the_same_call(client, login_as):
     """VAS puts voice.call_id on the root span only. A follow-up batch of children
     must land on the existing call, not mint a second one keyed by traceId."""
     payload = _with_trace_id(sample_call(), "trace-1")
     client.post("/v1/traces", json=payload)
     client.post("/v1/traces", json=_children_only(sample_call(), "trace-1"))
+    login_as("vastu-hfc")
     assert [i["id"] for i in client.get("/v1/calls").json()["items"]] == ["c1"]
 
 
-def test_children_before_root_produce_one_call(client):
+def test_children_before_root_produce_one_call(client, login_as):
     """The real arrival order: the root span closes last, so its batch lands after
     every child. The call opens under its trace id and is renamed when the root
     arrives — two rows here would split one conversation in half."""
+    # no root -> no voice.tenant_id on the batch -> lands under the default org
     client.post("/v1/traces", json=_children_only(sample_call(), "trace-2"))
+    login_as("default")
     assert [i["id"] for i in client.get("/v1/calls").json()["items"]] == ["trace-2"]
 
+    # the root carries voice.tenant_id -> the call is promoted into that org
     client.post("/v1/traces", json=_with_trace_id(sample_call(), "trace-2"))
+    login_as("vastu-hfc")
     items = client.get("/v1/calls").json()["items"]
     assert [i["id"] for i in items] == ["c1"]
     assert client.get("/v1/calls/c1").json()["trust"]["spans_complete"] is True
@@ -202,11 +214,12 @@ def _pipecat_batch(trace_id: str, with_root: bool) -> dict:
     }]}
 
 
-def test_foreign_producer_is_ingested(client):
+def test_foreign_producer_is_ingested(client, login_as):
     """No voice.call_id, no voice.tenant_id, no `voice.call` span. The call is named
     after its trace, and the parentless span — OTLP's own definition of a root —
     completes it."""
     client.post("/v1/traces", json=_pipecat_batch("pipecat-1", with_root=False))
+    login_as("default")
     assert [i["id"] for i in client.get("/v1/calls").json()["items"]] == ["pipecat-1"]
     assert client.get("/v1/calls/pipecat-1").json()["trust"]["spans_complete"] is False
 
@@ -216,18 +229,21 @@ def test_foreign_producer_is_ingested(client):
     assert detail["call"]["source"] == "pipecat"
 
 
-def test_tenant_header_names_a_producer_that_sends_none(client):
+def test_tenant_header_names_a_producer_that_sends_none(client, login_as):
     client.post(
         "/v1/traces",
         json=_pipecat_batch("pipecat-2", with_root=True),
         headers={"X-Voiceobs-Tenant": "acme"},
     )
+    login_as("acme")
     assert client.get("/v1/calls/pipecat-2").json()["call"]["id"] == "pipecat-2"
 
 
-def test_span_tenant_beats_the_header(client):
-    """A shared collector's header must not override a call that names its own tenant."""
-    client.post(
-        "/v1/traces", json=sample_call(), headers={"X-Voiceobs-Tenant": "wrong"}
-    )
+def test_span_tenant_routes_the_call(client, login_as):
+    """A call that names its own tenant (voice.tenant_id) is reachable in that org."""
+    client.post("/v1/traces", json=sample_call())  # voice.tenant_id = vastu-hfc
+    login_as("vastu-hfc")
     assert client.get("/v1/calls/c1").status_code == 200
+    # a different org cannot see it
+    login_as("someone-else")
+    assert client.get("/v1/calls/c1").status_code == 404

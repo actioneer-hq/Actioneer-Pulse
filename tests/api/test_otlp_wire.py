@@ -20,9 +20,9 @@ from opentelemetry.sdk.trace.export import (
 )
 from sqlalchemy import select
 
-from voiceobs.adapters import adapter_for
 from voiceobs.core.join import join
 from voiceobs.db.models import Call, RawFragment
+from voiceobs.frameworks import adapter_for
 
 PROTOBUF = {"content-type": "application/x-protobuf"}
 
@@ -107,13 +107,14 @@ def test_protobuf_survives_the_round_trip_to_turns(client, db_sessionmaker, otlp
     assert turn.llm_raw == "boliye"
 
 
-def test_gzipped_protobuf_is_ingested(client, otlp_body):
+def test_gzipped_protobuf_is_ingested(client, login_as, otlp_body):
     r = client.post(
         "/v1/traces",
         content=gzip.compress(otlp_body),
         headers={**PROTOBUF, "content-encoding": "gzip"},
     )
     assert r.status_code == 200
+    login_as("spektra")  # the call's org (voice.tenant_id)
     assert client.get("/v1/calls/call-pb-1").status_code == 200
 
 

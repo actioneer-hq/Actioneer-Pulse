@@ -12,10 +12,10 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from voiceobs.adapters import UnsupportedSchema
 from voiceobs.core.config import METRIC_VERSION
 from voiceobs.db.models import Call, JudgeConfig
 from voiceobs.db.session import get_session
+from voiceobs.frameworks import UnsupportedSchema
 from voiceobs.judge import judge_call
 from voiceobs.worker.process import process
 
