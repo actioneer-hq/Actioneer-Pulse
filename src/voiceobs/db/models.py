@@ -519,6 +519,40 @@ class Agent(Base):
     created_at: Mapped[datetime] = created_col()
 
 
+class Conversation(Base):
+    """A saved global-chat thread. Belongs to an org + its creator; the sidebar lists these."""
+
+    __tablename__ = "conversation"
+    __table_args__ = (Index("ix_conversation_owner", "tenant_id", "created_by"),)
+
+    id: Mapped[str] = pk()
+    tenant_id: Mapped[str] = tenant_col()
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_user.id"))
+    title: Mapped[str] = mapped_column(String(200), nullable=False, default="New chat")
+    created_at: Mapped[datetime] = created_col()
+    updated_at: Mapped[datetime] = created_col()
+
+
+class ChatMessage(Base):
+    """One turn in a conversation. `steps` holds the assistant turn's tool-call activity
+    (name/args/summary), so the thread can replay 'the agent searched calls…' on reload."""
+
+    __tablename__ = "chat_message"
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "seq", name="uq_chat_message_seq"),
+        Index("ix_chat_message_conv", "conversation_id", "seq"),
+    )
+
+    id: Mapped[str] = pk()
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversation.id"), nullable=False)
+    tenant_id: Mapped[str] = tenant_col()
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    role: Mapped[str] = mapped_column(String(16), nullable=False)  # user | assistant
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    steps: Mapped[list | None] = mapped_column(JSON)  # tool-call activity for assistant turns
+    created_at: Mapped[datetime] = created_col()
+
+
 class AgentScript(Base):
     """A versioned pointer to the script (system prompt) an agent is meant to follow. Content is
     the immutable, hash-addressed Prompt; this row adds per-agent version + author + active flag,

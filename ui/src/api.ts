@@ -331,6 +331,56 @@ export const removeMember = (orgId: string, mid: string) =>
 export const setAgentAccess = (orgId: string, mid: string, agent_ids: string[]) =>
   req("PUT", `/v1/orgs/${orgId}/members/${mid}/agent-access`, { agent_ids });
 
+// ---- chat ----
+export type ChatStep = { name: string; args?: unknown; summary: string };
+export type ChatMsg = { role: "user" | "assistant"; content: string; steps: ChatStep[] };
+export type Conversation = { id: string; title: string; updated_at?: string };
+export type ChatEvent =
+  | { type: "token"; text: string }
+  | { type: "tool_call"; name: string; args: unknown }
+  | { type: "tool_result"; name: string; summary: string }
+  | { type: "done"; content: string; steps: ChatStep[] }
+  | { type: "error"; error: string };
+
+export const listConversations = () =>
+  get<{ items: Conversation[] }>("/v1/chat/conversations").then((d) => d.items);
+export const createConversation = () =>
+  req<{ id: string; title: string }>("POST", "/v1/chat/conversations");
+export const getConversation = (id: string) =>
+  get<{ id: string; title: string; messages: ChatMsg[] }>(`/v1/chat/conversations/${id}`);
+export const deleteConversation = (id: string) =>
+  req("DELETE", `/v1/chat/conversations/${id}`);
+
+/** POST a message and stream the agent's SSE events to `onEvent`. Hand-rolled reader because
+ *  EventSource can't POST a body / send our cookies+CSRF. */
+export async function streamChat(
+  id: string, text: string, onEvent: (e: ChatEvent) => void,
+): Promise<void> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (activeOrg) headers["X-Voiceobs-Org"] = activeOrg;
+  const csrf = csrfToken();
+  if (csrf) headers["X-CSRF-Token"] = csrf;
+  const r = await fetch(`/v1/chat/conversations/${id}/stream`, {
+    method: "POST", credentials: "include", headers, body: JSON.stringify({ text }),
+  });
+  if (r.status === 401) { onUnauthorized?.(); throw new Error("unauthorized"); }
+  if (!r.body) throw new Error("no stream");
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const chunks = buf.split("\n\n");
+    buf = chunks.pop() ?? "";  // keep the incomplete tail
+    for (const chunk of chunks) {
+      const line = chunk.split("\n").find((l) => l.startsWith("data:"));
+      if (line) onEvent(JSON.parse(line.slice(5).trim()) as ChatEvent);
+    }
+  }
+}
+
 // ---- calls (now scoped server-side by the session + active org) ----
 export const listCalls = (limit = 200, agentId?: string) =>
   get<{ items: Call[] }>(

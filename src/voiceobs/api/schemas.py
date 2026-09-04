@@ -93,6 +93,10 @@ class ScriptIn(BaseModel):
     text: str
 
 
+class ChatMessageIn(BaseModel):
+    text: str
+
+
 class AgentIn(BaseModel):
     name: str
     slug: str | None = None
