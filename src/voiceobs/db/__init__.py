@@ -1,4 +1,4 @@
-"""VO persistence layer. A mirror of the core types; core never imports this."""
+"""Pulse persistence layer. A mirror of the core types; core never imports this."""
 
 from __future__ import annotations
 

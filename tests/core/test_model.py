@@ -93,7 +93,7 @@ def test_trust_residual_series_is_signed_list():
 
 def test_minimal_analysis_constructs():
     trace = Trace(header=CallHeader(
-        call_id="c", source="voice-cascade", environment="prod", started_at=_now(),
+        call_id="c", source="livekit", environment="prod", started_at=_now(),
     ))
     assert trace.spans == []
     turn = Turn(turn_index=0, turn_id="c:0", trigger="opening")

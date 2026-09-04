@@ -28,7 +28,7 @@ _ids = iter(range(1000))
 
 
 def _call(db, *, spoke=True, duration=30.0) -> Call:
-    c = Call(tenant_id="t", external_call_id=f"c{next(_ids)}", source="voice-cascade",
+    c = Call(tenant_id="t", external_call_id=f"c{next(_ids)}", source="livekit",
              environment="prod", status="computed", duration_s=duration)
     db.add(c)
     db.flush()

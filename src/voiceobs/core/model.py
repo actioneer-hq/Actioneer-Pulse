@@ -28,7 +28,7 @@ class Stage(StrEnum):
 
 class TrustReason(StrEnum):
     TELEMETRY_TRUNCATED = "telemetry_truncated"
-    TRACE_MISSING = "trace_missing"  # artifact arrived, spans never did (VO was down)
+    TRACE_MISSING = "trace_missing"  # artifact arrived, spans never did (Pulse was down)
     TRACE_NOT_APPLICABLE = "trace_not_applicable"  # producer emits no tracing (s2s)
     AUDIO_MISSING = "audio_missing"
     AUDIO_DISABLED = "audio_disabled"  # analysis toggled off for this tenant, not an outage

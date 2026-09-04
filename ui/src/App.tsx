@@ -1,67 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
-import { listCalls, type Call } from "./api";
-import CallDetail from "./components/CallDetail";
-import CallTable from "./components/CallTable";
-import { ms, pct } from "./format";
+import { useEffect, useRef, useState } from "react";
+import { NavLink, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { RequireAdmin, RequireAuth, useAuth, useAuthRedirect } from "./auth";
+import Agents from "./pages/Agents";
+import Calls from "./pages/Calls";
+import Login from "./pages/Login";
+import Members from "./pages/Members";
 
-// Analysed is the worker's stamp (metric_version), not Call.status: a spans-only
-// call stays "awaiting_media" forever even after its turns are fully measured.
-const TABS: [string, string, (c: Call) => boolean][] = [
-  ["all", "All", () => true],
-  ["analysed", "Analysed", (c) => c.analysed],
-  ["pending", "Not analysed yet", (c) => !c.analysed && c.status !== "unsupported"],
-  ["unsupported", "Unsupported", (c) => c.status === "unsupported"],
-];
-
-export default function App() {
-  const [calls, setCalls] = useState<Call[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState("all");
-  const [q, setQ] = useState("");
+// The chrome around every signed-in page: brand, primary nav, org selector, user menu.
+function Shell() {
+  const { user, isAdmin, memberships, activeOrg, setActiveOrg, logout } = useAuth();
+  const [menu, setMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    listCalls().then(setCalls).catch((e: Error) => setError(e.message));
-  }, []);
-
-  const byTab = useMemo(() => {
-    const m: Record<string, Call[]> = {};
-    for (const [k, , f] of TABS) m[k] = calls.filter(f);
-    return m;
-  }, [calls]);
-
-  const rows = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const base = byTab[tab] ?? calls;
-    if (!needle) return base;
-    return base.filter((c) =>
-      [c.id, c.source, c.environment, c.status, ...Object.values(c.labels)]
-        .join(" ").toLowerCase().includes(needle),
-    );
-  }, [byTab, tab, q, calls]);
-
-  // j / k walk the visible rows, Esc closes the inspector. Skipped while typing.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement).tagName === "INPUT") return;
-      const i = rows.findIndex((c) => c.id === selected);
-      if (e.key === "j" && i < rows.length - 1) setSelected(rows[i + 1].id);
-      else if (e.key === "k" && i > 0) setSelected(rows[i - 1].id);
-      else if (e.key === "Escape") setSelected(null);
+    const onClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [rows, selected]);
-
-  const allTurns = calls.reduce((a, c) => a + c.turns, 0);
-  const bargeIns = calls.reduce((a, c) => a + c.barge_ins, 0);
-  const tiles: [string, string, string?][] = [
-    ["Calls", String(calls.length)],
-    ["Median call p50 v2v", ms(pct(calls.map((c) => c.p50_v2v_ms), 0.5)), "median of per-call medians"],
-    ["p95 of call p50s", ms(pct(calls.map((c) => c.p50_v2v_ms), 0.95))],
-    ["Barge-in rate", allTurns ? `${+((100 * bargeIns) / allTurns).toFixed(1)}%` : "—"],
-    ["Without audio", String(calls.filter((c) => !c.media_ready).length), "measured from spans only"],
-  ];
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
 
   return (
     <>
@@ -69,36 +26,69 @@ export default function App() {
         <div className="brand">
           <img className="logo" src="/actioneer-logo.svg" alt="Actioneer" />
           <span className="brand-sep" />
-          <span className="brand-sub">Voice Observability</span>
+          <span className="brand-sub">Pulse</span>
         </div>
-        <nav><button className="on">Calls</button></nav>
-      </div>
-      <div className="page">
-        <div className="list">
-          <div className="head">
-            <h1>Calls</h1>
-            <div className="sub">Every call VO has ingested, spans and audio joined into one record.</div>
+        <nav>
+          <NavLink to="/calls" className={({ isActive }) => (isActive ? "on" : undefined)}>
+            Calls
+          </NavLink>
+          {isAdmin && (
+            <>
+              <NavLink to="/settings/agents"
+                className={({ isActive }) => (isActive ? "on" : undefined)}>
+                Agents
+              </NavLink>
+              <NavLink to="/settings/members"
+                className={({ isActive }) => (isActive ? "on" : undefined)}>
+                Members
+              </NavLink>
+            </>
+          )}
+        </nav>
+        <div className="top-right">
+          {memberships.length > 1 ? (
+            <select className="org-select" value={activeOrg ?? ""}
+              onChange={(e) => setActiveOrg(e.target.value)}>
+              {memberships.map((m) => (
+                <option key={m.org_id} value={m.org_id}>{m.org_name ?? m.org_id}</option>
+              ))}
+            </select>
+          ) : (
+            <span className="org-name">{memberships[0]?.org_name}</span>
+          )}
+          <div className="usermenu" ref={menuRef}>
+            <button className="avatar" onClick={() => setMenu((v) => !v)} title={user?.email}>
+              {(user?.email ?? "?").slice(0, 1).toUpperCase()}
+            </button>
+            {menu && (
+              <div className="menu">
+                <div className="menu-hd">{user?.email}</div>
+                <button onClick={() => void logout()}>Sign out</button>
+              </div>
+            )}
           </div>
-          <div className="tiles">
-            {tiles.map(([l, v, s]) => (
-              <div className="tile" key={l}><span>{l}</span><b>{v}</b>{s && <small>{s}</small>}</div>
-            ))}
-          </div>
-          <div className="tabs">
-            {TABS.map(([k, l]) => (
-              <button key={k} className={tab === k ? "on" : undefined} onClick={() => setTab(k)}>
-                {l}<em>{byTab[k]?.length ?? 0}</em>
-              </button>
-            ))}
-          </div>
-          <div className="tools">
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search id, source, label…" />
-            <span className="count">{error ?? `${rows.length} call${rows.length === 1 ? "" : "s"}`}</span>
-          </div>
-          <CallTable calls={rows} selected={selected} onSelect={setSelected} />
         </div>
-        {selected && <CallDetail id={selected} onClose={() => setSelected(null)} />}
       </div>
+      <Outlet />
     </>
+  );
+}
+
+export default function App() {
+  useAuthRedirect();
+  return (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/accept-invite" element={<Login />} />
+      <Route element={<RequireAuth><Shell /></RequireAuth>}>
+        <Route index element={<Navigate to="/calls" replace />} />
+        <Route path="/calls" element={<Calls />} />
+        <Route path="/settings/agents"
+          element={<RequireAdmin><Agents /></RequireAdmin>} />
+        <Route path="/settings/members"
+          element={<RequireAdmin><Members /></RequireAdmin>} />
+      </Route>
+      <Route path="*" element={<Navigate to="/calls" replace />} />
+    </Routes>
   );
 }

@@ -1,7 +1,7 @@
 [project]
 name = "voiceobs"
 version = "0.0.1"
-description = "Voice Observability (VO) — the consumer side of the VAS↔VO seam. One call, one screen."
+description = "Voice-AI agent observability — OTLP in, one call, one screen."
 requires-python = ">=3.12"
 dependencies = [
     "numpy>=1.26",

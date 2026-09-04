@@ -1,6 +1,6 @@
 """Framework interface + registry.
 
-A *framework* is one voice-agent producer VO supports: an `Adapter` (its OTLP dialect →
+A *framework* is one voice-agent producer Pulse supports: an `Adapter` (its OTLP dialect →
 normalized `Trace`) plus a `Calculator` (Trace → metrics). Most frameworks use the generic
 `Calculator`; one is supplied only when the producer's timing model differs.
 

@@ -28,6 +28,7 @@ def list_calls(
     environment: str | None = None,
     status: str | None = None,
     q: str | None = None,
+    agent_id: str | None = None,
     limit: int = Query(50, le=200),
 ) -> dict:
     stmt = (
@@ -41,6 +42,8 @@ def list_calls(
     ids = visible_agent_ids(db, mem)  # None = all org agents (coarse); else restricted
     if ids is not None:
         stmt = stmt.where(Call.agent_id.in_(ids))
+    if agent_id:  # explicit filter, still bounded by the RBAC scope above
+        stmt = stmt.where(Call.agent_id == agent_id)
     if environment:
         stmt = stmt.where(Call.environment == environment)
     if status:

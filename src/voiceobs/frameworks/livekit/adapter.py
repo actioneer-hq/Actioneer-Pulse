@@ -2,7 +2,7 @@
 
 LiveKit splits one exchange into two sibling spans: `user_turn` (the caller side, with
 `eou_detection`) and `agent_turn` (the agent side, with `llm_node`/`tts_node`/
-`agent_speaking`). VO models a turn as the whole exchange, so we re-attach each
+`agent_speaking`). Pulse models a turn as the whole exchange, so we re-attach each
 `agent_turn` subtree to the `user_turn` that precedes it.
 
 Latency comes as attributes (`lk.response.ttft` / `lk.response.ttfb`), not first-token/
@@ -19,7 +19,7 @@ from voiceobs.frameworks.otlp import iter_spans
 
 # LiveKit's authoritative per-request metrics arrive as a JSON *string* under a single
 # attribute (lk.llm_metrics on llm_request, lk.tts_metrics on tts_request). Unparsed it
-# is dead weight; expanded, it is the richest account of the turn. src key -> VO canonical.
+# is dead weight; expanded, it is the richest account of the turn. src key -> Pulse canonical.
 _LLM_METRICS: dict[str, str] = {
     "ttft": "metrics.ttft",                        # seconds
     "completion_tokens": "gen_ai.usage.output_tokens",

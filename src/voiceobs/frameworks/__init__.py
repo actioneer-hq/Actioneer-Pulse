@@ -1,8 +1,14 @@
 """Producer frameworks. A framework = adapter (OTLP dialect) + calculator (metrics).
 
-Adding one: create a subpackage, subclass `OTLPAdapter` for the dialect, and register a
-`Framework` below. Supply a `Calculator` subclass only if the producer's timing model
-differs from the canonical one. Frameworks import core, never the reverse (import-linter).
+`OTLPAdapter` (generic.py) is the framework-agnostic base: it turns any OTLP payload into a
+span tree; a dialect subclass just adds the names (stage map, attr aliases). Adding a
+framework is "copy a folder": subclass `OTLPAdapter`, then `register(Framework(...))` below.
+Supply a `Calculator` subclass only if the producer's timing model differs from the canonical
+one. Frameworks import core, never the reverse (import-linter).
+
+The public build ships **LiveKit** as its one concrete dialect. The generic base is present
+but NOT registered as a catch-all — a producer that isn't LiveKit is reported unsupported
+rather than silently reshaped, until an explicit BYO-OTLP path is added.
 """
 
 from __future__ import annotations
@@ -18,14 +24,11 @@ from voiceobs.frameworks.base import (
 )
 from voiceobs.frameworks.generic import OTLPAdapter
 from voiceobs.frameworks.livekit import LiveKitAdapter
-from voiceobs.frameworks.vas import VASAdapter
 
-# Specific dialects first; each matches on a signature the others lack. The generic OTLP
-# adapter matches anything, so it is registered last — a producer VO has never heard of
-# still yields a call and a timeline instead of being dropped on the floor.
-register(Framework("vas", VASAdapter()))
+# Each dialect matches on a signature the others lack. LiveKit is the only shipped dialect;
+# the generic OTLPAdapter stays importable as the base (and the foundation for a future
+# BYO-OTLP framework) but is deliberately left unregistered.
 register(Framework("livekit", LiveKitAdapter()))
-register(Framework("otlp", OTLPAdapter()))
 
 __all__ = [
     "Adapter",
@@ -33,7 +36,6 @@ __all__ = [
     "LiveKitAdapter",
     "OTLPAdapter",
     "UnsupportedSchema",
-    "VASAdapter",
     "adapter_for",
     "framework_for",
     "register",

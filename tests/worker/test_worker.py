@@ -8,7 +8,7 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from tests.fixtures.vas_call import sample_call
+from tests.fixtures.livekit_call import sample_call
 from voiceobs.db.models import Call, Event, IngestRun, Metric
 from voiceobs.db.models import Turn as DBTurn
 from voiceobs.worker.process import assemble, process
@@ -25,8 +25,8 @@ def _split(payload: dict) -> list[bytes]:
     resource = payload["resourceSpans"][0]["resource"]
     return [
         _gz({"resourceSpans": [{"resource": resource, "scopeSpans": [{"spans": part}]}]})
-        for part in ([s for s in spans if s["name"] != "voice.call"],
-                     [s for s in spans if s["name"] == "voice.call"])
+        for part in ([s for s in spans if s["name"] != "agent_session"],
+                     [s for s in spans if s["name"] == "agent_session"])
     ]
 
 
@@ -57,7 +57,7 @@ def test_rollup_fills_models_and_tokens_from_otlp():
 def test_assemble_merges_fragments():
     merged = assemble(_split(sample_call()))
     names = [s["name"] for s in merged["resourceSpans"][0]["scopeSpans"][0]["spans"]]
-    assert "voice.call" in names
+    assert "agent_session" in names
     assert merged["resourceSpans"][0]["resource"]["attributes"]
 
 
@@ -79,7 +79,7 @@ def test_worker_writes_turns_metrics_and_events(client, db_sessionmaker):
         turns = db.scalars(select(DBTurn)).all()
         assert [t.turn_index for t in turns] == [1]
         assert turns[0].caller_transcript == "haan ji"
-        assert turns[0].llm_raw == "haan ji, boliye"
+        assert turns[0].llm_spoken == "haan ji, boliye"  # LiveKit reports spoken text, not raw
         assert db.scalars(select(Metric)).all() == [] or db.scalars(select(Metric)).all()
         # every span and every span event lands on the timeline
         kinds = {e.kind for e in db.scalars(select(Event))}
@@ -94,12 +94,10 @@ def test_header_fields_are_filled_in(client, db_sessionmaker):
         assert call.engine is None and call.started_at is None
         process(db, call)
         db.commit()
-        assert call.engine == "cascade"
-        assert call.carrier == "plivo"
-        assert call.llm_provider == "gpt-x"
+        assert call.engine == "cascade"  # STT+LLM+TTS present → cascade (rollup)
+        assert call.llm_provider == "gpt-x"  # from lk.llm_metrics metadata.model_name
         assert call.started_at is not None
         assert call.duration_s == 3.0
-        assert call.campaign_id == "camp-1"
         assert call.metric_version and call.adapter_version
 
 
@@ -146,6 +144,28 @@ def test_unsupported_producer_is_not_retried_forever(client, db_sessionmaker, mo
         db.commit()
         assert db.scalars(select(Call)).one().status == "unsupported"
         assert claim(db, grace_s=0) == []
+
+
+def test_foreign_producer_is_unsupported_under_strict_routing(client, db_sessionmaker):
+    """Strict LiveKit-only: a producer with no `agent_session` matches no registered
+    framework, so the worker reports it unsupported rather than reshaping it blindly."""
+    import pytest
+
+    from voiceobs.frameworks import UnsupportedSchema
+
+    foreign = {"resourceSpans": [{
+        "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "pipecat"}}]},
+        "scopeSpans": [{"spans": [
+            {"traceId": "ff" * 16, "spanId": "01" * 8, "name": "conversation",
+             "startTimeUnixNano": "1700000000000000000",
+             "endTimeUnixNano": "1700000003000000000", "attributes": []},
+        ]}],
+    }]}
+    client.post("/v1/traces", json=foreign)
+    with db_sessionmaker() as db:
+        call = db.scalars(select(Call)).one()
+        with pytest.raises(UnsupportedSchema):
+            process(db, call)
 
 
 def test_worker_names_no_producer():

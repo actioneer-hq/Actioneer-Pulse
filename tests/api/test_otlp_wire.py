@@ -10,6 +10,7 @@ import gzip
 import json
 
 import pytest
+from opentelemetry import trace as trace_api
 from opentelemetry.exporter.otlp.proto.common.trace_encoder import encode_spans
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
@@ -38,29 +39,31 @@ class _Capture(SpanExporter):
 
 @pytest.fixture
 def otlp_body() -> bytes:
-    """One serialized OTLP/protobuf batch: a call, a turn, and two turn children."""
+    """One serialized OTLP/protobuf batch, LiveKit-shaped: an agent_session root, a
+    user_turn, and a sibling agent_turn with its LLM/TTS children. The canonical
+    voice.call_id/voice.tenant_id hints ride the root so ingest keeps a stable id."""
     cap = _Capture()
     provider = TracerProvider(resource=Resource.create({
-        "service.name": "voice-cascade",
+        "service.name": "livekit",
         "deployment.environment": "prod",
         "voice.schema_version": 1,
     }))
     provider.add_span_processor(SimpleSpanProcessor(cap))
     tracer = provider.get_tracer("voice")
 
-    call_attrs = {"voice.call_id": "call-pb-1", "voice.tenant_id": "spektra"}
-    turn_attrs = {"voice.turn_id": "call-pb-1:1", "voice.turn.index": 1}
-    with tracer.start_as_current_span("voice.call", attributes=call_attrs):  # noqa: SIM117
-        with tracer.start_as_current_span("voice.turn", attributes=turn_attrs) as turn:
-            turn.add_event("turn.committed", attributes={"voice.turn_id": "call-pb-1:1"})
-            with tracer.start_as_current_span("transcript", attributes={
-                "voice.turn_id": "call-pb-1:1", "voice.content.text": "haan ji",
-            }):
-                pass
-            with tracer.start_as_current_span("llm.generate", attributes={
-                "voice.turn_id": "call-pb-1:1", "voice.content.text": "boliye",
-            }) as llm:
-                llm.add_event("llm.first_token")
+    session_attrs = {"voice.call_id": "call-pb-1", "voice.tenant_id": "spektra"}
+    with tracer.start_as_current_span("agent_session", attributes=session_attrs) as sess:
+        ctx = trace_api.set_span_in_context(sess)
+        with tracer.start_as_current_span(
+            "user_turn", context=ctx,
+            attributes={"turn.index": 1, "lk.pii.user_transcript": "haan ji"},
+        ) as ut:
+            ut.add_event("eou")
+        with tracer.start_as_current_span(
+            "agent_turn", context=ctx,
+            attributes={"lk.pii.response.text": "boliye"},
+        ), tracer.start_as_current_span("llm_request") as llm:
+            llm.add_event("llm.first_token")
     return encode_spans(cap.spans).SerializeToString()
 
 
@@ -95,16 +98,19 @@ def test_protobuf_survives_the_round_trip_to_turns(client, db_sessionmaker, otlp
     with db_sessionmaker() as db:
         payload = _reassemble(db)
 
-    trace = adapter_for(payload).to_trace(payload)
+    adapter = adapter_for(payload)
+    assert adapter.name == "livekit"  # routed by the agent_session signature
+    trace = adapter.to_trace(payload)
     by_name = {s.name: s for s in trace.spans}
-    assert by_name["voice.call"].parent_span_id is None
-    assert by_name["voice.turn"].parent_span_id == by_name["voice.call"].span_id
-    assert by_name["transcript"].parent_span_id == by_name["voice.turn"].span_id
+    assert by_name["agent_session"].parent_span_id is None
+    assert by_name["user_turn"].parent_span_id == by_name["agent_session"].span_id
+    assert by_name["agent_turn"].parent_span_id == by_name["agent_session"].span_id
+    assert by_name["llm_request"].parent_span_id == by_name["agent_turn"].span_id
 
     turn = join(trace, None).turns[0]
     assert turn.turn_index == 1
-    assert turn.transcript == "haan ji"
-    assert turn.llm_raw == "boliye"
+    assert turn.transcript == "haan ji"       # lk.pii.user_transcript
+    assert turn.llm_spoken == "boliye"        # lk.pii.response.text
 
 
 def test_gzipped_protobuf_is_ingested(client, login_as, otlp_body):
