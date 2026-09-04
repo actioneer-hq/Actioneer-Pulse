@@ -43,10 +43,20 @@ def test_unpriced_model_leaves_cost_null():
     assert c.llm is None and c.total is None
 
 
-def test_empty_registry_by_default_costs_nothing():
-    # MODEL_PRICING ships empty; a deployment registers its own models.
+def test_unregistered_model_costs_nothing():
+    # A model absent from MODEL_PRICING contributes nothing — cost is never guessed.
     c = price_call(
-        llm_model="gpt-4o-mini", stt_model=None, tts_model=None,
+        llm_model="some-unlisted-model", stt_model=None, tts_model=None,
         tokens_in=1000, tokens_out=500, tokens_cached=0, tts_chars=None, stt_seconds=None,
     )
     assert c.total is None
+
+
+def test_seeded_model_is_priced():
+    # MODEL_PRICING ships with common models seeded; add more in core/pricing.py.
+    c = price_call(
+        llm_model="gpt-4o-mini", stt_model=None, tts_model=None,
+        tokens_in=1_000_000, tokens_out=1_000_000, tokens_cached=0,
+        tts_chars=None, stt_seconds=None,
+    )
+    assert c.total == round(0.15 + 0.60, 6)  # $0.15/1M in + $0.60/1M out
