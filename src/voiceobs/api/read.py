@@ -13,7 +13,16 @@ from sqlalchemy.orm import Session
 from voiceobs.api.deps import session_dep
 from voiceobs.auth import current_membership, get_scoped_call, visible_agent_ids
 from voiceobs.core.config import METRIC_DEFS
-from voiceobs.db.models import AudioDiscrepancy, Call, Event, Media, Membership, Metric, Turn
+from voiceobs.db.models import (
+    AudioDiscrepancy,
+    Call,
+    Event,
+    Judgment,
+    Media,
+    Membership,
+    Metric,
+    Turn,
+)
 from voiceobs.storage import presign, resolve_s3_creds
 from voiceobs.transcript import resolve
 
@@ -103,6 +112,7 @@ def get_call(
         "peaks": _peaks(media),
         "audio": _audio(call, media, db),
         "discrepancies": _discrepancies(db, call),
+        "judgment": _judgment(db, call),
         "versions": {
             "metric_version": call.metric_version,
             "adapter_version": call.adapter_version,
@@ -218,6 +228,23 @@ def _peaks(media: list[Media]) -> dict[str, str]:
         if m.kind.startswith("peaks_") and m.peaks:
             out[m.kind.removeprefix("peaks_")] = base64.b64encode(m.peaks).decode()
     return out
+
+
+_JUDGE_FIELDS = (
+    "sentiment", "objective_achieved", "answered_by", "primary_language",
+    "secondary_languages", "script_adherence", "escalation_requested",
+    "callback_requested", "callback_time", "summary",
+)
+
+
+def _judgment(db: Session, call: Call) -> dict | None:
+    """The LLM-as-judge structured output for this call, or None if not judged. `status` tells
+    apart 'no judge configured/not connected' (skipped) from a real result."""
+    j = db.scalar(select(Judgment).where(Judgment.call_id == call.id))
+    if j is None:
+        return None
+    return {"disposition": j.disposition, "status": j.status, "model": j.model,
+            **{f: getattr(j, f) for f in _JUDGE_FIELDS}}
 
 
 def _discrepancies(db: Session, call: Call) -> list[dict]:

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { getCall, type CallDetail as Detail, type Trace } from "../api";
 import { secs, when } from "../format";
+import Discrepancies from "./Discrepancies";
 import Latency from "./Latency";
+import LlmAnalysis from "./LlmAnalysis";
 import Metadata from "./Metadata";
 import Recording from "./Recording";
 import Transcript from "./Transcript";
@@ -69,6 +71,8 @@ function Sections({ data }: { data: Detail }) {
       <Transcript turns={data.turns} spans={data.spans} />
       <Latency turns={data.turns} mediaReady={data.trust.media_ready} />
       <Waterfall trace={trace} />
+      <LlmAnalysis judgment={data.judgment} />
+      <Discrepancies discrepancies={data.discrepancies} audioOn={data.trust.audio_analysis} />
       <Metadata data={data} />
     </>
   );

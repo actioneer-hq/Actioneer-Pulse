@@ -190,6 +190,20 @@ tbody tr.on{background:var(--sel);box-shadow:inset 2px 0 0 var(--amber)}
 .chev{flex:none;color:var(--dim);transition:transform .2s ease-out}
 .sec h3.collapse:hover .chev{color:var(--ink)}
 .chev.open{transform:rotate(90deg)}
+/* disabled section header (e.g. discrepancies when audio analysis is off) */
+.sec h3.disabled{display:flex;align-items:center;gap:8px;color:var(--dim);opacity:.5;cursor:not-allowed}
+.sec h3.disabled .chev{opacity:.5}
+.sec h3 .right.bad{color:var(--bad)}
+/* discrepancy cards */
+.disc{border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 11px;margin-bottom:8px;background:var(--panel)}
+.disc-hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.disc-field{font-weight:500;font-size:12.5px;text-transform:capitalize}
+.disc-delta{font-size:11.5px;color:var(--bad);font-variant-numeric:tabular-nums}
+.disc-row{display:flex;gap:8px;font-size:12px;line-height:1.5}
+.disc-lbl{width:64px;flex:none;color:var(--dim)}
+.disc-rep{color:var(--dim);overflow-wrap:anywhere}
+.disc-mea{color:var(--ink);font-weight:500;overflow-wrap:anywhere}
+.disc-note{font-size:11.5px;color:var(--dim);margin-top:4px;font-style:italic}
 .disclose{animation:disclose .2s ease-out}
 @keyframes disclose{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
 .grid{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}

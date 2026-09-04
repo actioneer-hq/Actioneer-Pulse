@@ -118,6 +118,34 @@ export type Trust = {
 
 // One consolidated payload — header, turns, metrics, trust, the span tree, waveform
 // peaks (base64 per channel), and a presigned audio URL. One round trip.
+export type Discrepancy = {
+  turn_index: number | null;
+  dimension: string;
+  field: string;
+  reported: string | null;
+  measured: string | null;
+  delta: number | null;
+  band: number | null;
+  verdict: string;
+  note: string | null;
+};
+
+export type Judgment = {
+  disposition: string | null;
+  status: string | null;
+  model: string | null;
+  sentiment: string | null;
+  objective_achieved: string | null;
+  answered_by: string | null;
+  primary_language: string | null;
+  secondary_languages: string[] | null;
+  script_adherence: string | null;
+  escalation_requested: boolean | null;
+  callback_requested: boolean | null;
+  callback_time: string | null;
+  summary: string | null;
+};
+
 export type CallDetail = {
   call: CallHeader;
   turns: Turn[];
@@ -126,6 +154,8 @@ export type CallDetail = {
   spans: Span[];
   peaks: Record<string, string>;
   audio: Audio | null;
+  discrepancies: Discrepancy[];
+  judgment: Judgment | null;
 };
 
 // The span sub-view Waterfall renders; built from CallDetail, not fetched.
