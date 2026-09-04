@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from voiceobs.db import Base
-from voiceobs.db.models import Call, JudgeConfig, Turn
+from voiceobs.db.models import Call, LLMConfig, Turn
 from voiceobs.judge import judge_call
 from voiceobs.judge.disposition import programmatic_disposition
 from voiceobs.judge.schema import JudgeOutput
@@ -40,7 +40,7 @@ def _call(db, *, spoke=True, duration=30.0) -> Call:
 
 
 def _config(db) -> None:
-    db.add(JudgeConfig(tenant_id="t", base_url="https://m/v1", model="gpt-x", enabled=True))
+    db.add(LLMConfig(tenant_id="t", base_url="https://m/v1", model="gpt-x", enabled=True))
     db.commit()
 
 
@@ -80,7 +80,7 @@ def test_not_connected_skips_llm(db, monkeypatch):
 
 
 def test_no_config_skips(db, monkeypatch):
-    call = _call(db)  # connected but no JudgeConfig
+    call = _call(db)  # connected but no LLMConfig
     monkeypatch.setattr(sys.modules["voiceobs.judge.run"], "call_model", lambda c, m: _FAKE)
     assert judge_call(db, call).status == "skipped"
 

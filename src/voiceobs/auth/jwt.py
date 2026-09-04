@@ -7,27 +7,29 @@ bugs (a token claiming `alg:none`/RS256 is simply rejected)."""
 
 from __future__ import annotations
 
-import os
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import jwt
 
-from voiceobs.auth.env import dev_open
+from voiceobs.settings import get_settings
 
 _ALG = "HS256"
 _DEV_SECRET = "dev-insecure-secret-do-not-use-in-prod"
 
-ACCESS_TTL = timedelta(minutes=15)
-REFRESH_TTL = timedelta(days=14)
-INVITE_TTL = timedelta(days=7)
+# TTLs read from settings at import (env-overridable per deployment). Kept as module constants
+# so refresh.py can import REFRESH_TTL and tests can monkeypatch a single value.
+_s = get_settings()
+ACCESS_TTL = timedelta(minutes=_s.access_ttl_min)
+REFRESH_TTL = timedelta(days=_s.refresh_ttl_days)
+INVITE_TTL = timedelta(days=_s.invite_ttl_days)
 
 
 def _secret() -> str:
-    secret = os.getenv("VOICEOBS_SECRET_KEY")
-    if secret:
-        return secret
-    if dev_open():
+    s = get_settings()
+    if s.secret_key:
+        return s.secret_key
+    if s.is_dev_open:
         return _DEV_SECRET
     raise RuntimeError("VOICEOBS_SECRET_KEY must be set (no dev fallback outside dev-open)")
 

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import signal
 import time
 from contextlib import contextmanager
@@ -13,22 +12,25 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from voiceobs.core.config import METRIC_VERSION
-from voiceobs.db.models import Call, JudgeConfig
+from voiceobs.db.models import Call, LLMConfig
 from voiceobs.db.session import get_session
 from voiceobs.frameworks import UnsupportedSchema
 from voiceobs.judge import judge_call
+from voiceobs.llm import LLMRole
+from voiceobs.settings import get_settings
 from voiceobs.worker.process import process
 
 log = logging.getLogger(__name__)
 
 session_scope = contextmanager(get_session)
 
-POLL_S = float(os.getenv("VOICEOBS_WORKER_POLL_S", "5"))
-BATCH = int(os.getenv("VOICEOBS_WORKER_BATCH", "10"))
+_s = get_settings()
+POLL_S = _s.worker_poll_s
+BATCH = _s.worker_batch
 # How long a call must be quiet before we analyse it without audio. Pipe 2 may never
 # arrive for a given producer, and a call nobody can see is worse than one missing its
 # waveform.
-GRACE_S = float(os.getenv("VOICEOBS_WORKER_GRACE_S", "60"))
+GRACE_S = _s.worker_grace_s
 
 
 def claim(db: Session, *, batch: int = BATCH, grace_s: float = GRACE_S) -> list[Call]:
@@ -55,10 +57,12 @@ def claim(db: Session, *, batch: int = BATCH, grace_s: float = GRACE_S) -> list[
 
 
 def _maybe_judge(db: Session, call: Call) -> None:
-    """Judge the call when the tenant has a judge model configured. judge_call never
+    """Judge the call when the tenant has a post-call-analysis LLM configured. judge_call never
     raises — a model failure is recorded, not propagated."""
-    cfg = db.scalar(select(JudgeConfig).where(
-        JudgeConfig.tenant_id == call.tenant_id, JudgeConfig.enabled.is_(True)
+    cfg = db.scalar(select(LLMConfig).where(
+        LLMConfig.tenant_id == call.tenant_id,
+        LLMConfig.role == LLMRole.POST_CALL_ANALYSIS,
+        LLMConfig.enabled.is_(True),
     ))
     if cfg is not None:
         judge_call(db, call)
@@ -85,7 +89,7 @@ def tick(db: Session, **kw) -> int:
 
 
 def main() -> None:
-    logging.basicConfig(level=os.getenv("VOICEOBS_LOG_LEVEL", "INFO"))
+    logging.basicConfig(level=get_settings().log_level)
     stopping = False
 
     def stop(*_):

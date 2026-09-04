@@ -32,7 +32,8 @@ class TranscriptIn(BaseModel):
 class JudgeConfigIn(BaseModel):
     base_url: str
     model: str
-    api_key: str | None = None
+    api_key: str | None = None  # write-only; omit to keep the stored key
+    prompt: str | None = None  # per-tenant system-prompt override; "" resets to the default
     params: dict | None = None  # provider-specific passthrough (reasoning, temperature…)
     enabled: bool = True
 

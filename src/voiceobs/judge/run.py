@@ -8,10 +8,11 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from voiceobs.db.models import Call, JudgeConfig, Judgment, Prompt
+from voiceobs.db.models import Call, Judgment, LLMConfig, Prompt
 from voiceobs.judge.client import call_model
 from voiceobs.judge.disposition import is_connected, programmatic_disposition
 from voiceobs.judge.prompt import build_messages
+from voiceobs.llm import LLMRole
 from voiceobs.transcript import resolve
 
 log = logging.getLogger(__name__)
@@ -34,7 +35,10 @@ def judge_call(db: Session, call: Call) -> Judgment:
         j.status, j.model = "skipped", None
         return j
 
-    config = db.scalar(select(JudgeConfig).where(JudgeConfig.tenant_id == call.tenant_id))
+    config = db.scalar(select(LLMConfig).where(
+        LLMConfig.tenant_id == call.tenant_id,
+        LLMConfig.role == LLMRole.POST_CALL_ANALYSIS,
+    ))
     if config is None or not config.enabled:
         _clear_llm(j)
         j.status, j.model = "skipped", None
@@ -42,7 +46,9 @@ def judge_call(db: Session, call: Call) -> Judgment:
 
     j.model = config.model
     try:
-        out = call_model(config, build_messages(_script(db, call), transcript))
+        out = call_model(config, build_messages(
+            _script(db, call), transcript, prompt=config.prompt,
+        ))
         for f in _LLM_FIELDS:
             setattr(j, f, getattr(out, f))
         j.status, j.error = "ok", None

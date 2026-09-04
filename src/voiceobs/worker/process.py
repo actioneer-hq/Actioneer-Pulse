@@ -5,7 +5,6 @@ from __future__ import annotations
 import gzip
 import json
 import logging
-import os
 from datetime import UTC, datetime
 
 from sqlalchemy import delete, select
@@ -104,7 +103,9 @@ def process(db: Session, call: Call) -> str:
 
 
 def _env_default() -> bool:
-    return os.getenv("VOICEOBS_AUDIO_ANALYSIS", "0").strip().lower() in ("1", "true", "on", "yes")
+    from voiceobs.settings import get_settings
+
+    return get_settings().audio_analysis
 
 
 def _audio_enabled(db: Session, call: Call) -> bool:
