@@ -81,7 +81,7 @@ export default function Calls() {
       <div className="list">
         <div className="head">
           <h1>Calls</h1>
-          <div className="sub">Every call VO has ingested, spans and audio joined into one record.</div>
+          <div className="sub">Every call Pulse has ingested, spans and audio joined into one record.</div>
         </div>
         <div className="tiles">
           {tiles.map(([l, v, s]) => (

@@ -1,4 +1,4 @@
-"""A producer VO has never heard of must still yield a call and a timeline."""
+"""A producer Pulse has never heard of must still yield a call and a timeline."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from voiceobs.frameworks import OTLPAdapter, adapter_for
 
 
 def _pipecat() -> dict:
-    """Generic OTLP: no voice.* anywhere, names VO does not know."""
+    """Generic OTLP: no voice.* anywhere, names Pulse does not know."""
     def span(sid, parent, name, start, end):
         s = {"traceId": "aa" * 16, "spanId": sid, "name": name,
              "startTimeUnixNano": str(start), "endTimeUnixNano": str(end)}
@@ -48,7 +48,7 @@ def _unknown() -> dict:
 
 
 def test_unknown_producer_is_not_auto_routed():
-    """Strict LiveKit-only routing: a producer VO doesn't ship a dialect for is NOT
+    """Strict LiveKit-only routing: a producer Pulse doesn't ship a dialect for is NOT
     silently reshaped — the registry returns nothing (a future BYO-OTLP path re-enables
     the generic fallback explicitly)."""
     assert adapter_for(_unknown()) is None

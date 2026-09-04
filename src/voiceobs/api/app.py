@@ -1,4 +1,4 @@
-"""VO API — OTLP ingest + read endpoints, and the built UI. Never touches audio bytes."""
+"""Pulse API — OTLP ingest + read endpoints, and the built UI. Never touches audio bytes."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from voiceobs.api import agents, auth, ingest, judge, orgs, read, settings
 
-app = FastAPI(title="Voice Observability")
+app = FastAPI(title="Pulse")
 app.include_router(auth.router)
 app.include_router(orgs.router)
 app.include_router(agents.router)

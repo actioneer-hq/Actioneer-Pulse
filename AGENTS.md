@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Conventions for coding agents on this repo (VO — voice observability). Living doc; extend as we go.
+Conventions for coding agents on this repo (Pulse — voice observability). Living doc; extend as we go.
 
 ## Code style
 

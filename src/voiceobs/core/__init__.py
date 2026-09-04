@@ -1,4 +1,4 @@
-"""VO core — pure types + the two analysis functions. No I/O, no DB, no network."""
+"""Pulse core — pure types + the two analysis functions. No I/O, no DB, no network."""
 
 from __future__ import annotations
 

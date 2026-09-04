@@ -1,4 +1,4 @@
-# Voice observability (VO)
+# Pulse (Pulse)
 
 Consumes OTLP spans from a voice agent and turns one call into one screen.
 
@@ -41,7 +41,7 @@ route except `/` works.
 
 ## Point a producer at it
 
-VO speaks **OTLP/HTTP** — both protobuf (what every SDK exporter sends) and JSON. It
+Pulse speaks **OTLP/HTTP** — both protobuf (what every SDK exporter sends) and JSON. It
 does not speak gRPC, so set the protocol explicitly: an SDK that infers gRPC from a
 `:4317`-shaped endpoint fails open, giving silence rather than an error.
 
@@ -51,7 +51,7 @@ VOICE_OTEL_EXPORTER_ENDPOINT=http://<vo-host>:8000
 VOICE_OTEL_EXPORTER_PROTOCOL=http/protobuf
 ```
 
-The SDK appends `/v1/traces` itself. VO exposes no `/v1/metrics`, so keep a producer's
+The SDK appends `/v1/traces` itself. Pulse exposes no `/v1/metrics`, so keep a producer's
 metrics exporter pointed somewhere else.
 
 ## Configuration
@@ -86,7 +86,7 @@ pytest -q && ruff check . && lint-imports
 
 ## Supporting another producer
 
-VO reads any OTLP producer. Pipecat, LiveKit or your own is two dicts:
+Pulse reads any OTLP producer. Pipecat, LiveKit or your own is two dicts:
 
 ```python
 class PipecatAdapter(OTLPAdapter):
@@ -101,7 +101,7 @@ name no producer, and a test enforces that. A producer with no adapter at all st
 gets a call and a timeline via the generic adapter, with its spans marked `unknown`
 rather than guessed at.
 
-`attr_aliases` maps onto VO's canonical vocabulary; the full list is in
+`attr_aliases` maps onto Pulse's canonical vocabulary; the full list is in
 `adapters/generic.py`.
 
 ## What does not exist yet

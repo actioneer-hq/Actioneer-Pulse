@@ -7,8 +7,8 @@ STT→LLM→TTS, OpenAI), captured to show the full path: **voice → OTLP → a
 ## Files
 - **`otlp.json`** — the original OTLP the LiveKit agent exported, reconstructed verbatim
   from the stored raw fragments (134 spans, `service.name: livekit`). This is the raw
-  input, before any VO processing.
-- **`analysis.json`** — VO's own output for the call (`GET /v1/calls/{id}`): header,
+  input, before any Pulse processing.
+- **`analysis.json`** — Pulse's own output for the call (`GET /v1/calls/{id}`): header,
   the 7 turns with their per-stage waterfall, the metrics list, trust block, and the
   span tree. Our analysis, in JSON (not markdown).
 

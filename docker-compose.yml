@@ -1,4 +1,4 @@
-# Local VO: Postgres plus the API. `docker compose up --build`, then point a producer
+# Local Pulse: Postgres plus the API. `docker compose up --build`, then point a producer
 # at http://localhost:8000 (the OTLP SDK appends /v1/traces itself).
 #
 # Port 8000, not OTLP's conventional 4318: an otel-collector already owns 4317/4318 on

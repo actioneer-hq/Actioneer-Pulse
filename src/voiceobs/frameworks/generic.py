@@ -11,7 +11,7 @@ Writing an adapter (LiveKit, your own) is two dicts:
 Everything else — the span tree, timings, content splitting, PII dropping — is the
 same for every producer, because it is OTLP, not dialect.
 
-`attr_aliases` maps a producer's names onto VO's canonical vocabulary, which is the
+`attr_aliases` maps a producer's names onto Pulse's canonical vocabulary, which is the
 only thing `core/join.py` reads:
 
     turn.id  turn.index  turn.trigger  turn.interrupted  turn.abandoned
@@ -37,7 +37,7 @@ from voiceobs.frameworks.otlp import (
     span_start_ns,
 )
 
-# Nothing is dropped: VO is the place you go to see what actually happened, and an
+# Nothing is dropped: Pulse is the place you go to see what actually happened, and an
 # observability tool that hides the conversation cannot explain the call. Erasure is
 # per call (DELETE /v1/calls/{id}), not per attribute.
 _DROP: set[str] = set()

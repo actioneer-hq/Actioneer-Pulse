@@ -15,11 +15,18 @@ import {
 } from "../api";
 import { useAuth } from "../auth";
 
+// Producer frameworks offered at agent creation. Only LiveKit is wired up today; the rest
+// are shown disabled so the choice is explicit and the roadmap is visible.
+const FRAMEWORKS: { id: string; label: string; note: string; ready: boolean }[] = [
+  { id: "livekit", label: "LiveKit", note: "LiveKit Agents — native OTLP", ready: true },
+  { id: "byo", label: "Bring your own OTLP", note: "Any OpenTelemetry producer", ready: false },
+];
+
 export default function Agents() {
   const { activeOrg } = useAuth();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [sel, setSel] = useState<string | null>(null);
-  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -31,12 +38,11 @@ export default function Agents() {
 
   useEffect(() => { load(); }, [load, activeOrg]);
 
-  async function add() {
-    if (!newName.trim()) return;
+  async function add(name: string) {
     setError(null);
     try {
-      const a = await createAgent(newName.trim());
-      setNewName("");
+      const a = await createAgent(name.trim());
+      setCreating(false);
       load();
       setSel(a.id);
     } catch (e) { setError((e as Error).message); }
@@ -66,9 +72,7 @@ export default function Agents() {
       <div className="settings-cols">
         <div className="col">
           <div className="add-row">
-            <input value={newName} onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && add()} placeholder="New agent name…" />
-            <button className="btn-primary" onClick={add}>Add</button>
+            <button className="btn-primary" onClick={() => setCreating(true)}>+ New agent</button>
           </div>
           <table>
             <tbody>
@@ -97,6 +101,49 @@ export default function Agents() {
           {selected
             ? <AgentDetail agent={selected} />
             : <div className="empty">Select an agent to connect it and manage ingest tokens.</div>}
+        </div>
+      </div>
+      {creating && <NewAgentModal onClose={() => setCreating(false)} onCreate={add} />}
+    </div>
+  );
+}
+
+function NewAgentModal(
+  { onClose, onCreate }: { onClose: () => void; onCreate: (name: string) => void },
+) {
+  const [name, setName] = useState("");
+  const [framework, setFramework] = useState("livekit");
+
+  return (
+    <div className="modal-scrim" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>New agent</h3>
+        <p className="sub">An agent is a project / OTLP routing target. Pick the framework your
+          voice agent runs on, then connect it with an ingest token.</p>
+        <div className="field">
+          <label htmlFor="agent-name">Name</label>
+          <input id="agent-name" autoFocus value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && name.trim() && onCreate(name)}
+            placeholder="e.g. Sales Bot" />
+        </div>
+        <div className="field">
+          <label>Framework</label>
+          <div className="fw-picker">
+            {FRAMEWORKS.map((f) => (
+              <button key={f.id} type="button" disabled={!f.ready}
+                className={`fw-option ${framework === f.id ? "on" : ""} ${f.ready ? "" : "soon"}`}
+                onClick={() => f.ready && setFramework(f.id)}>
+                <span className="fw-name">{f.label}{!f.ready && <em> · coming soon</em>}</span>
+                <span className="fw-note">{f.note}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="modal-foot">
+          <button className="link" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" disabled={!name.trim()}
+            onClick={() => onCreate(name)}>Create agent</button>
         </div>
       </div>
     </div>

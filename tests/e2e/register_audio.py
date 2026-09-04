@@ -1,8 +1,8 @@
-"""Register two mono track-egress files as a call's audio, so VO runs Layer 1.
+"""Register two mono track-egress files as a call's audio, so Pulse runs Layer 1.
 
     python register_audio.py <call_id> <caller_s3_uri> <agent_s3_uri> [--vo http://localhost:8000]
 
-VO combines audio_caller + audio_agent into a caller/agent stereo stream.
+Pulse combines audio_caller + audio_agent into a caller/agent stereo stream.
 """
 
 from __future__ import annotations

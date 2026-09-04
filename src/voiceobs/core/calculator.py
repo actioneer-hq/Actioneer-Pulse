@@ -1,7 +1,7 @@
 """Layer 2 — join spans to audio on one clock, compute the per-turn waterfall.
 
 `Calculator` turns a normalized `Trace` (+ optional audio) into an `Analysis`. It reads
-VO's canonical attribute names only (`turn.index`, `metrics.ttft`, `tts.chars`, …), never
+Pulse's canonical attribute names only (`turn.index`, `metrics.ttft`, `tts.chars`, …), never
 a producer's — adapters map each dialect onto them (see `frameworks/generic.py`). Because
 the adapter normalizes, this calculator is generic and one instance serves every framework.
 
@@ -489,7 +489,7 @@ def _trust_report(
     elif engine == "s2s":
         reasons.append(TrustReason.TRACE_NOT_APPLICABLE)  # not an outage
     else:
-        reasons.append(TrustReason.TRACE_MISSING)  # cascade with no spans = VO was down
+        reasons.append(TrustReason.TRACE_MISSING)  # cascade with no spans = Pulse was down
 
     coverage = dict(audio.coverage) if audio else {}
     if coverage and min(coverage.values()) < cfg.partial_coverage_threshold:

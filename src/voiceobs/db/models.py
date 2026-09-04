@@ -1,4 +1,4 @@
-"""VO Postgres schema — SQLAlchemy 2.0 ORM, mirroring MODELS.md.
+"""Pulse Postgres schema — SQLAlchemy 2.0 ORM, mirroring MODELS.md.
 
 Thirteen tables. ``tenant_id`` on every one. Load-bearing constraints (idempotency
 and the daily metric-predicate query) are declared explicitly, not left implicit:

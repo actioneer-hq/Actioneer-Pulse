@@ -1,7 +1,7 @@
-"""A minimal cascade (STT->LLM->TTS) LiveKit agent for end-to-end testing VO.
+"""A minimal cascade (STT->LLM->TTS) LiveKit agent for end-to-end testing Pulse.
 
 It does two things: talk to you in the browser (LiveKit Agents Playground), and export
-its OpenTelemetry traces to VO's ingest endpoint. VO's LiveKit adapter turns those spans
+its OpenTelemetry traces to Pulse's ingest endpoint. Pulse's LiveKit adapter turns those spans
 into a Trace, the worker computes metrics, and you can then read them back.
 
 Run: see tests/e2e/README.md. Not part of the pytest suite — it needs live creds and a mic.
@@ -24,9 +24,9 @@ load_dotenv()
 
 
 def _setup_tracing() -> None:
-    """Point LiveKit's tracer at VO. VO_OTLP_ENDPOINT is VO's /v1/traces URL."""
+    """Point LiveKit's tracer at Pulse. VO_OTLP_ENDPOINT is Pulse's /v1/traces URL."""
     endpoint = os.environ["VO_OTLP_ENDPOINT"]  # e.g. http://localhost:8000/v1/traces
-    exporter = OTLPSpanExporter(endpoint=endpoint)  # protobuf/HTTP; VO decodes it
+    exporter = OTLPSpanExporter(endpoint=endpoint)  # protobuf/HTTP; Pulse decodes it
     provider = TracerProvider(resource=Resource.create({"service.name": "livekit"}))
     provider.add_span_processor(BatchSpanProcessor(exporter))
     set_tracer_provider(provider)  # LiveKit's, not opentelemetry.trace's
