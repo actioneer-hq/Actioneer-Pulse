@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+
+from voiceobs.settings import get_settings
 
 _engine = None
 _Session: sessionmaker[Session] | None = None
@@ -14,7 +15,9 @@ _Session: sessionmaker[Session] | None = None
 
 def _init() -> None:
     global _engine, _Session
-    url = os.environ["VOICEOBS_DATABASE_URL"]
+    url = get_settings().database_url
+    if not url:
+        raise RuntimeError("VOICEOBS_DATABASE_URL must be set")
     _engine = create_engine(url, future=True)
     _Session = sessionmaker(bind=_engine, expire_on_commit=False)
 

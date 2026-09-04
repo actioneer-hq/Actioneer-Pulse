@@ -7,7 +7,7 @@ import json
 import httpx
 import pytest
 
-from voiceobs.db.models import JudgeConfig
+from voiceobs.db.models import LLMConfig
 from voiceobs.judge.client import call_model
 
 
@@ -24,8 +24,8 @@ _GOOD = json.dumps({
 })
 
 
-def _cfg() -> JudgeConfig:
-    return JudgeConfig(tenant_id="t", base_url="https://m/v1", model="gpt-x",
+def _cfg() -> LLMConfig:
+    return LLMConfig(tenant_id="t", base_url="https://m/v1", model="gpt-x",
                        api_key="sk-1", params={"temperature": 0})
 
 

@@ -7,7 +7,7 @@ import sys
 from sqlalchemy import func, select
 
 from tests.fixtures.livekit_call import sample_call
-from voiceobs.db.models import Call, JudgeConfig, Judgment
+from voiceobs.db.models import Call, Judgment, LLMConfig
 from voiceobs.judge.schema import JudgeOutput
 from voiceobs.worker.process import process
 
@@ -70,4 +70,4 @@ def test_delete_cascades_judgment(client, login_as, db_sessionmaker, monkeypatch
     client.delete("/v1/calls/c1", headers={"X-Voiceobs-Confirm": "c1"})
     with db_sessionmaker() as db:
         assert db.scalar(select(func.count()).select_from(Judgment)) == 0
-        assert db.scalar(select(func.count()).select_from(JudgeConfig)) == 1  # tenant cfg stays
+        assert db.scalar(select(func.count()).select_from(LLMConfig)) == 1  # tenant cfg stays

@@ -10,7 +10,6 @@ S3 is the source of truth; the artifact POST is just a latency optimization on t
 from __future__ import annotations
 
 import logging
-import os
 import time
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -20,12 +19,13 @@ from sqlalchemy.orm import Session
 
 from voiceobs.db.models import AgentAudioConfig, Call, Media, Tombstone
 from voiceobs.db.session import get_session
+from voiceobs.settings import get_settings
 from voiceobs.storage import list_objects, resolve_s3_creds
 
 session_scope = contextmanager(get_session)
 log = logging.getLogger(__name__)
 
-GRACE_S = float(os.getenv("VOICEOBS_RECONCILE_GRACE_S", "600"))
+GRACE_S = get_settings().reconcile_grace_s
 
 # filename -> Media.kind (what the worker's _audio_bytes looks for)
 _KINDS = {"audio.wav": "audio", "audio_caller.wav": "audio_caller", "audio_agent.wav": "audio_agent"}
@@ -100,13 +100,13 @@ def _run_once() -> None:  # pragma: no cover
 
 def main() -> None:  # pragma: no cover — entrypoint
     """One-shot, or a sidecar loop when VOICEOBS_RECONCILE_INTERVAL_S is set."""
-    interval = os.getenv("VOICEOBS_RECONCILE_INTERVAL_S")
+    interval = get_settings().reconcile_interval_s
     if not interval:
         _run_once()
         return
     while True:
         _run_once()
-        time.sleep(float(interval))
+        time.sleep(interval)
 
 
 if __name__ == "__main__":  # pragma: no cover

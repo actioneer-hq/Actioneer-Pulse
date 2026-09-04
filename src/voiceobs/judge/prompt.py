@@ -1,34 +1,25 @@
-"""Build the chat messages for the judge. The output contract is stated here and
-enforced by JudgeOutput on the way back."""
+"""Build the chat messages for the post-call judge. The output contract is stated in the
+system prompt (committed default in llm/prompts.py, or a per-tenant override) and enforced by
+JudgeOutput on the way back."""
 
 from __future__ import annotations
 
 import json
 
 from voiceobs.judge.schema import JudgeOutput
-
-_SYSTEM = (
-    "You are a call-quality judge for outbound voice-agent calls. You are given the "
-    "agent's script and the call transcript. Return ONLY a JSON object matching this "
-    "schema, no prose:\n"
-    "{schema}\n\n"
-    "Rules:\n"
-    "- primary_language is the most-spoken language; secondary_languages lists the rest.\n"
-    "- callback_time is filled only if callback_requested and a time is stated, else null.\n"
-    "- summary is at most 30 words, and only when a human or voicemail actually spoke; "
-    "otherwise null.\n"
-    "- Use only the allowed enum values."
-)
+from voiceobs.llm import LLMRole, default_prompt
 
 
-def build_messages(script: str | None, transcript: dict) -> list[dict]:
+def build_messages(script: str | None, transcript: dict, prompt: str | None = None) -> list[dict]:
+    system = prompt or default_prompt(LLMRole.POST_CALL_ANALYSIS)
     schema = json.dumps(JudgeOutput.model_json_schema()["properties"], indent=0)
     user = (
         f"SCRIPT:\n{script or '(none provided)'}\n\n"
         f"TRANSCRIPT:\n{_render(transcript)}"
     )
+    # replace, not .format — a tenant's custom prompt may contain unrelated braces.
     return [
-        {"role": "system", "content": _SYSTEM.format(schema=schema)},
+        {"role": "system", "content": system.replace("{schema}", schema)},
         {"role": "user", "content": user},
     ]
 

@@ -7,13 +7,13 @@ import json
 
 import httpx
 
-from voiceobs.db.models import JudgeConfig
+from voiceobs.db.models import LLMConfig
 from voiceobs.judge.schema import JudgeOutput
 
 TIMEOUT_S = 60.0
 
 
-def call_model(config: JudgeConfig, messages: list[dict]) -> JudgeOutput:
+def call_model(config: LLMConfig, messages: list[dict]) -> JudgeOutput:
     """POST to {base_url}/chat/completions and validate the reply against JudgeOutput."""
     body = {
         "model": config.model,

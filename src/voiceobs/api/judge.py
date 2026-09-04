@@ -10,8 +10,11 @@ from sqlalchemy.orm import Session
 from voiceobs.api.deps import now, session_dep
 from voiceobs.api.schemas import JudgeConfigIn
 from voiceobs.auth import current_membership, get_scoped_call, require_role
-from voiceobs.db.models import Call, JudgeConfig, Judgment, Membership
+from voiceobs.db.models import Call, Judgment, LLMConfig, Membership
 from voiceobs.judge import judge_call
+from voiceobs.llm import LLMRole
+
+_ROLE = LLMRole.POST_CALL_ANALYSIS  # this endpoint configures the post-call judge specifically
 
 router = APIRouter(prefix="/v1")
 
@@ -28,15 +31,18 @@ def set_judge_config(
     db: Session = Depends(session_dep),
     mem: Membership = Depends(require_role("owner", "admin")),
 ) -> dict:
-    cfg = db.scalar(select(JudgeConfig).where(JudgeConfig.tenant_id == mem.org_id))
+    cfg = db.scalar(select(LLMConfig).where(
+        LLMConfig.tenant_id == mem.org_id, LLMConfig.role == _ROLE))
     if cfg is None:
-        cfg = JudgeConfig(tenant_id=mem.org_id)
+        cfg = LLMConfig(tenant_id=mem.org_id, role=_ROLE)
         db.add(cfg)
     cfg.base_url, cfg.model, cfg.params, cfg.enabled = (
         body.base_url, body.model, body.params, body.enabled
     )
     if body.api_key is not None:  # write-only; omit to keep the existing key
         cfg.api_key = body.api_key
+    if body.prompt is not None:  # "" clears the override → back to the committed default
+        cfg.prompt = body.prompt or None
     cfg.updated_at = now()
     return {"status": "ok"}
 
@@ -45,12 +51,14 @@ def set_judge_config(
 def get_judge_config(
     db: Session = Depends(session_dep), mem: Membership = Depends(current_membership)
 ) -> dict:
-    cfg = db.scalar(select(JudgeConfig).where(JudgeConfig.tenant_id == mem.org_id))
+    cfg = db.scalar(select(LLMConfig).where(
+        LLMConfig.tenant_id == mem.org_id, LLMConfig.role == _ROLE))
     if cfg is None:
         raise HTTPException(404, "no judge config for org")
     return {
         "base_url": cfg.base_url, "model": cfg.model, "params": cfg.params,
         "enabled": cfg.enabled, "has_key": bool(cfg.api_key),  # never echo the key
+        "prompt": cfg.prompt,  # the override, or null = committed default
     }
 
 

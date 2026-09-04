@@ -9,7 +9,6 @@ flags. No-ops (exit 0) if any user already exists, so it is safe to run on every
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 
 from sqlalchemy import func, select
@@ -18,6 +17,7 @@ from voiceobs.auth.env import DEV_EMAIL, DEV_PASSWORD, dev_open
 from voiceobs.auth.password import hash_password, normalize_email
 from voiceobs.db.models import AppUser, Membership, Organization
 from voiceobs.db.session import get_session
+from voiceobs.settings import get_settings
 
 
 def _slug(name: str) -> str:
@@ -65,10 +65,11 @@ def bootstrap(email: str, password: str, org_name: str) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m voiceobs.auth")
     sub = parser.add_subparsers(dest="cmd", required=True)
+    s = get_settings()
     b = sub.add_parser("bootstrap", help="create the first owner + org when the DB is empty")
-    b.add_argument("--email", default=os.getenv("VOICEOBS_BOOTSTRAP_EMAIL", ""))
-    b.add_argument("--password", default=os.getenv("VOICEOBS_BOOTSTRAP_PASSWORD", ""))
-    b.add_argument("--org", default=os.getenv("VOICEOBS_BOOTSTRAP_ORG", "Default"))
+    b.add_argument("--email", default=s.bootstrap_email)
+    b.add_argument("--password", default=s.bootstrap_password)
+    b.add_argument("--org", default=s.bootstrap_org)
     args = parser.parse_args(argv)
     if args.cmd == "bootstrap":
         return bootstrap(args.email, args.password, args.org)
