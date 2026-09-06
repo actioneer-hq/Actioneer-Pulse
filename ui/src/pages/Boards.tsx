@@ -29,7 +29,6 @@ export default function Boards() {
   const { activeOrg } = useAuth();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentId, setAgentId] = useState("");
-  const [environment, setEnvironment] = useState("");
   const [range, setRange] = useState("7d");
   const [snap, setSnap] = useState<BoardSnapshot | null>(null);
   const [live, setLive] = useState(false);
@@ -43,11 +42,11 @@ export default function Boards() {
   useEffect(() => {
     setError(null);
     setLive(false);
-    const filters = { agent_id: agentId || undefined, environment: environment || undefined, range };
+    const filters = { agent_id: agentId || undefined, range };
     getBoardsSummary(filters).then(setSnap).catch((e: Error) => setError(e.message));
     const stop = streamBoards(filters, (s) => { setSnap(s); setLive(true); }, () => setLive(false));
     return stop;
-  }, [activeOrg, agentId, environment, range]);
+  }, [activeOrg, agentId, range]);
 
   const rows = useMemo(() => {
     if (!snap) return [];
@@ -101,17 +100,9 @@ export default function Boards() {
               <button key={k} className={range === k ? "on" : undefined} onClick={() => setRange(k)}>{l}</button>
             ))}
           </div>
-          {agents.length > 0 && (
-            <select className="agent-filter" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
-              <option value="">All agents</option>
-              {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          )}
-          <select className="agent-filter" value={environment} onChange={(e) => setEnvironment(e.target.value)}>
-            <option value="">All environments</option>
-            <option value="prod">prod</option>
-            <option value="staging">staging</option>
-            <option value="dev">dev</option>
+          <select className="agent-filter" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+            <option value="">All agents</option>
+            {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
           <span className="count">{error ?? (snap ? `${snap.totals.calls} calls` : "loading…")}</span>
         </div>
