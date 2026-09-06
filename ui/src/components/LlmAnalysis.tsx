@@ -1,25 +1,28 @@
 import { useState } from "react";
 import type { Judgment } from "../api";
 
-const FIELDS: [keyof Judgment, string][] = [
-  ["sentiment", "Sentiment"],
-  ["objective_achieved", "Objective"],
-  ["answered_by", "Answered by"],
-  ["script_adherence", "Script adherence"],
-  ["primary_language", "Language"],
-  ["escalation_requested", "Escalation"],
-  ["callback_requested", "Callback"],
-  ["guardrail_violation", "Guardrail violation"],
+// [key, label, "what it means" tip] — tip shows on hover over the label.
+const FIELDS: [keyof Judgment, string, string][] = [
+  ["sentiment", "Sentiment", "Overall caller sentiment across the call, from very negative to very positive."],
+  ["objective_achieved", "Objective", "Whether the call's goal was achieved, partially met, or not achieved."],
+  ["answered_by", "Answered by", "Who or what picked up: a human, voicemail, an IVR, or unknown."],
+  ["script_adherence", "Script adherence", "How closely the agent followed its configured script."],
+  ["primary_language", "Language", "The main language spoken during the call."],
+  ["escalation_requested", "Escalation", "Did the caller ask to be escalated to a human or supervisor."],
+  ["callback_requested", "Callback", "Did the caller ask to be called back later."],
+  ["guardrail_violation", "Guardrail violation", "Did the call break any of the agent's configured guardrails."],
 ];
+
+const CALLBACK_TIME_TIP = "When the caller wants to be called back, if a time was stated.";
 
 const fmt = (v: unknown): string =>
   v == null || v === "" ? "—" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v);
 
 // Conditional fields only appear when their trigger is set (callback_time when a callback was
 // requested; violation points when a guardrail was actually broken).
-function rowsFor(j: Judgment): [keyof Judgment, string][] {
+function rowsFor(j: Judgment): [keyof Judgment, string, string][] {
   const rows = [...FIELDS];
-  if (j.callback_requested) rows.splice(7, 0, ["callback_time", "Callback time"]);
+  if (j.callback_requested) rows.splice(7, 0, ["callback_time", "Callback time", CALLBACK_TIME_TIP]);
   return rows;
 }
 
@@ -45,8 +48,11 @@ export default function LlmAnalysis({ judgment }: { judgment: Judgment | null })
           ) : (
             <>
               <dl className="meta">
-                {rowsFor(judgment!).map(([k, label]) => (
-                  <div key={k}><dt>{label}</dt><dd>{fmt(judgment![k])}</dd></div>
+                {rowsFor(judgment!).map(([k, label, tip]) => (
+                  <div key={k}>
+                    <dt><span className="tip" data-tip={tip}>{label}</span></dt>
+                    <dd>{fmt(judgment![k])}</dd>
+                  </div>
                 ))}
               </dl>
               {judgment!.guardrail_violation && judgment!.guardrail_violation_points?.length ? (

@@ -323,6 +323,10 @@ canvas.wave{width:100%;height:56px;display:block;border-radius:var(--r-sm);backg
 .tip::after{content:attr(data-tip);position:absolute;top:calc(100% + 7px);width:158px;padding:7px 9px;background:var(--ink);color:var(--panel);border-radius:var(--r-sm);font:400 11px/1.45 "Aribau Grotesk",sans-serif;letter-spacing:0;text-transform:none;text-align:left;white-space:normal;box-shadow:0 4px 14px rgb(0 0 0 / .18);opacity:0;pointer-events:none;transition:opacity .1s;z-index:6}
 .lat th:not(.r) .tip::after{left:0}
 .lat th.r .tip::after{right:0}
+/* tips outside the latency table (meta grids, discrepancy rows): anchor to the label's left,
+   except the right-aligned delta which anchors right so it doesn't overflow the panel. */
+.meta .tip::after,.disc .tip::after{left:0}
+.disc-delta.tip::after{left:auto;right:0}
 .tip:hover::after{opacity:1}
 .fn{font-size:11.5px;color:var(--dim);line-height:1.5;margin-top:10px}
 .violations{margin-top:10px;background:var(--bad-bg);border:1px solid var(--bad-line);border-radius:var(--r);padding:9px 12px}
