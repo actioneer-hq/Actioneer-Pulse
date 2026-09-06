@@ -85,6 +85,42 @@ def test_no_config_skips(db, monkeypatch):
     assert judge_call(db, call).status == "skipped"
 
 
+def test_guardrails_passed_and_violation_persisted(db, monkeypatch):
+    from voiceobs.db.models import Agent, AgentGuardrail, Prompt
+
+    _config(monkeypatch)
+    agent = Agent(org_id="t", name="Bot", slug="bot")
+    db.add(agent)
+    db.flush()
+    p = Prompt(tenant_id="t", template_sha256="sha", text="Always verify the caller.")
+    db.add(p)
+    db.flush()
+    db.add(AgentGuardrail(agent_id=agent.id, prompt_id=p.id, version=1, active=True))
+    db.commit()
+
+    call = _call(db)
+    call.agent_id = agent.id
+    db.commit()
+
+    seen = {}
+    violation = JudgeOutput(
+        sentiment="neutral", objective_achieved="partial", answered_by="human",
+        primary_language="en", secondary_languages=[], script_adherence="partial",
+        guardrail_violation=True, guardrail_violation_points=["Skipped caller verification"],
+    )
+
+    def capture(resolved, messages):
+        seen["messages"] = messages
+        return violation
+
+    monkeypatch.setattr(sys.modules["voiceobs.judge.run"], "call_model", capture)
+    j = judge_call(db, call)
+
+    assert "GUARDRAILS:\nAlways verify the caller." in seen["messages"][1]["content"]
+    assert j.guardrail_violation is True
+    assert j.guardrail_violation_points == ["Skipped caller verification"]
+
+
 def test_model_failure_recorded_not_raised(db, monkeypatch):
     _config(monkeypatch)
     call = _call(db)

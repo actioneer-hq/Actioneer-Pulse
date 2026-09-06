@@ -12,12 +12,16 @@ from voiceobs.llm.roles import LLMRole
 # The post-call judge. `{schema}` is filled with the JudgeOutput schema at send time.
 POST_CALL_ANALYSIS = (
     "You are a call-quality judge for outbound voice-agent calls. You are given the "
-    "agent's script and the call transcript. Return ONLY a JSON object matching this "
-    "schema, no prose:\n"
+    "agent's script, its guardrails, and the call transcript. Return ONLY a JSON object "
+    "matching this schema, no prose:\n"
     "{schema}\n\n"
     "Rules:\n"
     "- primary_language is the most-spoken language; secondary_languages lists the rest.\n"
     "- callback_time is filled only if callback_requested and a time is stated, else null.\n"
+    "- guardrail_violation is true only if the call breaks one or more of the GUARDRAILS; "
+    "then guardrail_violation_points lists each broken guardrail as a short, specific phrase. "
+    "If no guardrails were broken (or none were provided), guardrail_violation is false and "
+    "guardrail_violation_points is [].\n"
     "- summary is at most 30 words, and only when a human or voicemail actually spoke; "
     "otherwise null.\n"
     "- Use only the allowed enum values."

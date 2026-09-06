@@ -25,6 +25,18 @@ def test_override_with_stray_braces_does_not_crash():
     assert "{json}" in msgs[0]["content"]  # left intact, only {schema} replaced
 
 
+def test_guardrails_included_in_user_message():
+    msgs = build_messages("the script", {"text": "hi"}, guardrails="Always verify the caller.")
+    user = msgs[1]["content"]
+    assert "GUARDRAILS:\nAlways verify the caller." in user
+    assert "SCRIPT:\nthe script" in user
+
+
+def test_guardrails_absent_shows_none():
+    user = build_messages("s", {"text": "hi"})[1]["content"]
+    assert "GUARDRAILS:\n(none provided)" in user
+
+
 def test_default_prompt_registry_has_all_roles():
     for role in LLMRole:
         assert default_prompt(role)

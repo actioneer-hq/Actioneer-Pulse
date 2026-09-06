@@ -73,4 +73,14 @@ class JudgeOutput(BaseModel):
     escalation_requested: bool = False
     callback_requested: bool = False
     callback_time: str | None = None  # only if callback_requested and extractable
+    guardrail_violation: bool = False  # did the call break any of the agent's guardrails
+    # which guardrails were broken (short, specific); empty unless guardrail_violation
+    guardrail_violation_points: list[str] = Field(default_factory=list)
     summary: str | None = None  # <= ~30 words, only when someone spoke
+
+    @model_validator(mode="after")
+    def _drop_points_without_violation(self):
+        """Keep the conditional key clean: no violation → no points, whatever the model returned."""
+        if not self.guardrail_violation:
+            self.guardrail_violation_points = []
+        return self

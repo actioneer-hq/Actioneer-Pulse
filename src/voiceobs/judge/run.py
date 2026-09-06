@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from voiceobs.config import resolve_llm
-from voiceobs.db.models import Call, Judgment, Prompt
+from voiceobs.db.models import AgentGuardrail, Call, Judgment, Prompt
 from voiceobs.judge.client import call_model
 from voiceobs.judge.disposition import is_connected, programmatic_disposition
 from voiceobs.judge.prompt import build_messages
@@ -21,7 +21,8 @@ log = logging.getLogger(__name__)
 _LLM_FIELDS = (
     "sentiment", "objective_achieved", "answered_by", "primary_language",
     "secondary_languages", "script_adherence", "escalation_requested",
-    "callback_requested", "callback_time", "summary",
+    "callback_requested", "callback_time", "guardrail_violation",
+    "guardrail_violation_points", "summary",
 )
 
 
@@ -45,7 +46,8 @@ def judge_call(db: Session, call: Call) -> Judgment:
     j.model = resolved.model
     try:
         out = call_model(resolved, build_messages(
-            _script(db, call), transcript, prompt=resolved.prompt,
+            _script(db, call), transcript, guardrails=_guardrails(db, call),
+            prompt=resolved.prompt,
         ))
         for f in _LLM_FIELDS:
             setattr(j, f, getattr(out, f))
@@ -74,4 +76,17 @@ def _script(db: Session, call: Call) -> str | None:
     if call.prompt_id is None:
         return None
     p = db.get(Prompt, call.prompt_id)
+    return p.text if p else None
+
+
+def _guardrails(db: Session, call: Call) -> str | None:
+    """The agent's active guardrails text, or None. Unlike the script, guardrails aren't pinned
+    per call — the judge always evaluates against the agent's current active version."""
+    if call.agent_id is None:
+        return None
+    g = db.scalar(select(AgentGuardrail).where(
+        AgentGuardrail.agent_id == call.agent_id, AgentGuardrail.active.is_(True)))
+    if g is None:
+        return None
+    p = db.get(Prompt, g.prompt_id)
     return p.text if p else None
