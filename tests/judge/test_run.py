@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from voiceobs.db import Base
-from voiceobs.db.models import Call, LLMConfig, Turn
+from voiceobs.db.models import Call, Turn
 from voiceobs.judge import judge_call
 from voiceobs.judge.disposition import programmatic_disposition
 from voiceobs.judge.schema import JudgeOutput
@@ -39,9 +39,9 @@ def _call(db, *, spoke=True, duration=30.0) -> Call:
     return c
 
 
-def _config(db) -> None:
-    db.add(LLMConfig(tenant_id="t", base_url="https://m/v1", model="gpt-x", enabled=True))
-    db.commit()
+def _config(monkeypatch) -> None:
+    """Configure the post-call-analysis role by setting its API key (config.resolve_llm)."""
+    monkeypatch.setenv("VOICEOBS_POST_CALL_API_KEY", "sk-test")
 
 
 _FAKE = JudgeOutput(sentiment="positive", objective_achieved="achieved",
@@ -55,7 +55,7 @@ def test_disposition_connected_vs_no_answer(db):
 
 
 def test_connected_call_is_judged(db, monkeypatch):
-    _config(db)
+    _config(monkeypatch)
     call = _call(db)
     monkeypatch.setattr(sys.modules["voiceobs.judge.run"], "call_model", lambda c, m: _FAKE)
     j = judge_call(db, call)
@@ -67,7 +67,7 @@ def test_connected_call_is_judged(db, monkeypatch):
 
 
 def test_not_connected_skips_llm(db, monkeypatch):
-    _config(db)
+    _config(monkeypatch)
     call = _call(db, spoke=False, duration=0.0)
     called = {"n": 0}
     monkeypatch.setattr(sys.modules["voiceobs.judge.run"], "call_model",
@@ -80,13 +80,13 @@ def test_not_connected_skips_llm(db, monkeypatch):
 
 
 def test_no_config_skips(db, monkeypatch):
-    call = _call(db)  # connected but no LLMConfig
+    call = _call(db)  # connected but the role has no API key configured
     monkeypatch.setattr(sys.modules["voiceobs.judge.run"], "call_model", lambda c, m: _FAKE)
     assert judge_call(db, call).status == "skipped"
 
 
 def test_model_failure_recorded_not_raised(db, monkeypatch):
-    _config(db)
+    _config(monkeypatch)
     call = _call(db)
 
     def boom(c, m):

@@ -8,7 +8,8 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from voiceobs.db.models import Call, Judgment, LLMConfig, Prompt
+from voiceobs.config import resolve_llm
+from voiceobs.db.models import Call, Judgment, Prompt
 from voiceobs.judge.client import call_model
 from voiceobs.judge.disposition import is_connected, programmatic_disposition
 from voiceobs.judge.prompt import build_messages
@@ -35,19 +36,16 @@ def judge_call(db: Session, call: Call) -> Judgment:
         j.status, j.model = "skipped", None
         return j
 
-    config = db.scalar(select(LLMConfig).where(
-        LLMConfig.tenant_id == call.tenant_id,
-        LLMConfig.role == LLMRole.POST_CALL_ANALYSIS,
-    ))
-    if config is None or not config.enabled:
+    resolved = resolve_llm(LLMRole.POST_CALL_ANALYSIS)
+    if resolved is None:  # role not configured (no API key set) → skip the LLM pass
         _clear_llm(j)
         j.status, j.model = "skipped", None
         return j
 
-    j.model = config.model
+    j.model = resolved.model
     try:
-        out = call_model(config, build_messages(
-            _script(db, call), transcript, prompt=config.prompt,
+        out = call_model(resolved, build_messages(
+            _script(db, call), transcript, prompt=resolved.prompt,
         ))
         for f in _LLM_FIELDS:
             setattr(j, f, getattr(out, f))

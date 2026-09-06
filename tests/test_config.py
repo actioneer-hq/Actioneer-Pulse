@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from voiceobs.config import get_config
+from voiceobs.config import LLM_ROLES, get_config, resolve_llm
+from voiceobs.llm import LLMRole
 
 
 def test_defaults(monkeypatch):
@@ -38,3 +39,18 @@ def test_not_dev_open_on_postgres(monkeypatch):
     monkeypatch.delenv("VOICEOBS_DEV_OPEN", raising=False)
     monkeypatch.setenv("VOICEOBS_DATABASE_URL", "postgresql://x/y")
     assert get_config().is_dev_open is False
+
+
+def test_resolve_llm_none_without_key(monkeypatch):
+    monkeypatch.delenv("VOICEOBS_POST_CALL_API_KEY", raising=False)
+    assert resolve_llm(LLMRole.POST_CALL_ANALYSIS) is None
+
+
+def test_resolve_llm_configured_from_env_and_table(monkeypatch):
+    monkeypatch.setenv("VOICEOBS_POST_CALL_API_KEY", "sk-abc")
+    r = resolve_llm(LLMRole.POST_CALL_ANALYSIS)
+    assert r is not None
+    assert r.api_key == "sk-abc"                          # from env
+    assert r.provider == LLM_ROLES[LLMRole.POST_CALL_ANALYSIS].provider  # from config table
+    assert r.model == LLM_ROLES[LLMRole.POST_CALL_ANALYSIS].model
+    assert r.prompt  # committed default prompt for the role

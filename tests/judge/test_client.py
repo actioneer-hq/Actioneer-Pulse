@@ -1,22 +1,17 @@
-"""BYO model client — parses/validates a chat-completions reply; retries once."""
+"""Judge client over the any-llm gateway — native structured output, with a JSON-content fallback."""
 
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
-import httpx
 import pytest
 
-from voiceobs.db.models import LLMConfig
+from voiceobs.config import ResolvedLLM
+from voiceobs.judge import client as judge_client
 from voiceobs.judge.client import call_model
-
-
-def _reply(content: str) -> httpx.Response:
-    return httpx.Response(
-        200, json={"choices": [{"message": {"content": content}}]},
-        request=httpx.Request("POST", "https://m/v1/chat/completions"),
-    )
-
+from voiceobs.judge.schema import JudgeOutput
+from voiceobs.llm import LLMRole
 
 _GOOD = json.dumps({
     "sentiment": "neutral", "objective_achieved": "partial", "answered_by": "human",
@@ -24,19 +19,35 @@ _GOOD = json.dumps({
 })
 
 
-def _cfg() -> LLMConfig:
-    return LLMConfig(tenant_id="t", base_url="https://m/v1", model="gpt-x",
-                       api_key="sk-1", params={"temperature": 0})
+def _resolved() -> ResolvedLLM:
+    return ResolvedLLM(role=LLMRole.POST_CALL_ANALYSIS, provider="anthropic", model="m",
+                       api_key="sk", base_url=None, max_tokens=512, prompt="p")
 
 
-def test_valid_reply_parsed(monkeypatch):
-    monkeypatch.setattr(httpx, "post", lambda *a, **k: _reply(_GOOD))
-    out = call_model(_cfg(), [{"role": "user", "content": "x"}])
+def _resp(message):
+    return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+
+def test_native_parsed_structured_output(monkeypatch):
+    parsed = JudgeOutput(sentiment="neutral", objective_achieved="partial", answered_by="human",
+                         primary_language="en", secondary_languages=[], script_adherence="partial")
+    msg = SimpleNamespace(parsed=parsed, content=None)
+    monkeypatch.setattr(judge_client.gateway, "complete", lambda *a, **k: _resp(msg))
+    out = call_model(_resolved(), [{"role": "user", "content": "x"}])
     assert out.sentiment == "neutral"
     assert out.answered_by == "human"
 
 
-def test_malformed_then_fails(monkeypatch):
-    monkeypatch.setattr(httpx, "post", lambda *a, **k: _reply("not json"))
-    with pytest.raises(RuntimeError):
-        call_model(_cfg(), [{"role": "user", "content": "x"}])
+def test_json_content_fallback(monkeypatch):
+    # provider returned JSON text without a parsed object → we validate the content
+    msg = SimpleNamespace(parsed=None, content=_GOOD)
+    monkeypatch.setattr(judge_client.gateway, "complete", lambda *a, **k: _resp(msg))
+    out = call_model(_resolved(), [{"role": "user", "content": "x"}])
+    assert out.objective_achieved == "partial"
+
+
+def test_malformed_content_raises(monkeypatch):
+    msg = SimpleNamespace(parsed=None, content="not json")
+    monkeypatch.setattr(judge_client.gateway, "complete", lambda *a, **k: _resp(msg))
+    with pytest.raises(ValueError):  # pydantic ValidationError subclasses ValueError
+        call_model(_resolved(), [{"role": "user", "content": "x"}])

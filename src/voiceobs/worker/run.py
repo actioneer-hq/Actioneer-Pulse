@@ -13,11 +13,10 @@ from sqlalchemy.orm import Session
 
 from voiceobs.config import get_config
 from voiceobs.core.config import METRIC_VERSION
-from voiceobs.db.models import Call, LLMConfig
+from voiceobs.db.models import Call
 from voiceobs.db.session import get_session
 from voiceobs.frameworks import UnsupportedSchema
 from voiceobs.judge import judge_call
-from voiceobs.llm import LLMRole
 from voiceobs.worker.process import process
 
 log = logging.getLogger(__name__)
@@ -57,15 +56,9 @@ def claim(db: Session, *, batch: int = BATCH, grace_s: float = GRACE_S) -> list[
 
 
 def _maybe_judge(db: Session, call: Call) -> None:
-    """Judge the call when the tenant has a post-call-analysis LLM configured. judge_call never
-    raises — a model failure is recorded, not propagated."""
-    cfg = db.scalar(select(LLMConfig).where(
-        LLMConfig.tenant_id == call.tenant_id,
-        LLMConfig.role == LLMRole.POST_CALL_ANALYSIS,
-        LLMConfig.enabled.is_(True),
-    ))
-    if cfg is not None:
-        judge_call(db, call)
+    """Judge every call: judge_call self-gates on whether the post-call-analysis role is
+    configured (resolve_llm) and never raises — a model failure is recorded, not propagated."""
+    judge_call(db, call)
 
 
 def tick(db: Session, **kw) -> int:

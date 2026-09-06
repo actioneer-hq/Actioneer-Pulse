@@ -19,24 +19,15 @@ def test_conversation_crud_and_scoping(client, login_as):
     assert client.delete(f"/v1/chat/conversations/{cid}").json()["status"] == "ok"
 
 
-def _seed_global_llm(db_sessionmaker, org="default"):
-    from voiceobs.db.models import LLMConfig
-    from voiceobs.llm import LLMRole
-    with db_sessionmaker() as db:
-        db.add(LLMConfig(tenant_id=org, role=LLMRole.GLOBAL_CHAT, base_url="https://x/v1",
-                         model="m", api_key="k", enabled=True))
-        db.commit()
-
-
 def test_stream_emits_events_and_persists(client, login_as, db_sessionmaker, monkeypatch):
     login_as("default")
-    _seed_global_llm(db_sessionmaker)
+    monkeypatch.setenv("VOICEOBS_GLOBAL_CHAT_API_KEY", "k")  # activates the global_chat role
     cid = client.post("/v1/chat/conversations").json()["id"]
 
     # mock the agent so no network: one tool round then a two-token answer
     import voiceobs.chat as chatpkg
 
-    def fake_run(db, mem, cfg, history, text):
+    def fake_run(db, mem, resolved, history, text):
         yield {"type": "tool_call", "name": "search_calls", "args": {"limit": 5}}
         yield {"type": "tool_result", "name": "search_calls", "summary": "3 calls"}
         yield {"type": "token", "text": "You have "}
