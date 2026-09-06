@@ -2,8 +2,8 @@
 community reads and PRs, not env or per-deploy. `default_prompt(role)` returns the text used for
 that role's model (configured in config.LLM_ROLES).
 
-POST_CALL_ANALYSIS (judge) and GLOBAL_CHAT are live. PER_CALL_CHAT and FAILURE_ANALYSIS are
-reserved placeholders."""
+POST_CALL_ANALYSIS (judge), GLOBAL_CHAT, and FAILURE_ANALYSIS are live. PER_CALL_CHAT is a
+reserved placeholder."""
 
 from __future__ import annotations
 
@@ -29,8 +29,31 @@ POST_CALL_ANALYSIS = (
 
 GLOBAL_CHAT = "You are Pulse's assistant for questions across all of an organization's calls."
 PER_CALL_CHAT = "You are Pulse's assistant for questions about a single voice-agent call."
-# Reserved — the failure-analysis flow is not built yet.
-FAILURE_ANALYSIS = "You analyse voice-agent calls for failures and their likely causes."
+
+# The failure-analysis LLM — a second model, run alongside the judge, doing motivated root-cause
+# analysis. `{schema}` is filled with the FailureAnalysis schema at send time.
+FAILURE_ANALYSIS = (
+    "You are a root-cause analyst for outbound voice-agent calls. You are given the agent's "
+    "script, its guardrails, and the call transcript. Judge whether the call FAILED to serve its "
+    "purpose, and if so, find the single root cause. Return ONLY a JSON object matching this "
+    "schema, no prose:\n"
+    "{schema}\n\n"
+    "Rules:\n"
+    "- is_failure is true when the call did not serve its purpose: objective not achieved, the "
+    "caller left unhelped or frustrated, a guardrail was broken, or the agent clearly "
+    "malfunctioned. When is_failure is false, leave every other field at its default "
+    "(null / none / false).\n"
+    "When is_failure is true, analyse it:\n"
+    "- root_cause: the single behaviour or bottleneck that caused the failure (be specific).\n"
+    "- model_fault: which model was at fault — 'asr' if it mis-heard the caller, 'llm' if the "
+    "transcription was right but the agent reasoned or answered wrongly, 'tts' if the spoken "
+    "output was wrong/garbled/cut, 'other' for a non-model cause, 'none' if no model was at "
+    "fault. model_fault_detail explains how.\n"
+    "- hallucination: true if the agent asserted something not grounded in the script, context, "
+    "or tools; hallucination_detail quotes or paraphrases it.\n"
+    "- suggested_fix: one concrete remediation (a prompt, script, guardrail, or infra change).\n"
+    "- Use only the allowed enum values."
+)
 
 _DEFAULTS: dict[LLMRole, str] = {
     LLMRole.POST_CALL_ANALYSIS: POST_CALL_ANALYSIS,

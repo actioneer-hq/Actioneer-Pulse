@@ -47,6 +47,17 @@ def _dt(ns: int) -> datetime:
     return datetime.fromtimestamp(ns / 1e9, tz=UTC)
 
 
+def _span_errored(s: dict, raw: dict, events: list) -> bool:
+    """Did this span fail? OTel marks it via span status ERROR, an `error.type` attribute
+    (LiveKit sets error.type="tool_error"), or an `exception` span event."""
+    code = str((s.get("status") or {}).get("code") or "").upper()
+    if "ERROR" in code:
+        return True
+    if raw.get("error.type") is not None:
+        return True
+    return any(name == "exception" for name, _, _ in events)
+
+
 def _propagate_turn_ids(spans: list[Span]) -> list[Span]:
     """Attach each span to its turn. Some producers stamp turn.id on every span; others
     (LiveKit) instead nest a turn's STT/LLM/TTS spans UNDER the turn span, so a child's turn
@@ -154,8 +165,10 @@ class OTLPAdapter:
 
     def _span(self, s: dict, t0: int) -> Span:
         stage = self.stages.get(s["name"], Stage.UNKNOWN)
-        attrs, content = self._classify(attrs_to_dict(s.get("attributes")), stage)
+        raw = attrs_to_dict(s.get("attributes"))
+        attrs, content = self._classify(raw, stage)
         end = span_end_ns(s)
+        events = span_events(s)
         return Span(
             span_id=s["spanId"],
             parent_span_id=s.get("parentSpanId") or None,
@@ -164,9 +177,10 @@ class OTLPAdapter:
             t_start=round((span_start_ns(s) - t0) / 1e9, 6),
             t_end=round((end - t0) / 1e9, 6) if end is not None else None,
             turn_id=attrs.get("turn.id"),
+            error=_span_errored(s, raw, events),
             attrs=attrs,
             content=content,
-            events=[self._event(e, t0) for e in span_events(s)],
+            events=[self._event(e, t0) for e in events],
         )
 
     def _event(self, ev: tuple[str, int, dict], t0: int) -> SpanEvent:

@@ -26,7 +26,7 @@ from sqlalchemy.sql import Select
 from voiceobs.api.deps import session_dep
 from voiceobs.auth import current_membership, visible_agent_ids
 from voiceobs.core.audio.metrics import percentile
-from voiceobs.db.models import Call, Judgment, Membership, Turn
+from voiceobs.db.models import Call, Event, Judgment, Membership, Turn
 from voiceobs.db.session import get_session
 
 router = APIRouter(prefix="/v1/boards")
@@ -157,6 +157,26 @@ def build_snapshot(
     p50 = [percentile(b, 50) for b in lat_buckets]
     p95 = [percentile(b, 95) for b in lat_buckets]
 
+    # --- tool calls: count + errors (tool spans persist as Event type="tool") ---
+    tool_rows = db.execute(
+        _scope(
+            select(Call.started_at, Call.created_at, Event.error)
+            .join(Event, Event.call_id == Call.id)
+            .where(Event.kind == "span", Event.type == "tool"),
+            db, mem, agent_id, environment,
+        ).where(in_window)
+    ).all()
+    tool_calls = [0] * n
+    tool_err = [0] * n
+    for started, created, err in tool_rows:
+        k = idx.get(_key(_call_time(started, created), bucket_s))
+        if k is None:
+            continue
+        tool_calls[k] += 1
+        if err:
+            tool_err[k] += 1
+    tool_rate = [round(tool_err[i] / tool_calls[i], 4) if tool_calls[i] else 0.0 for i in range(n)]
+
     rate = [round(failed[i] / total[i], 4) if total[i] else 0.0 for i in range(n)]
     gr_rate = [round(gr_viol[i] / gr_judged[i], 4) if gr_judged[i] else 0.0 for i in range(n)]
     all_lat = [v for b in lat_buckets for v in b]
@@ -170,6 +190,7 @@ def build_snapshot(
         "failure": {"failed": failed, "total": total, "rate": rate},
         "latency": {"p50": p50, "p95": p95},
         "guardrail": {"violations": gr_viol, "judged": gr_judged, "rate": gr_rate},
+        "tools": {"calls": tool_calls, "errors": tool_err, "rate": tool_rate},
         "cost": cost,
         "disposition": disposition,
         "totals": {
@@ -179,6 +200,8 @@ def build_snapshot(
             "p95_ms": percentile(all_lat, 95),
             "cost_total": round(sum(cost["total"]), 4),
             "violation_rate": round(sum(gr_viol) / sum(gr_judged), 4) if sum(gr_judged) else 0.0,
+            "tool_calls": sum(tool_calls),
+            "tool_error_rate": round(sum(tool_err) / sum(tool_calls), 4) if sum(tool_calls) else 0.0,
         },
     }
 

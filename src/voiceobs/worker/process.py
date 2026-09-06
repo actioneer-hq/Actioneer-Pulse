@@ -332,6 +332,7 @@ def _event_rows(trace: Trace, call: Call):
             parent_span_id=s.parent_span_id, turn_id=s.turn_id, t_offset_s=s.t_start,
             kind="span", type=s.stage.value, name=s.name, attrs=s.attrs,
             duration_s=None if s.t_end is None else round(s.t_end - s.t_start, 6),
+            error=s.error or None,
             content_text=s.content.get(kind) if kind else None, content_kind=kind,
         )
         for e in s.events:

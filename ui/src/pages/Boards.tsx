@@ -29,7 +29,6 @@ export default function Boards() {
   const { activeOrg } = useAuth();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentId, setAgentId] = useState("");
-  const [environment, setEnvironment] = useState("");
   const [range, setRange] = useState("7d");
   const [snap, setSnap] = useState<BoardSnapshot | null>(null);
   const [live, setLive] = useState(false);
@@ -43,11 +42,11 @@ export default function Boards() {
   useEffect(() => {
     setError(null);
     setLive(false);
-    const filters = { agent_id: agentId || undefined, environment: environment || undefined, range };
+    const filters = { agent_id: agentId || undefined, range };
     getBoardsSummary(filters).then(setSnap).catch((e: Error) => setError(e.message));
     const stop = streamBoards(filters, (s) => { setSnap(s); setLive(true); }, () => setLive(false));
     return stop;
-  }, [activeOrg, agentId, environment, range]);
+  }, [activeOrg, agentId, range]);
 
   const rows = useMemo(() => {
     if (!snap) return [];
@@ -59,6 +58,8 @@ export default function Boards() {
       p50: snap.latency.p50[i],
       p95: snap.latency.p95[i],
       grRate: +(snap.guardrail.rate[i] * 100).toFixed(1),
+      toolCalls: snap.tools.calls[i],
+      toolErrors: snap.tools.errors[i],
       cost: snap.cost.total[i],
     }));
   }, [snap]);
@@ -77,6 +78,7 @@ export default function Boards() {
     ["p50 latency", t ? ms(t.p50_ms) : "—"],
     ["p95 latency", t ? ms(t.p95_ms) : "—"],
     ["Guardrail violations", t ? rateTile(t.violation_rate) : "—"],
+    ["Tool-call errors", t ? rateTile(t.tool_error_rate) : "—", t ? `${t.tool_calls} calls` : undefined],
     ["Cost", t ? money(t.cost_total) : "—", "sum over range"],
   ];
 
@@ -98,17 +100,9 @@ export default function Boards() {
               <button key={k} className={range === k ? "on" : undefined} onClick={() => setRange(k)}>{l}</button>
             ))}
           </div>
-          {agents.length > 0 && (
-            <select className="agent-filter" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
-              <option value="">All agents</option>
-              {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          )}
-          <select className="agent-filter" value={environment} onChange={(e) => setEnvironment(e.target.value)}>
-            <option value="">All environments</option>
-            <option value="prod">prod</option>
-            <option value="staging">staging</option>
-            <option value="dev">dev</option>
+          <select className="agent-filter" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+            <option value="">All agents</option>
+            {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
           </select>
           <span className="count">{error ?? (snap ? `${snap.totals.calls} calls` : "loading…")}</span>
         </div>
@@ -125,6 +119,11 @@ export default function Boards() {
           <DonutCard title="Disposition mix" data={dispo} />
           <LineCard title="Guardrail-violation rate" data={rows} fmtY={pctFmt}
             series={[{ key: "grRate", label: "Violation %", color: "var(--chart-3)" }]} />
+          <LineCard title="Tool calls & errors" data={rows}
+            series={[
+              { key: "toolCalls", label: "Tool calls", color: "var(--chart-1)" },
+              { key: "toolErrors", label: "Errors", color: "var(--unknown)" },
+            ]} />
           <AreaCard title="Cost" data={rows} fmtY={money}
             series={[{ key: "cost", label: "Cost", color: "var(--chart-2)" }]} />
         </div>

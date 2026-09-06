@@ -33,3 +33,4 @@ def test_defaults_no_violation():
     out = JudgeOutput.model_validate(_BASE)
     assert out.guardrail_violation is False
     assert out.guardrail_violation_points == []
+

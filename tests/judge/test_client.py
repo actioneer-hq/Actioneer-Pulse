@@ -46,8 +46,29 @@ def test_json_content_fallback(monkeypatch):
     assert out.objective_achieved == "partial"
 
 
-def test_malformed_content_raises(monkeypatch):
-    msg = SimpleNamespace(parsed=None, content="not json")
-    monkeypatch.setattr(judge_client.gateway, "complete", lambda *a, **k: _resp(msg))
-    with pytest.raises(ValueError):  # pydantic ValidationError subclasses ValueError
+def test_malformed_content_raises_after_retries(monkeypatch):
+    calls = {"n": 0}
+
+    def fake(*a, **k):
+        calls["n"] += 1
+        return _resp(SimpleNamespace(parsed=None, content="not json"))
+
+    monkeypatch.setattr(judge_client.gateway, "complete", fake)
+    with pytest.raises(RuntimeError):  # surfaced after all attempts exhausted
         call_model(_resolved(), [{"role": "user", "content": "x"}])
+    assert calls["n"] == 3  # retried up to 3 attempts
+
+
+def test_retries_then_succeeds(monkeypatch):
+    calls = {"n": 0}
+
+    def flaky(*a, **k):
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise RuntimeError("transient")
+        return _resp(SimpleNamespace(parsed=None, content=_GOOD))
+
+    monkeypatch.setattr(judge_client.gateway, "complete", flaky)
+    out = call_model(_resolved(), [{"role": "user", "content": "x"}])
+    assert out.objective_achieved == "partial"
+    assert calls["n"] == 2  # first attempt failed, second succeeded

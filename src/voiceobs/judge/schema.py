@@ -1,5 +1,9 @@
 """The structured output the judge LLM must return. Fixed enums keep it queryable;
-we validate the model's JSON against this and repair/reject anything off-shape."""
+we validate the model's JSON against this and repair/reject anything off-shape.
+
+Kept deliberately small so provider-native structured output (response_format) accepts it —
+the failure-analysis levers live in a separate model (failure_schema.FailureAnalysis) run by a
+second LLM, so this schema never grows past what strict structured output allows."""
 
 from __future__ import annotations
 
@@ -44,7 +48,7 @@ _ENUM_FALLBACK = {
 
 
 class JudgeOutput(BaseModel):
-    """What the LLM returns (only produced for connected calls)."""
+    """What the judge LLM returns (only produced for connected calls)."""
 
     @model_validator(mode="before")
     @classmethod

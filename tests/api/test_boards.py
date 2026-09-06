@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 
-from voiceobs.db.models import Call, Judgment, Turn
+from voiceobs.db.models import Call, Event, Judgment, Turn
 
 _ids = iter(range(10000))
 
@@ -66,6 +66,22 @@ def test_guardrail_rate(client, login_as, db_sessionmaker):
     assert sum(d["guardrail"]["violations"]) == 1
     assert sum(d["guardrail"]["judged"]) == 2
     assert d["totals"]["violation_rate"] == 0.5
+
+
+def test_tool_calls_and_errors(client, login_as, db_sessionmaker):
+    login_as("default")
+    with db_sessionmaker() as db:
+        c = _call(db, "default")
+        # three tool spans on the call, one errored
+        for i, err in enumerate([None, None, True]):
+            db.add(Event(call_id=c.id, tenant_id="default", kind="span", type="tool",
+                         name="function_tool", t_offset_s=float(i), error=err))
+        db.commit()
+    d = client.get("/v1/boards/summary?range=24h").json()
+    assert sum(d["tools"]["calls"]) == 3
+    assert sum(d["tools"]["errors"]) == 1
+    assert d["totals"]["tool_calls"] == 3
+    assert d["totals"]["tool_error_rate"] == round(1 / 3, 4)
 
 
 def test_rbac_scoped_to_org(client, login_as, db_sessionmaker):

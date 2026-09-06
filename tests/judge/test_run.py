@@ -133,3 +133,31 @@ def test_model_failure_recorded_not_raised(db, monkeypatch):
     assert j.status == "failed"
     assert "model down" in j.error
     assert j.sentiment is None
+
+
+def test_failure_analysis_runs_alongside_judge(db, monkeypatch):
+    from voiceobs.judge.failure_schema import FailureAnalysis
+
+    _config(monkeypatch)  # post-call-analysis role
+    monkeypatch.setenv("VOICEOBS_FAILURE_ANALYSIS_API_KEY", "sk-fa")  # failure role
+    call = _call(db)
+    monkeypatch.setattr(sys.modules["voiceobs.judge.run"], "call_model", lambda r, m: _FAKE)
+    fa = FailureAnalysis(is_failure=True, root_cause="Agent ignored the caller's answer.",
+                         model_fault="llm", model_fault_detail="ASR fine; LLM looped.",
+                         suggested_fix="Add a max-reask guardrail.")
+    monkeypatch.setattr(sys.modules["voiceobs.judge.run"], "analyze_failure", lambda r, m: fa)
+    j = judge_call(db, call)
+    assert j.status == "ok"          # base judge still populated
+    assert j.is_failure is True      # failure-analysis pass populated its columns
+    assert j.model_fault == "llm"
+    assert j.suggested_fix == "Add a max-reask guardrail."
+
+
+def test_failure_analysis_skipped_when_unconfigured(db, monkeypatch):
+    _config(monkeypatch)
+    monkeypatch.delenv("VOICEOBS_FAILURE_ANALYSIS_API_KEY", raising=False)
+    call = _call(db)
+    monkeypatch.setattr(sys.modules["voiceobs.judge.run"], "call_model", lambda r, m: _FAKE)
+    j = judge_call(db, call)
+    assert j.status == "ok"
+    assert j.is_failure is None      # failure columns left null when the role isn't configured

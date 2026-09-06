@@ -145,6 +145,13 @@ export type Judgment = {
   callback_time: string | null;
   guardrail_violation: boolean | null;
   guardrail_violation_points: string[] | null;
+  is_failure: boolean | null;
+  root_cause: string | null;
+  model_fault: string | null;  // none|asr|llm|tts|other
+  model_fault_detail: string | null;
+  hallucination: boolean | null;
+  hallucination_detail: string | null;
+  suggested_fix: string | null;
   summary: string | null;
 };
 
@@ -404,11 +411,12 @@ export type BoardSnapshot = {
   failure: { failed: number[]; total: number[]; rate: number[] };
   latency: { p50: (number | null)[]; p95: (number | null)[] };
   guardrail: { violations: number[]; judged: number[]; rate: number[] };
+  tools: { calls: number[]; errors: number[]; rate: number[] };
   cost: { total: number[]; llm: number[]; stt: number[]; tts: number[] };
   disposition: Record<string, number>;
   totals: {
     calls: number; failure_rate: number; p50_ms: number | null; p95_ms: number | null;
-    cost_total: number; violation_rate: number;
+    cost_total: number; violation_rate: number; tool_calls: number; tool_error_rate: number;
   };
 };
 

@@ -55,6 +55,7 @@ class Span(Frozen):
     t_start: float
     t_end: float | None  # None = never closed (crash mid-turn)
     turn_id: str | None  # nullable by design — the null is discard_rate
+    error: bool = False  # OTel span status ERROR / error.type attr / exception event
     attrs: dict = Field(default_factory=dict)  # shape only
     content: dict[str, Any] = Field(default_factory=dict)  # voice.content.* suffix -> text or list
     events: list[SpanEvent] = Field(default_factory=list)
