@@ -190,7 +190,10 @@ def _persist(
     # constraints on turn/metric would reject the second run otherwise.
     for model in (DBTurn, Metric, Event, Utterance):
         db.execute(delete(model).where(model.call_id == call.id))
-    db.execute(delete(Media).where(Media.call_id == call.id, Media.kind.like("peaks_%")))
+    db.execute(delete(Media).where(
+        Media.call_id == call.id,
+        Media.kind.like("peaks_%") | Media.kind.like("energy_%"),
+    ))
 
     _apply_header(call, trace.header)
     _rollup(call, trace, analysis)
@@ -212,6 +215,7 @@ def _persist(
     if audio is not None:
         db.add_all(_utterance_rows(audio, call, analysis.metric_version))
         db.add_all(_peaks_rows(audio, call))
+        db.add_all(_energy_rows(audio, call))
 
 
 def _rollup(call: Call, trace: Trace, analysis: Analysis) -> None:
@@ -271,6 +275,15 @@ def _peaks_rows(audio: AudioAnalysis, call: Call):
     return [
         Media(call_id=call.id, tenant_id=call.tenant_id, kind=f"peaks_{channel}", peaks=data)
         for channel, data in audio.peaks.items()
+    ]
+
+
+def _energy_rows(audio: AudioAnalysis, call: Call):
+    """Per-channel dBFS frame series (LE float32) stored in the media blob, like peaks."""
+    return [
+        Media(call_id=call.id, tenant_id=call.tenant_id, kind=f"energy_{channel}", peaks=data)
+        for channel, data in audio.energy.items()
+        if data
     ]
 
 

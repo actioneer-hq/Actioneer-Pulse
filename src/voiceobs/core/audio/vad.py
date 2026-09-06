@@ -14,7 +14,7 @@ HANGOVER_S = 0.20  # merge speech runs separated by <= this (intra-utterance pau
 MIN_UTTERANCE_S = 0.10  # drop blips shorter than this
 
 
-def _frame_rms_dbfs(samples: np.ndarray, frame_len: int) -> np.ndarray:
+def frame_rms_dbfs(samples: np.ndarray, frame_len: int) -> np.ndarray:
     """dBFS per fixed-length frame. Trailing partial frame is dropped."""
     n = samples.size // frame_len
     if n == 0:
@@ -37,7 +37,7 @@ def detect_utterances(
 ) -> list[Utterance]:
     """Contiguous speech regions on one channel as Utterances (seconds from t0)."""
     frame_len = max(1, int(sample_rate * frame_ms / 1000.0))
-    dbfs = _frame_rms_dbfs(samples, frame_len)
+    dbfs = frame_rms_dbfs(samples, frame_len)
     if dbfs.size == 0:
         return []
 

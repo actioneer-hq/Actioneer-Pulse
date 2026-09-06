@@ -43,6 +43,10 @@ def test_audio_produces_utterances_peaks_and_layer1(client, db_sessionmaker, mon
         assert db.scalar(select(func.count()).select_from(Utterance)) > 0
         peaks = db.scalars(select(Media).where(Media.kind.like("peaks_%"))).all()
         assert {m.kind for m in peaks} == {"peaks_caller", "peaks_agent"}
+        # the per-channel dBFS energy profile is persisted (LE float32 blob per channel)
+        energy = db.scalars(select(Media).where(Media.kind.like("energy_%"))).all()
+        assert {m.kind for m in energy} == {"energy_caller", "energy_agent"}
+        assert all(m.peaks and len(m.peaks) % 4 == 0 for m in energy)
         # a Layer-1 metric now exists (it wouldn't without audio)
         cov = db.scalar(select(Metric).where(Metric.name == "capture_coverage"))
         assert cov is not None and cov.value_num is not None
@@ -61,9 +65,16 @@ def test_reprocess_replaces_audio_rows(client, db_sessionmaker, monkeypatch):
         process(db, call)
         db.commit()
         first = db.scalar(select(func.count()).select_from(Utterance))
+        energy_first = db.scalar(
+            select(func.count()).select_from(Media).where(Media.kind.like("energy_%"))
+        )
         process(db, call)
         db.commit()
         assert db.scalar(select(func.count()).select_from(Utterance)) == first
+        assert energy_first == 2  # caller + agent, not doubled on reprocess
+        assert db.scalar(
+            select(func.count()).select_from(Media).where(Media.kind.like("energy_%"))
+        ) == energy_first
 
 
 def test_no_audio_still_spans_only(client, db_sessionmaker):

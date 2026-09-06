@@ -82,6 +82,11 @@ def test_full_analysis_after_worker(client, login_as, db_sessionmaker, monkeypat
     d = client.get("/v1/calls/c1").json()
     assert d["spans"]  # the waterfall tree
     assert set(d["peaks"]) == {"caller", "agent"}  # base64 per channel
+    # dBFS energy profile, base64 LE float32 per channel + framing to decode it
+    assert set(d["energy"]["channels"]) == {"caller", "agent"}
+    assert d["energy"]["encoding"] == "f32le"
+    assert d["energy"]["frame_ms"] == 20.0
+    assert d["energy"]["floor_dbfs"] < 0
     assert d["audio"]["url"] == "https://signed/x.wav"
     assert d["audio"]["sample_rate"] == 8000
     assert d["trust"]["capture_coverage"]  # pulled from the metric

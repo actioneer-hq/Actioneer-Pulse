@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import session_dep
 from voiceobs.auth import current_membership, get_scoped_call, visible_agent_ids
-from voiceobs.core.config import METRIC_DEFS
+from voiceobs.core.audio.energy import SILENCE_FLOOR_DBFS
+from voiceobs.core.config import METRIC_DEFS, MetricConfig
 from voiceobs.db.models import (
     AgentScript,
     AudioDiscrepancy,
@@ -112,6 +113,7 @@ def get_call(
         "trust": _trust(call, metrics),
         "spans": _span_tree(events),
         "peaks": _peaks(media),
+        "energy": _energy(media),
         "audio": _audio(call, media, db),
         "discrepancies": _discrepancies(db, call),
         "judgment": _judgment(db, call),
@@ -231,6 +233,21 @@ def _peaks(media: list[Media]) -> dict[str, str]:
         if m.kind.startswith("peaks_") and m.peaks:
             out[m.kind.removeprefix("peaks_")] = base64.b64encode(m.peaks).decode()
     return out
+
+
+def _energy(media: list[Media]) -> dict:
+    """Per-channel dBFS energy profile (base64 LE float32, one value per frame) plus the
+    framing needed to decode it: t = i * frame_ms / 1000, silence floored to floor_dbfs."""
+    channels: dict[str, str] = {}
+    for m in media:
+        if m.kind.startswith("energy_") and m.peaks:
+            channels[m.kind.removeprefix("energy_")] = base64.b64encode(m.peaks).decode()
+    return {
+        "channels": channels,
+        "frame_ms": MetricConfig().energy_frame_ms,
+        "floor_dbfs": SILENCE_FLOOR_DBFS,
+        "encoding": "f32le",
+    }
 
 
 _JUDGE_FIELDS = (

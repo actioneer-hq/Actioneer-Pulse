@@ -7,6 +7,7 @@ import numpy as np
 
 from voiceobs.core.audio.coverage import channel_coverage, padding_mask
 from voiceobs.core.audio.decode import decode_wav
+from voiceobs.core.audio.energy import channel_energy
 from voiceobs.core.audio.peaks import channel_peaks
 from voiceobs.core.audio.quality import channel_quality
 from voiceobs.core.audio.vad import detect_utterances
@@ -24,6 +25,7 @@ def analyze_audio(audio: bytes, ref: AudioRef, cfg: MetricConfig | None = None) 
 
     utterances: list[Utterance] = []
     peaks: dict[str, bytes] = {}
+    energy: dict[str, bytes] = {}
     coverage: dict[str, float] = {}
     quality: dict[str, dict] = {}
 
@@ -32,12 +34,14 @@ def analyze_audio(audio: bytes, ref: AudioRef, cfg: MetricConfig | None = None) 
             detect_utterances(samples, speaker, sr, cfg.vad_threshold_dbfs)
         )
         peaks[speaker] = channel_peaks(samples, sr, cfg.peaks_per_second)
+        energy[speaker] = channel_energy(samples, sr, cfg.energy_frame_ms)
         coverage[speaker] = channel_coverage(samples)
         quality[speaker] = channel_quality(samples, sr, clip_dbfs=cfg.clip_dbfs)
 
     return AudioAnalysis(
         utterances=sorted(utterances, key=lambda u: (u.t_start, u.channel)),
         peaks=peaks,
+        energy=energy,
         coverage=coverage,
         quality=quality,
     )
