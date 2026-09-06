@@ -84,6 +84,10 @@ class ScriptIn(BaseModel):
     text: str
 
 
+class GuardrailsIn(BaseModel):
+    text: str  # natural-language guardrails (one rule per line)
+
+
 class ChatMessageIn(BaseModel):
     text: str
 
@@ -93,6 +97,7 @@ class AgentIn(BaseModel):
     slug: str | None = None
     audio: AudioConfigIn | None = None  # optional: configure audio at create time
     script: str | None = None  # optional: the script the agent follows (creates v1)
+    guardrails: str | None = None  # optional: the agent's guardrails (creates v1)
 
 
 class AgentPatchIn(BaseModel):

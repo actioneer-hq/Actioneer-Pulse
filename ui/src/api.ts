@@ -295,14 +295,25 @@ export type AgentScript = {
   active?: boolean;
 };
 
-export const createAgent = (name: string, audio?: AudioConfigIn, script?: string) =>
-  req<Agent>("POST", "/v1/agents", { name, audio, script });
+export const createAgent = (
+  name: string, audio?: AudioConfigIn, script?: string, guardrails?: string,
+) => req<Agent>("POST", "/v1/agents", { name, audio, script, guardrails });
 export const getAgentScript = (agentId: string) =>
   req<AgentScript>("GET", `/v1/agents/${agentId}/script`);
 export const setAgentScript = (agentId: string, text: string) =>
   req<AgentScript>("PUT", `/v1/agents/${agentId}/script`, { text });
 export const listAgentScripts = (agentId: string) =>
   req<{ items: AgentScript[] }>("GET", `/v1/agents/${agentId}/scripts`).then((d) => d.items);
+
+// guardrails mirror scripts (versioned NLI rules)
+export type AgentGuardrails = AgentScript;
+export const getAgentGuardrails = (agentId: string) =>
+  req<AgentGuardrails>("GET", `/v1/agents/${agentId}/guardrails`);
+export const setAgentGuardrails = (agentId: string, text: string) =>
+  req<AgentGuardrails>("PUT", `/v1/agents/${agentId}/guardrails`, { text });
+export const listAgentGuardrails = (agentId: string) =>
+  req<{ items: AgentGuardrails[] }>("GET", `/v1/agents/${agentId}/guardrails/versions`)
+    .then((d) => d.items);
 export const getAudioConfig = (agentId: string) =>
   req<AudioConfig>("GET", `/v1/agents/${agentId}/audio-config`);
 export const setAudioConfig = (agentId: string, cfg: AudioConfigIn) =>
