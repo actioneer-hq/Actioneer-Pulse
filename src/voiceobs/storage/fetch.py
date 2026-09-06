@@ -1,13 +1,20 @@
-"""Object store access. S3 only for now; other schemes raise.
+"""Object store access. S3 only; other schemes raise.
 
 Credentials: pass an `S3Creds` to use a specific bucket's access key/secret (per-agent audio
-config); omit it to fall back to boto3's default credential chain (env / IAM role)."""
+config); omit it to fall back to boto3's default credential chain (env / IAM role).
+
+Dev: if `VOICEOBS_DEV_AUDIO_DIR` is set, `fetch_bytes` resolves an ``s3://bucket/key`` from
+``{dir}/key`` on local disk instead of calling S3 — so playback/ingest work without a real
+bucket. The stored URIs stay real ``s3://`` (identical to prod); only the fetch is redirected."""
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlparse
+
+from voiceobs.settings import get_settings
 
 
 @dataclass(frozen=True)
@@ -35,6 +42,13 @@ def _client(creds: S3Creds | None):
 def fetch_bytes(uri: str, creds: S3Creds | None = None) -> bytes:
     if uri.startswith("s3://"):
         bucket, key = _parse_s3(uri)
+        dev_dir = get_settings().dev_audio_dir
+        if dev_dir:  # dev override: serve the object from local disk keyed by the S3 key
+            path = os.path.join(dev_dir, key)
+            if os.path.exists(path):
+                with open(path, "rb") as f:
+                    return f.read()
+            raise FileNotFoundError(f"dev audio not found: {path} (for {uri})")
         return _client(creds).get_object(Bucket=bucket, Key=key)["Body"].read()
     raise NotImplementedError(f"unsupported storage scheme: {uri}")
 

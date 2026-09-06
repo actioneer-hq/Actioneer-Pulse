@@ -6,7 +6,7 @@ from __future__ import annotations
 import base64
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -26,7 +26,7 @@ from voiceobs.db.models import (
     Prompt,
     Turn,
 )
-from voiceobs.storage import presign, resolve_s3_creds
+from voiceobs.storage import fetch_bytes, resolve_s3_creds
 from voiceobs.transcript import resolve
 
 log = logging.getLogger(__name__)
@@ -297,14 +297,38 @@ def _discrepancies(db: Session, call: Call) -> list[dict]:
     } for r in rows]
 
 
+_AUDIO_CT = {".wav": "audio/wav", ".mp3": "audio/mpeg", ".m4a": "audio/mp4",
+             ".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg",
+             ".flac": "audio/flac", ".webm": "audio/webm"}
+
+
 def _audio(call: Call, media: list[Media], db: Session) -> dict | None:
     wav = next((m for m in media if m.kind == "audio" and m.uri), None)
     if wav is None:
         return None
-    try:
-        url = presign(wav.uri, creds=resolve_s3_creds(db, call.agent_id))
-    except Exception as e:  # noqa: BLE001 — a presign failure must not 500 the analysis
-        log.warning("presign failed for %s: %s", call.external_call_id, e)
-        url = None
-    return {"url": url, "sample_rate": wav.sample_rate, "channels": wav.channels,
+    # Same-origin proxy: the browser never touches S3 (no CORS, no browser creds); the API
+    # streams the bytes, RBAC-scoped like every other read.
+    return {"url": f"/v1/calls/{call.external_call_id}/audio",
+            "sample_rate": wav.sample_rate, "channels": wav.channels,
             "duration_s": call.duration_s}
+
+
+@router.get("/calls/{call_id}/audio")
+def get_audio(
+    call: Call = Depends(get_scoped_call), db: Session = Depends(session_dep)
+) -> Response:
+    """Stream the call's audio through the API. Scoped by get_scoped_call (cross-org → 404),
+    so a presigned S3 URL never leaves the server and playback works without S3 CORS/creds."""
+    wav = db.scalar(
+        select(Media).where(Media.call_id == call.id, Media.kind == "audio", Media.uri.isnot(None))
+    )
+    if wav is None:
+        raise HTTPException(status_code=404, detail="no audio for this call")
+    try:
+        data = fetch_bytes(wav.uri, creds=resolve_s3_creds(db, call.agent_id))
+    except Exception as e:  # a fetch failure is a 502, not a 500 crash
+        log.warning("audio fetch failed for %s: %s", call.external_call_id, e)
+        raise HTTPException(status_code=502, detail="audio unavailable") from e
+    ext = "." + wav.uri.rsplit(".", 1)[-1].lower() if "." in wav.uri else ""
+    return Response(content=data, media_type=_AUDIO_CT.get(ext, "application/octet-stream"),
+                    headers={"Accept-Ranges": "none", "Cache-Control": "private, max-age=300"})

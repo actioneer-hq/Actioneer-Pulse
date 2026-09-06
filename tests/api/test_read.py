@@ -68,7 +68,7 @@ def test_full_analysis_after_worker(client, login_as, db_sessionmaker, monkeypat
     monkeypatch.setattr(
         sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri, creds=None: _wav()
     )
-    monkeypatch.setattr("voiceobs.api.read.presign", lambda uri, **kw: "https://signed/x.wav")
+    monkeypatch.setattr("voiceobs.api.read.fetch_bytes", lambda uri, creds=None: _wav())
     client.post("/v1/traces", json=sample_call())
     login_as("vastu-hfc")
     client.post("/v1/calls/c1/artifacts", json={
@@ -87,9 +87,15 @@ def test_full_analysis_after_worker(client, login_as, db_sessionmaker, monkeypat
     assert d["energy"]["encoding"] == "f32le"
     assert d["energy"]["frame_ms"] == 20.0
     assert d["energy"]["floor_dbfs"] < 0
-    assert d["audio"]["url"] == "https://signed/x.wav"
+    assert d["audio"]["url"] == "/v1/calls/c1/audio"  # same-origin proxy, not a signed S3 URL
     assert d["audio"]["sample_rate"] == 8000
     assert d["trust"]["capture_coverage"]  # pulled from the metric
+
+    # the proxy streams the bytes through the API (RBAC-scoped, no S3 in the browser)
+    r = client.get("/v1/calls/c1/audio")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "audio/wav"
+    assert r.content == _wav()
 
 
 def test_detail_404(client, login_as):
