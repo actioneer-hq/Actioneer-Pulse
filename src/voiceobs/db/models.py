@@ -372,28 +372,6 @@ class Transcript(Base):
     created_at: Mapped[datetime] = created_col()
 
 
-class LLMConfig(Base):
-    """Per-tenant BYO LLM — an OpenAI-style endpoint the client owns — one per (tenant, role).
-    `role` selects which agent this configures (post_call_analysis today; global_chat /
-    per_call_chat reserved). `prompt` overrides the committed default for that role when set.
-    api_key stored as-is for V1 (encrypt-at-rest is a follow-up via auth/crypto)."""
-
-    __tablename__ = "llm_config"
-    __table_args__ = (UniqueConstraint("tenant_id", "role", name="uq_llm_config_tenant_role"),)
-
-    id: Mapped[str] = pk()
-    tenant_id: Mapped[str] = tenant_col()
-    role: Mapped[str] = mapped_column(String(32), nullable=False, default="post_call_analysis")
-    base_url: Mapped[str] = mapped_column(String(512), nullable=False)
-    api_key: Mapped[str | None] = mapped_column(String(512))
-    model: Mapped[str] = mapped_column(String(128), nullable=False)
-    prompt: Mapped[str | None] = mapped_column(Text)  # per-tenant override; null = committed default
-    params: Mapped[dict | None] = mapped_column(JSON)  # provider-specific passthrough
-    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = created_col()
-    updated_at: Mapped[datetime] = created_col()
-
-
 class TenantSettings(Base):
     """Per-tenant platform switches. Audio analysis is off by default (OTLP-only); turning
     it on requires access to the client's audio store (S3), pointed at by audio_store_prefix.

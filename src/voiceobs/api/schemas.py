@@ -29,15 +29,6 @@ class TranscriptIn(BaseModel):
     source: str = "byo"
 
 
-class JudgeConfigIn(BaseModel):
-    base_url: str
-    model: str
-    api_key: str | None = None  # write-only; omit to keep the stored key
-    prompt: str | None = None  # per-tenant system-prompt override; "" resets to the default
-    params: dict | None = None  # provider-specific passthrough (reasoning, temperature…)
-    enabled: bool = True
-
-
 class SettingsIn(BaseModel):
     audio_analysis_enabled: bool | None = None  # null = defer to global default
     audio_store_prefix: str | None = None
