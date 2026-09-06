@@ -15,9 +15,9 @@ from sqlalchemy import func, select
 
 from voiceobs.auth.env import DEV_EMAIL, DEV_PASSWORD, dev_open
 from voiceobs.auth.password import hash_password, normalize_email
+from voiceobs.config import get_config
 from voiceobs.db.models import AppUser, Membership, Organization
 from voiceobs.db.session import get_session
-from voiceobs.settings import get_settings
 
 
 def _slug(name: str) -> str:
@@ -65,7 +65,7 @@ def bootstrap(email: str, password: str, org_name: str) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m voiceobs.auth")
     sub = parser.add_subparsers(dest="cmd", required=True)
-    s = get_settings()
+    s = get_config()
     b = sub.add_parser("bootstrap", help="create the first owner + org when the DB is empty")
     b.add_argument("--email", default=s.bootstrap_email)
     b.add_argument("--password", default=s.bootstrap_password)

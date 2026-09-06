@@ -11,13 +11,13 @@ import hashlib
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from voiceobs.settings import get_settings
+from voiceobs.config import get_config
 
 _DEV_SECRET = "dev-insecure-secret-do-not-use-in-prod"
 
 
 def _secret() -> str:
-    s = get_settings()
+    s = get_config()
     if s.secret_key:
         return s.secret_key
     if s.is_dev_open:

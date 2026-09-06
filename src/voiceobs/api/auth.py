@@ -33,8 +33,8 @@ from voiceobs.auth import (
     rotate_refresh,
 )
 from voiceobs.auth.env import DEV_EMAIL, DEV_PASSWORD, dev_open
+from voiceobs.config import get_config
 from voiceobs.db.models import AppUser, Membership, Organization
-from voiceobs.settings import get_settings
 
 router = APIRouter(prefix="/v1/auth")
 
@@ -88,7 +88,7 @@ def config(db: Session = Depends(session_dep)) -> dict:
     return {
         "dev_open": dev,
         "signup_open": signup_open,
-        "dev_email": (get_settings().bootstrap_email or DEV_EMAIL) if dev else None,
+        "dev_email": (get_config().bootstrap_email or DEV_EMAIL) if dev else None,
         "dev_password": DEV_PASSWORD if dev else None,
     }
 

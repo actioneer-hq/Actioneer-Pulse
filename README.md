@@ -56,14 +56,24 @@ metrics exporter pointed somewhere else.
 
 ## Configuration
 
+Two layers. **Secrets** go in the environment (`.env`, `VOICEOBS_`-prefixed) — see `.env.example`.
+**Everything else**, including which LLM each role uses, lives in **`src/voiceobs/config.py`**
+(the central config file — edit `LLM_ROLES` to pick provider/model per role). Non-secret values have
+in-file defaults but can still be overridden by env for Docker/12-factor.
+
+Secrets (env only):
+
 | variable | required | meaning |
 |---|---|---|
 | `VOICEOBS_DATABASE_URL` | yes | SQLAlchemy URL, e.g. `postgresql+psycopg://…` |
-| `VOICEOBS_SKIP_MIGRATE` | no | `1` to serve without running `alembic upgrade head` |
-| `VOICEOBS_ALLOW_DELETE` | no | `1` to enable the erasure route |
-| `VOICEOBS_WORKER_POLL_S` | no | idle sleep between claim attempts (5) |
-| `VOICEOBS_WORKER_BATCH` | no | calls claimed per tick (10) |
-| `VOICEOBS_WORKER_GRACE_S` | no | quiet period before analysing without audio (60) |
+| `VOICEOBS_SECRET_KEY` | yes (prod) | signs JWTs + encrypts stored creds |
+| `VOICEOBS_BOOTSTRAP_PASSWORD` | first run | initial owner password |
+| `VOICEOBS_POST_CALL_API_KEY` | per role | key for the post-call judge model (role active when set) |
+| `VOICEOBS_GLOBAL_CHAT_API_KEY` | per role | key for the global-chat model |
+| `VOICEOBS_PER_CALL_CHAT_API_KEY` | per role | key for the per-call chat model |
+
+Common non-secret overrides (defaults in `config.py`): `VOICEOBS_SKIP_MIGRATE` (docker entrypoint),
+`VOICEOBS_ALLOW_DELETE`, `VOICEOBS_WORKER_POLL_S`/`_BATCH`/`_GRACE_S`.
 
 Running outside Docker:
 

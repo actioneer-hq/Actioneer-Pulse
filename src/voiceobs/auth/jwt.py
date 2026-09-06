@@ -12,21 +12,21 @@ from uuid import uuid4
 
 import jwt
 
-from voiceobs.settings import get_settings
+from voiceobs.config import get_config
 
 _ALG = "HS256"
 _DEV_SECRET = "dev-insecure-secret-do-not-use-in-prod"
 
 # TTLs read from settings at import (env-overridable per deployment). Kept as module constants
 # so refresh.py can import REFRESH_TTL and tests can monkeypatch a single value.
-_s = get_settings()
+_s = get_config()
 ACCESS_TTL = timedelta(minutes=_s.access_ttl_min)
 REFRESH_TTL = timedelta(days=_s.refresh_ttl_days)
 INVITE_TTL = timedelta(days=_s.invite_ttl_days)
 
 
 def _secret() -> str:
-    s = get_settings()
+    s = get_config()
     if s.secret_key:
         return s.secret_key
     if s.is_dev_open:

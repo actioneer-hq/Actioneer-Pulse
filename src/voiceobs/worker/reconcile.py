@@ -17,15 +17,15 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from voiceobs.config import get_config
 from voiceobs.db.models import AgentAudioConfig, Call, Media, Tombstone
 from voiceobs.db.session import get_session
-from voiceobs.settings import get_settings
 from voiceobs.storage import list_objects, resolve_s3_creds
 
 session_scope = contextmanager(get_session)
 log = logging.getLogger(__name__)
 
-GRACE_S = get_settings().reconcile_grace_s
+GRACE_S = get_config().reconcile_grace_s
 
 # filename -> Media.kind (what the worker's _audio_bytes looks for)
 _KINDS = {"audio.wav": "audio", "audio_caller.wav": "audio_caller", "audio_agent.wav": "audio_agent"}
@@ -100,7 +100,7 @@ def _run_once() -> None:  # pragma: no cover
 
 def main() -> None:  # pragma: no cover — entrypoint
     """One-shot, or a sidecar loop when VOICEOBS_RECONCILE_INTERVAL_S is set."""
-    interval = get_settings().reconcile_interval_s
+    interval = get_config().reconcile_interval_s
     if not interval:
         _run_once()
         return

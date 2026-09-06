@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlparse
 
-from voiceobs.settings import get_settings
+from voiceobs.config import get_config
 
 
 @dataclass(frozen=True)
@@ -42,7 +42,7 @@ def _client(creds: S3Creds | None):
 def fetch_bytes(uri: str, creds: S3Creds | None = None) -> bytes:
     if uri.startswith("s3://"):
         bucket, key = _parse_s3(uri)
-        dev_dir = get_settings().dev_audio_dir
+        dev_dir = get_config().dev_audio_dir
         if dev_dir:  # dev override: serve the object from local disk keyed by the S3 key
             path = os.path.join(dev_dir, key)
             if os.path.exists(path):

@@ -16,6 +16,7 @@ from voiceobs.api.deps import now, session_dep
 from voiceobs.api.schemas import ArtifactIn, PromptIn, TranscriptIn
 from voiceobs.auth import resolve_ingest_token
 from voiceobs.auth.env import dev_open
+from voiceobs.config import get_config
 from voiceobs.db.models import (
     AgentScript,
     Annotation,
@@ -34,7 +35,6 @@ from voiceobs.db.models import (
     Utterance,
 )
 from voiceobs.frameworks.otlp import attrs_to_dict, decode_protobuf
-from voiceobs.settings import get_settings
 
 router = APIRouter(prefix="/v1")
 
@@ -177,7 +177,7 @@ def erase_call(
     db: Session = Depends(session_dep),
     confirm: str = Header("", alias="X-Voiceobs-Confirm"),
 ) -> dict:
-    if not get_settings().allow_delete or confirm != call_id:
+    if not get_config().allow_delete or confirm != call_id:
         raise HTTPException(403, "erasure requires X-Voiceobs-Confirm and VOICEOBS_ALLOW_DELETE=1")
     call = _get_call(db, call_id)
     db.add(Tombstone(tenant_id=call.tenant_id, call_id=call_id, deleted_by="api"))

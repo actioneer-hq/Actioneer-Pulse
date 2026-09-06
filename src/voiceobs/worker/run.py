@@ -11,20 +11,20 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from voiceobs.config import get_config
 from voiceobs.core.config import METRIC_VERSION
 from voiceobs.db.models import Call, LLMConfig
 from voiceobs.db.session import get_session
 from voiceobs.frameworks import UnsupportedSchema
 from voiceobs.judge import judge_call
 from voiceobs.llm import LLMRole
-from voiceobs.settings import get_settings
 from voiceobs.worker.process import process
 
 log = logging.getLogger(__name__)
 
 session_scope = contextmanager(get_session)
 
-_s = get_settings()
+_s = get_config()
 POLL_S = _s.worker_poll_s
 BATCH = _s.worker_batch
 # How long a call must be quiet before we analyse it without audio. Pipe 2 may never
@@ -89,7 +89,7 @@ def tick(db: Session, **kw) -> int:
 
 
 def main() -> None:
-    logging.basicConfig(level=get_settings().log_level)
+    logging.basicConfig(level=get_config().log_level)
     stopping = False
 
     def stop(*_):

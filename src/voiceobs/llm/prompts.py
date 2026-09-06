@@ -1,9 +1,9 @@
 """Committed default system prompts, one per LLM role — "open config": product behavior the
-community reads and PRs, not env or per-deploy. A tenant may override any of these with its own
-prompt (LLMConfig.prompt); when null, the default here is used.
+community reads and PRs, not env or per-deploy. `default_prompt(role)` returns the text used for
+that role's model (configured in config.LLM_ROLES).
 
-POST_CALL_ANALYSIS is live. The two chat prompts are reserved placeholders for the coming chat
-interface (not wired yet)."""
+POST_CALL_ANALYSIS (judge) and GLOBAL_CHAT are live. PER_CALL_CHAT and FAILURE_ANALYSIS are
+reserved placeholders."""
 
 from __future__ import annotations
 
@@ -23,14 +23,16 @@ POST_CALL_ANALYSIS = (
     "- Use only the allowed enum values."
 )
 
-# Reserved — the chat interface is not built yet.
 GLOBAL_CHAT = "You are Pulse's assistant for questions across all of an organization's calls."
 PER_CALL_CHAT = "You are Pulse's assistant for questions about a single voice-agent call."
+# Reserved — the failure-analysis flow is not built yet.
+FAILURE_ANALYSIS = "You analyse voice-agent calls for failures and their likely causes."
 
 _DEFAULTS: dict[LLMRole, str] = {
     LLMRole.POST_CALL_ANALYSIS: POST_CALL_ANALYSIS,
     LLMRole.GLOBAL_CHAT: GLOBAL_CHAT,
     LLMRole.PER_CALL_CHAT: PER_CALL_CHAT,
+    LLMRole.FAILURE_ANALYSIS: FAILURE_ANALYSIS,
 }
 
 
