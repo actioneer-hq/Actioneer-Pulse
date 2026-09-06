@@ -12,12 +12,20 @@ from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import now, session_dep
 from voiceobs.api.orgs import slugify
-from voiceobs.api.schemas import AgentIn, AgentPatchIn, AudioConfigIn, IngestTokenIn, ScriptIn
+from voiceobs.api.schemas import (
+    AgentIn,
+    AgentPatchIn,
+    AudioConfigIn,
+    GuardrailsIn,
+    IngestTokenIn,
+    ScriptIn,
+)
 from voiceobs.auth import current_membership, mint_ingest_token, require_role, visible_agent_ids
 from voiceobs.auth.crypto import encrypt
 from voiceobs.db.models import (
     Agent,
     AgentAudioConfig,
+    AgentGuardrail,
     AgentScript,
     IngestToken,
     Membership,
@@ -77,6 +85,8 @@ def create_agent(
         _apply_audio_config(db, agent.id, body.audio)
     if body.script:
         set_agent_script(db, agent, body.script, mem.user_id)
+    if body.guardrails:
+        set_agent_guardrails(db, agent, body.guardrails, mem.user_id)
     return _agent_dict(agent)
 
 
@@ -277,6 +287,83 @@ def list_scripts(
     rows = db.scalars(select(AgentScript).where(AgentScript.agent_id == agent_id)
                       .order_by(AgentScript.version.desc())).all()
     return {"items": [{**_script_dict(db, r), "active": r.active} for r in rows]}
+
+
+# --- agent guardrails (versioned, hash-addressed; mirrors scripts) ------------- #
+
+
+def set_agent_guardrails(db: Session, agent: Agent, text: str, user_id: str | None) -> AgentGuardrail:
+    """Set/replace the agent's guardrails. Content dedupes into Prompt by sha256; a new version is
+    minted only when the text changes. Returns the active version."""
+    sha = hashlib.sha256(text.encode()).hexdigest()
+    prompt = db.scalar(select(Prompt).where(
+        Prompt.tenant_id == agent.org_id, Prompt.template_sha256 == sha))
+    if prompt is None:
+        prompt = Prompt(tenant_id=agent.org_id, template_sha256=sha, text=text)
+        db.add(prompt)
+        db.flush()
+
+    active = db.scalar(select(AgentGuardrail).where(
+        AgentGuardrail.agent_id == agent.id, AgentGuardrail.active.is_(True)))
+    if active is not None and active.prompt_id == prompt.id:
+        return active  # identical guardrails — no new version
+
+    if active is not None:
+        active.active = False
+    last = db.scalar(select(AgentGuardrail.version).where(AgentGuardrail.agent_id == agent.id)
+                     .order_by(AgentGuardrail.version.desc()))
+    row = AgentGuardrail(agent_id=agent.id, prompt_id=prompt.id, version=(last or 0) + 1,
+                         created_by=user_id, active=True)
+    db.add(row)
+    db.flush()
+    return row
+
+
+def _guardrails_dict(db: Session, g: AgentGuardrail | None, *, with_text: bool = False) -> dict | None:
+    if g is None:
+        return None
+    p = db.get(Prompt, g.prompt_id)
+    out = {"version": g.version, "sha256": p.template_sha256 if p else None,
+           "created_by": g.created_by, "created_at": g.created_at}
+    if with_text:
+        out["text"] = p.text if p else None
+    return out
+
+
+@router.put("/{agent_id}/guardrails")
+def set_guardrails(
+    agent_id: str, body: GuardrailsIn,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(require_role("owner", "admin")),
+) -> dict:
+    agent = _org_agent(db, mem, agent_id)
+    row = set_agent_guardrails(db, agent, body.text, mem.user_id)
+    db.flush()
+    return _guardrails_dict(db, row) or {}
+
+
+@router.get("/{agent_id}/guardrails")
+def get_guardrails(
+    agent_id: str,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(current_membership),
+) -> dict:
+    _org_agent(db, mem, agent_id)
+    active = db.scalar(select(AgentGuardrail).where(
+        AgentGuardrail.agent_id == agent_id, AgentGuardrail.active.is_(True)))
+    return _guardrails_dict(db, active, with_text=True) or {"version": None, "text": None}
+
+
+@router.get("/{agent_id}/guardrails/versions")
+def list_guardrails(
+    agent_id: str,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(current_membership),
+) -> dict:
+    _org_agent(db, mem, agent_id)
+    rows = db.scalars(select(AgentGuardrail).where(AgentGuardrail.agent_id == agent_id)
+                      .order_by(AgentGuardrail.version.desc())).all()
+    return {"items": [{**_guardrails_dict(db, r), "active": r.active} for r in rows]}
 
 
 @router.get("/{agent_id}/audio-config")

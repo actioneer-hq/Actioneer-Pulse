@@ -552,6 +552,27 @@ class AgentScript(Base):
     created_at: Mapped[datetime] = created_col()
 
 
+class AgentGuardrail(Base):
+    """A versioned pointer to an agent's guardrails — natural-language rules the agent must obey
+    (stay on script, verify the user before tool calls, etc.), checked later as simple NLI. Mirrors
+    AgentScript: content is the immutable hash-addressed Prompt; this row adds per-agent version +
+    author + active flag. Exactly one active row per agent (enforced in code)."""
+
+    __tablename__ = "agent_guardrail"
+    __table_args__ = (
+        UniqueConstraint("agent_id", "version", name="uq_agent_guardrail_version"),
+        Index("ix_agent_guardrail_active", "agent_id", "active"),
+    )
+
+    id: Mapped[str] = pk()
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agent.id"), nullable=False)
+    prompt_id: Mapped[str] = mapped_column(ForeignKey("prompt.id"), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_user.id"))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = created_col()
+
+
 class AgentAccess(Base):
     """A granular grant: this membership may see this agent. A member with ZERO grants sees
     ALL org agents (coarse default); with ≥1, is restricted to the granted set."""

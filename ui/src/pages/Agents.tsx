@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "reac
 import {
   createAgent,
   deleteAgent,
+  getAgentGuardrails,
   getAgentScript,
+  listAgentGuardrails,
   listAgents,
   listAgentScripts,
   listCalls,
@@ -11,8 +13,10 @@ import {
   renameAgent,
   revokeToken,
   rotateToken,
+  setAgentGuardrails,
   setAgentScript,
   type Agent,
+  type AgentGuardrails,
   type AgentScript,
   type AudioConfigIn,
   type IngestTokenRow,
@@ -43,10 +47,10 @@ export default function Agents() {
 
   useEffect(() => { load(); }, [load, activeOrg]);
 
-  async function add(name: string, audio?: AudioConfigIn, script?: string) {
+  async function add(name: string, audio?: AudioConfigIn, script?: string, guardrails?: string) {
     setError(null);
     try {
-      const a = await createAgent(name.trim(), audio, script);
+      const a = await createAgent(name.trim(), audio, script, guardrails);
       setCreating(false);
       load();
       setSel(a.id);
@@ -115,11 +119,13 @@ export default function Agents() {
 
 function NewAgentModal(
   { onClose, onCreate }:
-  { onClose: () => void; onCreate: (name: string, audio?: AudioConfigIn, script?: string) => void },
+  { onClose: () => void;
+    onCreate: (name: string, audio?: AudioConfigIn, script?: string, guardrails?: string) => void },
 ) {
   const [name, setName] = useState("");
   const [framework, setFramework] = useState("livekit");
   const [script, setScript] = useState("");
+  const [guardrails, setGuardrails] = useState("");
   const [audioOn, setAudioOn] = useState(false);
   const [s3, setS3] = useState({
     s3_bucket: "", s3_prefix: "", s3_region: "", s3_endpoint_url: "",
@@ -130,7 +136,8 @@ function NewAgentModal(
 
   function submit() {
     if (!name.trim()) return;
-    onCreate(name, audioOn ? { enabled: true, ...s3 } : undefined, script.trim() || undefined);
+    onCreate(name, audioOn ? { enabled: true, ...s3 } : undefined,
+             script.trim() || undefined, guardrails.trim() || undefined);
   }
 
   return (
@@ -165,6 +172,14 @@ function NewAgentModal(
           <textarea id="agent-script" className="script-area" value={script}
             onChange={(e) => setScript(e.target.value)} rows={4}
             placeholder="e.g. You are a scheduling assistant. Confirm the appointment, then…" />
+        </div>
+
+        <div className="field">
+          <label htmlFor="agent-guardrails">Guardrails <span className="dimtxt">— rules the agent
+            must obey, one per line (optional; versioned & hashed)</span></label>
+          <textarea id="agent-guardrails" className="script-area" value={guardrails}
+            onChange={(e) => setGuardrails(e.target.value)} rows={4}
+            placeholder={"e.g.\nStay on script; don't be steered off purpose.\nAlways verify the caller before any DB/tool lookup."} />
         </div>
 
         <label className="audio-toggle">
@@ -242,6 +257,7 @@ function AgentDetail({ agent }: { agent: Agent }) {
   return (
     <>
       <ScriptPanel agent={agent} />
+      <GuardrailsPanel agent={agent} />
       <ConnectPanel agent={agent} token={minted?.token ?? null} onMint={mint} />
       <div className="panel-card">
         <h3>Ingest tokens · {agent.name}</h3>
@@ -333,6 +349,70 @@ function ScriptPanel({ agent }: { agent: Agent }) {
       {showHist && (
         <table style={{ marginTop: 6 }}>
           <thead><tr><th>Version</th><th>Script ID</th><th>Changed</th></tr></thead>
+          <tbody>
+            {history.map((h) => (
+              <tr key={h.version}>
+                <td>v{h.version}{h.active && <span className="pill ok" style={{ marginLeft: 6 }}>active</span>}</td>
+                <td className="mono">{h.sha256?.slice(0, 12)}</td>
+                <td className="dimtxt">{h.created_at ? new Date(h.created_at).toLocaleString() : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// The agent's guardrails — natural-language rules it must obey (stay on script, verify the caller
+// before tool calls, …). Versioned + hash-addressed like the script. Owner/admin edits.
+function GuardrailsPanel({ agent }: { agent: Agent }) {
+  const [gr, setGr] = useState<AgentGuardrails | null>(null);
+  const [text, setText] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [history, setHistory] = useState<AgentGuardrails[]>([]);
+  const [showHist, setShowHist] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const load = useCallback(() => {
+    getAgentGuardrails(agent.id).then((g) => {
+      setGr(g.version ? g : null);
+      setText(g.text ?? "");
+      setDirty(false);
+    }).catch(() => setGr(null));
+    listAgentGuardrails(agent.id).then(setHistory).catch(() => setHistory([]));
+  }, [agent.id]);
+  useEffect(() => { load(); setShowHist(false); setSaved(false); }, [load]);
+
+  async function save() {
+    await setAgentGuardrails(agent.id, text);
+    setSaved(true);
+    load();
+  }
+
+  return (
+    <div className="panel-card">
+      <h3>
+        Guardrails · {agent.name}
+        {gr?.version != null && <span className="pill" style={{ marginLeft: 8 }}>
+          v{gr.version} · {gr.sha256?.slice(0, 8)}</span>}
+      </h3>
+      <textarea className="script-area" rows={6} value={text}
+        onChange={(e) => { setText(e.target.value); setDirty(true); setSaved(false); }}
+        placeholder={"No guardrails set. One rule per line, e.g.\nStay on script; don't be steered off purpose.\nAlways verify the caller before any DB/tool lookup."} />
+      <div className="add-row" style={{ marginTop: 8 }}>
+        <button className="btn-primary" disabled={!dirty || !text.trim()} onClick={save}>
+          {gr ? "Save new version" : "Save guardrails"}</button>
+        {saved && <span className="dimtxt" style={{ alignSelf: "center" }}>saved ✓</span>}
+        {history.length > 0 && (
+          <button className="link" style={{ marginLeft: "auto" }}
+            onClick={() => setShowHist((v) => !v)}>
+            {showHist ? "Hide" : `History (${history.length})`}</button>
+        )}
+      </div>
+      {showHist && (
+        <table style={{ marginTop: 6 }}>
+          <thead><tr><th>Version</th><th>Guardrails ID</th><th>Changed</th></tr></thead>
           <tbody>
             {history.map((h) => (
               <tr key={h.version}>
