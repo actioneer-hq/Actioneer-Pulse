@@ -136,9 +136,9 @@ def _mono_bytes(media: Media | None, creds: S3Creds | None) -> bytes | None:
 
 
 def _env_default() -> bool:
-    from voiceobs.settings import get_settings
+    from voiceobs.config import get_config
 
-    return get_settings().audio_analysis
+    return get_config().audio_analysis
 
 
 def _audio_enabled(db: Session, call: Call) -> bool:

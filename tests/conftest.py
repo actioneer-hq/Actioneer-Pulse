@@ -12,12 +12,12 @@ from sqlalchemy.pool import StaticPool
 
 from voiceobs.api.app import app
 from voiceobs.api.deps import session_dep
+from voiceobs.config import Config
 from voiceobs.db import Base
-from voiceobs.settings import Settings
 
 # Tests must not read a developer's local .env (it would leak VOICEOBS_DEV_OPEN / a real
-# DATABASE_URL into the suite). Disable dotenv loading for every Settings() in tests.
-Settings.model_config["env_file"] = None
+# DATABASE_URL into the suite). Disable dotenv loading for every Config() in tests.
+Config.model_config["env_file"] = None
 
 
 @pytest.fixture

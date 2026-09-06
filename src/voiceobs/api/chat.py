@@ -17,7 +17,8 @@ from voiceobs.api.auth import require_csrf
 from voiceobs.api.deps import now, session_dep
 from voiceobs.api.schemas import ChatMessageIn
 from voiceobs.auth import current_membership
-from voiceobs.db.models import ChatMessage, Conversation, LLMConfig, Membership
+from voiceobs.config import resolve_llm
+from voiceobs.db.models import ChatMessage, Conversation, Membership
 from voiceobs.db.session import get_session
 from voiceobs.llm import LLMRole
 
@@ -104,12 +105,10 @@ def _run(cid: str, org_id: str, user_id: str, text: str) -> Iterator[str]:
     try:
         mem = db.scalar(select(Membership).where(
             Membership.org_id == org_id, Membership.user_id == user_id))
-        cfg = db.scalar(select(LLMConfig).where(
-            LLMConfig.tenant_id == org_id, LLMConfig.role == LLMRole.GLOBAL_CHAT,
-            LLMConfig.enabled.is_(True)))
-        if mem is None or cfg is None:
+        resolved = resolve_llm(LLMRole.GLOBAL_CHAT)
+        if mem is None or resolved is None:
             yield _sse({"type": "error",
-                        "error": "global chat model is not configured for this org"})
+                        "error": "global chat model is not configured"})
             return
 
         history = [{"role": m.role, "content": m.content}
@@ -122,7 +121,7 @@ def _run(cid: str, org_id: str, user_id: str, text: str) -> Iterator[str]:
         db.commit()
 
         content, steps = "", []
-        for event in chat.run(db, mem, cfg, history, text):
+        for event in chat.run(db, mem, resolved, history, text):
             if event["type"] == "done":
                 content, steps = event["content"], event["steps"]
             yield _sse(event)

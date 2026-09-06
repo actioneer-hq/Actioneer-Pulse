@@ -17,6 +17,7 @@ dependencies = [
     "pyjwt>=2.8",
     "cryptography>=42",
     "pydantic-settings>=2",
+    "any-llm-sdk[anthropic,openai]>=1.27.1",
 ]
 
 [project.optional-dependencies]

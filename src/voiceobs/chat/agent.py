@@ -18,8 +18,8 @@ from collections.abc import Iterator
 from sqlalchemy.orm import Session
 
 from voiceobs.chat import client, tools
-from voiceobs.db.models import LLMConfig, Membership
-from voiceobs.llm import LLMRole, default_prompt
+from voiceobs.config import ResolvedLLM
+from voiceobs.db.models import Membership
 
 log = logging.getLogger(__name__)
 
@@ -32,16 +32,16 @@ _TOOL_GUIDE = (
 
 
 def run(
-    db: Session, mem: Membership, cfg: LLMConfig, history: list[dict], user_text: str,
+    db: Session, mem: Membership, resolved: ResolvedLLM, history: list[dict], user_text: str,
 ) -> Iterator[dict]:
-    system = (cfg.prompt or default_prompt(LLMRole.GLOBAL_CHAT)) + _TOOL_GUIDE
+    system = resolved.prompt + _TOOL_GUIDE
     messages: list[dict] = [{"role": "system", "content": system}, *history,
                             {"role": "user", "content": user_text}]
     steps: list[dict] = []
     try:
         # Tool-calling rounds (non-streaming) until the model wants to answer.
         for _ in range(MAX_TOOL_ROUNDS):
-            comp = client.complete(cfg, messages, tools.schemas())
+            comp = client.complete(resolved, messages, tools.schemas())
             if not comp.tool_calls:
                 break
             messages.append({"role": "assistant", "content": comp.content or None,
@@ -56,7 +56,7 @@ def run(
                                  "content": json.dumps(result)[:4000]})
         # Final answer, streamed.
         parts: list[str] = []
-        for piece in client.stream(cfg, messages):
+        for piece in client.stream(resolved, messages):
             parts.append(piece)
             yield {"type": "token", "text": piece}
         yield {"type": "done", "content": "".join(parts), "steps": steps}
