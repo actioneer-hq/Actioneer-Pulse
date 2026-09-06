@@ -3,6 +3,7 @@ import { NavLink, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { RequireAdmin, RequireAuth, useAuth, useAuthRedirect } from "./auth";
 import Agents from "./pages/Agents";
 import Calls from "./pages/Calls";
+import Chat from "./pages/Chat";
 import Login from "./pages/Login";
 import Members from "./pages/Members";
 
@@ -31,6 +32,9 @@ function Shell() {
         <nav>
           <NavLink to="/calls" className={({ isActive }) => (isActive ? "on" : undefined)}>
             Calls
+          </NavLink>
+          <NavLink to="/chat" className={({ isActive }) => (isActive ? "on" : undefined)}>
+            Chat
           </NavLink>
           {isAdmin && (
             <>
@@ -84,6 +88,7 @@ export default function App() {
       <Route element={<RequireAuth><Shell /></RequireAuth>}>
         <Route index element={<Navigate to="/calls" replace />} />
         <Route path="/calls" element={<Calls />} />
+        <Route path="/chat" element={<Chat />} />
         <Route path="/settings/agents"
           element={<RequireAdmin><Agents /></RequireAdmin>} />
         <Route path="/settings/members"

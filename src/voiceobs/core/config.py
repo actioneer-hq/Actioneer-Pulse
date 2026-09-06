@@ -19,6 +19,7 @@ class MetricConfig(BaseModel):
     dead_air_min_s: float = 1.5
     echo_gain_min: float = 0.05
     peaks_per_second: int = 50
+    energy_frame_ms: float = 20.0  # dBFS profile cadence (matches the VAD framing)
     clip_dbfs: float = -0.1
     partial_coverage_threshold: float = 0.80  # below -> AUDIO_PARTIAL
 

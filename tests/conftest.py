@@ -13,6 +13,11 @@ from sqlalchemy.pool import StaticPool
 from voiceobs.api.app import app
 from voiceobs.api.deps import session_dep
 from voiceobs.db import Base
+from voiceobs.settings import Settings
+
+# Tests must not read a developer's local .env (it would leak VOICEOBS_DEV_OPEN / a real
+# DATABASE_URL into the suite). Disable dotenv loading for every Settings() in tests.
+Settings.model_config["env_file"] = None
 
 
 @pytest.fixture
@@ -40,7 +45,13 @@ def client(db_sessionmaker) -> Iterator[TestClient]:
             s.close()
 
     app.dependency_overrides[session_dep] = _session
+    # Streaming endpoints (chat SSE) open their own get_session() after the request dep closes —
+    # point the module session at the same in-memory engine so they share this test's DB.
+    import voiceobs.db.session as dbs
+    saved = (dbs._engine, dbs._Session)
+    dbs._engine, dbs._Session = db_sessionmaker.kw["bind"], db_sessionmaker
     yield TestClient(app)
+    dbs._engine, dbs._Session = saved
     app.dependency_overrides.clear()
 
 

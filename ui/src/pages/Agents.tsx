@@ -2,14 +2,18 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "reac
 import {
   createAgent,
   deleteAgent,
+  getAgentScript,
   listAgents,
+  listAgentScripts,
   listCalls,
   listTokens,
   mintToken,
   renameAgent,
   revokeToken,
   rotateToken,
+  setAgentScript,
   type Agent,
+  type AgentScript,
   type AudioConfigIn,
   type IngestTokenRow,
   type MintedToken,
@@ -39,10 +43,10 @@ export default function Agents() {
 
   useEffect(() => { load(); }, [load, activeOrg]);
 
-  async function add(name: string, audio?: AudioConfigIn) {
+  async function add(name: string, audio?: AudioConfigIn, script?: string) {
     setError(null);
     try {
-      const a = await createAgent(name.trim(), audio);
+      const a = await createAgent(name.trim(), audio, script);
       setCreating(false);
       load();
       setSel(a.id);
@@ -111,10 +115,11 @@ export default function Agents() {
 
 function NewAgentModal(
   { onClose, onCreate }:
-  { onClose: () => void; onCreate: (name: string, audio?: AudioConfigIn) => void },
+  { onClose: () => void; onCreate: (name: string, audio?: AudioConfigIn, script?: string) => void },
 ) {
   const [name, setName] = useState("");
   const [framework, setFramework] = useState("livekit");
+  const [script, setScript] = useState("");
   const [audioOn, setAudioOn] = useState(false);
   const [s3, setS3] = useState({
     s3_bucket: "", s3_prefix: "", s3_region: "", s3_endpoint_url: "",
@@ -125,7 +130,7 @@ function NewAgentModal(
 
   function submit() {
     if (!name.trim()) return;
-    onCreate(name, audioOn ? { enabled: true, ...s3 } : undefined);
+    onCreate(name, audioOn ? { enabled: true, ...s3 } : undefined, script.trim() || undefined);
   }
 
   return (
@@ -152,6 +157,14 @@ function NewAgentModal(
               </button>
             ))}
           </div>
+        </div>
+
+        <div className="field">
+          <label htmlFor="agent-script">Script <span className="dimtxt">— the prompt this agent
+            follows (optional; versioned & hashed)</span></label>
+          <textarea id="agent-script" className="script-area" value={script}
+            onChange={(e) => setScript(e.target.value)} rows={4}
+            placeholder="e.g. You are a scheduling assistant. Confirm the appointment, then…" />
         </div>
 
         <label className="audio-toggle">
@@ -228,6 +241,7 @@ function AgentDetail({ agent }: { agent: Agent }) {
 
   return (
     <>
+      <ScriptPanel agent={agent} />
       <ConnectPanel agent={agent} token={minted?.token ?? null} onMint={mint} />
       <div className="panel-card">
         <h3>Ingest tokens · {agent.name}</h3>
@@ -267,6 +281,70 @@ function AgentDetail({ agent }: { agent: Agent }) {
         </table>
       </div>
     </>
+  );
+}
+
+// The agent's script — the prompt it's meant to follow. Versioned + hash-addressed; each call
+// pins the version it ran under. Owner/admin edits (viewers get 403 from the API).
+function ScriptPanel({ agent }: { agent: Agent }) {
+  const [script, setScript] = useState<AgentScript | null>(null);
+  const [text, setText] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const [history, setHistory] = useState<AgentScript[]>([]);
+  const [showHist, setShowHist] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const load = useCallback(() => {
+    getAgentScript(agent.id).then((s) => {
+      setScript(s.version ? s : null);
+      setText(s.text ?? "");
+      setDirty(false);
+    }).catch(() => setScript(null));
+    listAgentScripts(agent.id).then(setHistory).catch(() => setHistory([]));
+  }, [agent.id]);
+  useEffect(() => { load(); setShowHist(false); setSaved(false); }, [load]);
+
+  async function save() {
+    await setAgentScript(agent.id, text);
+    setSaved(true);
+    load();
+  }
+
+  return (
+    <div className="panel-card">
+      <h3>
+        Script · {agent.name}
+        {script?.version != null && <span className="pill" style={{ marginLeft: 8 }}>
+          v{script.version} · {script.sha256?.slice(0, 8)}</span>}
+      </h3>
+      <textarea className="script-area" rows={6} value={text}
+        onChange={(e) => { setText(e.target.value); setDirty(true); setSaved(false); }}
+        placeholder="No script set. Add the prompt this agent is meant to follow…" />
+      <div className="add-row" style={{ marginTop: 8 }}>
+        <button className="btn-primary" disabled={!dirty || !text.trim()} onClick={save}>
+          {script ? "Save new version" : "Save script"}</button>
+        {saved && <span className="dimtxt" style={{ alignSelf: "center" }}>saved ✓</span>}
+        {history.length > 0 && (
+          <button className="link" style={{ marginLeft: "auto" }}
+            onClick={() => setShowHist((v) => !v)}>
+            {showHist ? "Hide" : `History (${history.length})`}</button>
+        )}
+      </div>
+      {showHist && (
+        <table style={{ marginTop: 6 }}>
+          <thead><tr><th>Version</th><th>Script ID</th><th>Changed</th></tr></thead>
+          <tbody>
+            {history.map((h) => (
+              <tr key={h.version}>
+                <td>v{h.version}{h.active && <span className="pill ok" style={{ marginLeft: 6 }}>active</span>}</td>
+                <td className="mono">{h.sha256?.slice(0, 12)}</td>
+                <td className="dimtxt">{h.created_at ? new Date(h.created_at).toLocaleString() : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
   );
 }
 

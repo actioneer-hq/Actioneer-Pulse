@@ -83,12 +83,25 @@ class AudioConfigIn(BaseModel):
     s3_endpoint_url: str | None = None
     access_key_id: str | None = None
     secret_access_key: str | None = None  # write-only; omit to keep the stored secret
+    # BYO STT for transcript verification (OpenAI-style /audio/transcriptions). Optional.
+    stt_base_url: str | None = None
+    stt_model: str | None = None
+    stt_api_key: str | None = None  # write-only; omit to keep the stored key
+
+
+class ScriptIn(BaseModel):
+    text: str
+
+
+class ChatMessageIn(BaseModel):
+    text: str
 
 
 class AgentIn(BaseModel):
     name: str
     slug: str | None = None
     audio: AudioConfigIn | None = None  # optional: configure audio at create time
+    script: str | None = None  # optional: the script the agent follows (creates v1)
 
 
 class AgentPatchIn(BaseModel):

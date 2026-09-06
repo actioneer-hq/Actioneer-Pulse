@@ -102,6 +102,7 @@ class Utterance(Frozen):
 class AudioAnalysis(Frozen):
     utterances: list[Utterance] = Field(default_factory=list)
     peaks: dict[str, bytes] = Field(default_factory=dict)  # channel -> int16 min/max pairs
+    energy: dict[str, bytes] = Field(default_factory=dict)  # channel -> LE float32 dBFS/frame
     coverage: dict[str, float] = Field(default_factory=dict)
     quality: dict[str, dict] = Field(default_factory=dict)
 

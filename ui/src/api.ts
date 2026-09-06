@@ -118,6 +118,34 @@ export type Trust = {
 
 // One consolidated payload — header, turns, metrics, trust, the span tree, waveform
 // peaks (base64 per channel), and a presigned audio URL. One round trip.
+export type Discrepancy = {
+  turn_index: number | null;
+  dimension: string;
+  field: string;
+  reported: string | null;
+  measured: string | null;
+  delta: number | null;
+  band: number | null;
+  verdict: string;
+  note: string | null;
+};
+
+export type Judgment = {
+  disposition: string | null;
+  status: string | null;
+  model: string | null;
+  sentiment: string | null;
+  objective_achieved: string | null;
+  answered_by: string | null;
+  primary_language: string | null;
+  secondary_languages: string[] | null;
+  script_adherence: string | null;
+  escalation_requested: boolean | null;
+  callback_requested: boolean | null;
+  callback_time: string | null;
+  summary: string | null;
+};
+
 export type CallDetail = {
   call: CallHeader;
   turns: Turn[];
@@ -126,6 +154,9 @@ export type CallDetail = {
   spans: Span[];
   peaks: Record<string, string>;
   audio: Audio | null;
+  discrepancies: Discrepancy[];
+  judgment: Judgment | null;
+  script: { sha256: string | null; version: number | null; created_by: string | null } | null;
 };
 
 // The span sub-view Waterfall renders; built from CallDetail, not fetched.
@@ -255,8 +286,23 @@ export const getMe = () => get<Me>("/v1/auth/me");
 
 // ---- agents + ingest tokens ----
 export const listAgents = () => get<{ items: Agent[] }>("/v1/agents").then((d) => d.items);
-export const createAgent = (name: string, audio?: AudioConfigIn) =>
-  req<Agent>("POST", "/v1/agents", { name, audio });
+export type AgentScript = {
+  version: number | null;
+  sha256?: string | null;
+  text?: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  active?: boolean;
+};
+
+export const createAgent = (name: string, audio?: AudioConfigIn, script?: string) =>
+  req<Agent>("POST", "/v1/agents", { name, audio, script });
+export const getAgentScript = (agentId: string) =>
+  req<AgentScript>("GET", `/v1/agents/${agentId}/script`);
+export const setAgentScript = (agentId: string, text: string) =>
+  req<AgentScript>("PUT", `/v1/agents/${agentId}/script`, { text });
+export const listAgentScripts = (agentId: string) =>
+  req<{ items: AgentScript[] }>("GET", `/v1/agents/${agentId}/scripts`).then((d) => d.items);
 export const getAudioConfig = (agentId: string) =>
   req<AudioConfig>("GET", `/v1/agents/${agentId}/audio-config`);
 export const setAudioConfig = (agentId: string, cfg: AudioConfigIn) =>
@@ -284,6 +330,56 @@ export const removeMember = (orgId: string, mid: string) =>
   req("DELETE", `/v1/orgs/${orgId}/members/${mid}`);
 export const setAgentAccess = (orgId: string, mid: string, agent_ids: string[]) =>
   req("PUT", `/v1/orgs/${orgId}/members/${mid}/agent-access`, { agent_ids });
+
+// ---- chat ----
+export type ChatStep = { name: string; args?: unknown; summary: string };
+export type ChatMsg = { role: "user" | "assistant"; content: string; steps: ChatStep[] };
+export type Conversation = { id: string; title: string; updated_at?: string };
+export type ChatEvent =
+  | { type: "token"; text: string }
+  | { type: "tool_call"; name: string; args: unknown }
+  | { type: "tool_result"; name: string; summary: string }
+  | { type: "done"; content: string; steps: ChatStep[] }
+  | { type: "error"; error: string };
+
+export const listConversations = () =>
+  get<{ items: Conversation[] }>("/v1/chat/conversations").then((d) => d.items);
+export const createConversation = () =>
+  req<{ id: string; title: string }>("POST", "/v1/chat/conversations");
+export const getConversation = (id: string) =>
+  get<{ id: string; title: string; messages: ChatMsg[] }>(`/v1/chat/conversations/${id}`);
+export const deleteConversation = (id: string) =>
+  req("DELETE", `/v1/chat/conversations/${id}`);
+
+/** POST a message and stream the agent's SSE events to `onEvent`. Hand-rolled reader because
+ *  EventSource can't POST a body / send our cookies+CSRF. */
+export async function streamChat(
+  id: string, text: string, onEvent: (e: ChatEvent) => void,
+): Promise<void> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (activeOrg) headers["X-Voiceobs-Org"] = activeOrg;
+  const csrf = csrfToken();
+  if (csrf) headers["X-CSRF-Token"] = csrf;
+  const r = await fetch(`/v1/chat/conversations/${id}/stream`, {
+    method: "POST", credentials: "include", headers, body: JSON.stringify({ text }),
+  });
+  if (r.status === 401) { onUnauthorized?.(); throw new Error("unauthorized"); }
+  if (!r.body) throw new Error("no stream");
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const chunks = buf.split("\n\n");
+    buf = chunks.pop() ?? "";  // keep the incomplete tail
+    for (const chunk of chunks) {
+      const line = chunk.split("\n").find((l) => l.startsWith("data:"));
+      if (line) onEvent(JSON.parse(line.slice(5).trim()) as ChatEvent);
+    }
+  }
+}
 
 // ---- calls (now scoped server-side by the session + active org) ----
 export const listCalls = (limit = 200, agentId?: string) =>

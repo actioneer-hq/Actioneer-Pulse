@@ -12,8 +12,20 @@ from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import session_dep
 from voiceobs.auth import current_membership, get_scoped_call, visible_agent_ids
-from voiceobs.core.config import METRIC_DEFS
-from voiceobs.db.models import Call, Event, Media, Membership, Metric, Turn
+from voiceobs.core.audio.energy import SILENCE_FLOOR_DBFS
+from voiceobs.core.config import METRIC_DEFS, MetricConfig
+from voiceobs.db.models import (
+    AgentScript,
+    AudioDiscrepancy,
+    Call,
+    Event,
+    Judgment,
+    Media,
+    Membership,
+    Metric,
+    Prompt,
+    Turn,
+)
 from voiceobs.storage import presign, resolve_s3_creds
 from voiceobs.transcript import resolve
 
@@ -101,7 +113,11 @@ def get_call(
         "trust": _trust(call, metrics),
         "spans": _span_tree(events),
         "peaks": _peaks(media),
+        "energy": _energy(media),
         "audio": _audio(call, media, db),
+        "discrepancies": _discrepancies(db, call),
+        "judgment": _judgment(db, call),
+        "script": _script(db, call),
         "versions": {
             "metric_version": call.metric_version,
             "adapter_version": call.adapter_version,
@@ -217,6 +233,68 @@ def _peaks(media: list[Media]) -> dict[str, str]:
         if m.kind.startswith("peaks_") and m.peaks:
             out[m.kind.removeprefix("peaks_")] = base64.b64encode(m.peaks).decode()
     return out
+
+
+def _energy(media: list[Media]) -> dict:
+    """Per-channel dBFS energy profile (base64 LE float32, one value per frame) plus the
+    framing needed to decode it: t = i * frame_ms / 1000, silence floored to floor_dbfs."""
+    channels: dict[str, str] = {}
+    for m in media:
+        if m.kind.startswith("energy_") and m.peaks:
+            channels[m.kind.removeprefix("energy_")] = base64.b64encode(m.peaks).decode()
+    return {
+        "channels": channels,
+        "frame_ms": MetricConfig().energy_frame_ms,
+        "floor_dbfs": SILENCE_FLOOR_DBFS,
+        "encoding": "f32le",
+    }
+
+
+_JUDGE_FIELDS = (
+    "sentiment", "objective_achieved", "answered_by", "primary_language",
+    "secondary_languages", "script_adherence", "escalation_requested",
+    "callback_requested", "callback_time", "summary",
+)
+
+
+def _judgment(db: Session, call: Call) -> dict | None:
+    """The LLM-as-judge structured output for this call, or None if not judged. `status` tells
+    apart 'no judge configured/not connected' (skipped) from a real result."""
+    j = db.scalar(select(Judgment).where(Judgment.call_id == call.id))
+    if j is None:
+        return None
+    return {"disposition": j.disposition, "status": j.status, "model": j.model,
+            **{f: getattr(j, f) for f in _JUDGE_FIELDS}}
+
+
+def _script(db: Session, call: Call) -> dict | None:
+    """Which script version this call ran under (pinned at ingest). sha256 = the script ID;
+    version/author from the AgentScript row. None when the call had no script."""
+    if call.prompt_id is None:
+        return None
+    p = db.get(Prompt, call.prompt_id)
+    row = None
+    if call.agent_id:
+        row = db.scalar(select(AgentScript).where(
+            AgentScript.agent_id == call.agent_id, AgentScript.prompt_id == call.prompt_id))
+    return {
+        "sha256": p.template_sha256 if p else None,
+        "version": row.version if row else None,
+        "created_by": row.created_by if row else None,
+    }
+
+
+def _discrepancies(db: Session, call: Call) -> list[dict]:
+    """Ground-truth vs reported: where the audio disagrees with the OTLP self-report."""
+    rows = db.scalars(
+        select(AudioDiscrepancy).where(AudioDiscrepancy.call_id == call.id)
+        .order_by(AudioDiscrepancy.turn_index)
+    ).all()
+    return [{
+        "turn_index": r.turn_index, "dimension": r.dimension, "field": r.field,
+        "reported": r.reported, "measured": r.measured, "delta": r.delta,
+        "band": r.band, "verdict": r.verdict, "note": r.note,
+    } for r in rows]
 
 
 def _audio(call: Call, media: list[Media], db: Session) -> dict | None:

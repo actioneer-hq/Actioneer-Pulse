@@ -519,6 +519,61 @@ class Agent(Base):
     created_at: Mapped[datetime] = created_col()
 
 
+class Conversation(Base):
+    """A saved global-chat thread. Belongs to an org + its creator; the sidebar lists these."""
+
+    __tablename__ = "conversation"
+    __table_args__ = (Index("ix_conversation_owner", "tenant_id", "created_by"),)
+
+    id: Mapped[str] = pk()
+    tenant_id: Mapped[str] = tenant_col()
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_user.id"))
+    title: Mapped[str] = mapped_column(String(200), nullable=False, default="New chat")
+    created_at: Mapped[datetime] = created_col()
+    updated_at: Mapped[datetime] = created_col()
+
+
+class ChatMessage(Base):
+    """One turn in a conversation. `steps` holds the assistant turn's tool-call activity
+    (name/args/summary), so the thread can replay 'the agent searched calls…' on reload."""
+
+    __tablename__ = "chat_message"
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "seq", name="uq_chat_message_seq"),
+        Index("ix_chat_message_conv", "conversation_id", "seq"),
+    )
+
+    id: Mapped[str] = pk()
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversation.id"), nullable=False)
+    tenant_id: Mapped[str] = tenant_col()
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    role: Mapped[str] = mapped_column(String(16), nullable=False)  # user | assistant
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    steps: Mapped[list | None] = mapped_column(JSON)  # tool-call activity for assistant turns
+    created_at: Mapped[datetime] = created_col()
+
+
+class AgentScript(Base):
+    """A versioned pointer to the script (system prompt) an agent is meant to follow. Content is
+    the immutable, hash-addressed Prompt; this row adds per-agent version + author + active flag,
+    so history is auditable and each call pins the version it ran under. Exactly one active row
+    per agent (enforced in code)."""
+
+    __tablename__ = "agent_script"
+    __table_args__ = (
+        UniqueConstraint("agent_id", "version", name="uq_agent_script_version"),
+        Index("ix_agent_script_active", "agent_id", "active"),
+    )
+
+    id: Mapped[str] = pk()
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agent.id"), nullable=False)
+    prompt_id: Mapped[str] = mapped_column(ForeignKey("prompt.id"), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("app_user.id"))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = created_col()
+
+
 class AgentAccess(Base):
     """A granular grant: this membership may see this agent. A member with ZERO grants sees
     ALL org agents (coarse default); with ≥1, is restricted to the granted set."""
@@ -550,6 +605,29 @@ class IngestToken(Base):
     created_at: Mapped[datetime] = created_col()
 
 
+class AudioDiscrepancy(Base):
+    """One reconciled field where the audio ground truth disagrees with the OTLP self-report.
+    Written by the ground-truth service; surfaced in the call inspector. Rewritten each analysis
+    (deleted + reinserted), like metrics."""
+
+    __tablename__ = "audio_discrepancy"
+    __table_args__ = (Index("ix_audio_discrepancy_call", "call_id"),)
+
+    id: Mapped[str] = pk()
+    call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
+    tenant_id: Mapped[str] = tenant_col()
+    turn_index: Mapped[int | None] = mapped_column(Integer)
+    dimension: Mapped[str] = mapped_column(String(32), nullable=False)
+    field: Mapped[str] = mapped_column(String(64), nullable=False)
+    reported: Mapped[str | None] = mapped_column(Text)
+    measured: Mapped[str | None] = mapped_column(Text)
+    delta: Mapped[float | None] = mapped_column(Float)
+    band: Mapped[float | None] = mapped_column(Float)
+    verdict: Mapped[str] = mapped_column(String(16), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = created_col()
+
+
 class AgentAudioConfig(Base):
     """Per-agent audio-analysis config (pull path). When `enabled`, a reconcile worker scans
     `s3://{s3_bucket}/{s3_prefix}` with these creds and attaches recordings to calls, matching
@@ -569,6 +647,11 @@ class AgentAudioConfig(Base):
     s3_endpoint_url: Mapped[str | None] = mapped_column(String(512))  # MinIO / R2 / etc.
     access_key_id: Mapped[str | None] = mapped_column(String(128))
     secret_ciphertext: Mapped[str | None] = mapped_column(Text)  # Fernet blob
+    # BYO STT for transcript verification — an OpenAI-style /audio/transcriptions endpoint.
+    # Optional: absent = transcript reconciliation is skipped gracefully. Key encrypted at rest.
+    stt_base_url: Mapped[str | None] = mapped_column(String(512))
+    stt_model: Mapped[str | None] = mapped_column(String(128))
+    stt_key_ciphertext: Mapped[str | None] = mapped_column(Text)  # Fernet blob
     created_at: Mapped[datetime] = created_col()
     updated_at: Mapped[datetime] = created_col()
 

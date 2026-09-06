@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from tests.fixtures.synth import SynthCall
 from voiceobs.core.audio import analyze_audio, padding_intervals_for
+from voiceobs.core.audio.energy import SILENCE_FLOOR_DBFS
 from voiceobs.core.audio.metrics import (
     barge_in_count,
     caller_turn_stats,
@@ -121,3 +122,29 @@ def test_peaks_shape():
     aa = analyze_audio(call.build(), _ref(duration=2.0), MetricConfig(peaks_per_second=50))
     # 2s * 50 buckets/s * 2 int16 * 2 bytes = 400 bytes
     assert len(aa.peaks["caller"]) == 2 * 50 * 2 * 2
+
+
+def test_energy_profile_shape_and_values():
+    import numpy as np
+
+    # caller speaks 0.5-1.5s at amp 0.5; the rest is silence (floored).
+    call = SynthCall(duration_s=2.0, speech=[("caller", 0.5, 1.5, 0.5)])
+    aa = analyze_audio(call.build(), _ref(duration=2.0), MetricConfig(energy_frame_ms=20.0))
+    prof = np.frombuffer(aa.energy["caller"], dtype="<f4")
+    # 2s / 20ms = 100 frames (trailing partial dropped, exact here)
+    assert prof.size == 100
+    frame = lambda t: int(t / 0.020)
+    assert prof[frame(1.0)] > -20.0                     # mid-speech is loud
+    assert prof[frame(1.0)] - prof[frame(0.1)] > 30.0   # far above the quiet pre-speech floor
+    assert np.isfinite(prof).all()
+
+
+def test_energy_floors_digital_silence():
+    import numpy as np
+
+    from voiceobs.core.audio.energy import channel_energy
+
+    silence = np.zeros(8000, dtype=np.int16)  # rms == 0 -> -inf, must be floored to a finite value
+    prof = np.frombuffer(channel_energy(silence, 8000), dtype="<f4")
+    assert prof.size and np.isfinite(prof).all()
+    assert (prof == SILENCE_FLOOR_DBFS).all()
