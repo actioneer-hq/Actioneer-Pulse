@@ -143,6 +143,8 @@ export type Judgment = {
   escalation_requested: boolean | null;
   callback_requested: boolean | null;
   callback_time: string | null;
+  guardrail_violation: boolean | null;
+  guardrail_violation_points: string[] | null;
   summary: string | null;
 };
 

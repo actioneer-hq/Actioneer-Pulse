@@ -17,7 +17,8 @@ router = APIRouter(prefix="/v1")
 _LLM_FIELDS = (
     "sentiment", "objective_achieved", "answered_by", "primary_language",
     "secondary_languages", "script_adherence", "escalation_requested",
-    "callback_requested", "callback_time", "summary",
+    "callback_requested", "callback_time", "guardrail_violation",
+    "guardrail_violation_points", "summary",
 )
 
 

@@ -9,11 +9,19 @@ const FIELDS: [keyof Judgment, string][] = [
   ["primary_language", "Language"],
   ["escalation_requested", "Escalation"],
   ["callback_requested", "Callback"],
-  ["callback_time", "Callback time"],
+  ["guardrail_violation", "Guardrail violation"],
 ];
 
 const fmt = (v: unknown): string =>
   v == null || v === "" ? "—" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v);
+
+// Conditional fields only appear when their trigger is set (callback_time when a callback was
+// requested; violation points when a guardrail was actually broken).
+function rowsFor(j: Judgment): [keyof Judgment, string][] {
+  const rows = [...FIELDS];
+  if (j.callback_requested) rows.splice(7, 0, ["callback_time", "Callback time"]);
+  return rows;
+}
 
 export default function LlmAnalysis({ judgment }: { judgment: Judgment | null }) {
   const [open, setOpen] = useState(false);
@@ -37,10 +45,18 @@ export default function LlmAnalysis({ judgment }: { judgment: Judgment | null })
           ) : (
             <>
               <dl className="meta">
-                {FIELDS.map(([k, label]) => (
+                {rowsFor(judgment!).map(([k, label]) => (
                   <div key={k}><dt>{label}</dt><dd>{fmt(judgment![k])}</dd></div>
                 ))}
               </dl>
+              {judgment!.guardrail_violation && judgment!.guardrail_violation_points?.length ? (
+                <div className="violations">
+                  <div className="violations-hd">Guardrails broken</div>
+                  <ul>
+                    {judgment!.guardrail_violation_points!.map((p, i) => <li key={i}>{p}</li>)}
+                  </ul>
+                </div>
+              ) : null}
               {judgment!.summary && <p className="fn">{judgment!.summary}</p>}
             </>
           )}

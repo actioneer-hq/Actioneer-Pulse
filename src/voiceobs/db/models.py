@@ -414,6 +414,8 @@ class Judgment(Base):
     escalation_requested: Mapped[bool | None] = mapped_column(Boolean)
     callback_requested: Mapped[bool | None] = mapped_column(Boolean)
     callback_time: Mapped[str | None] = mapped_column(String(128))
+    guardrail_violation: Mapped[bool | None] = mapped_column(Boolean)
+    guardrail_violation_points: Mapped[list | None] = mapped_column(JSON)  # only when violation
     summary: Mapped[str | None] = mapped_column(Text)
     judged_at: Mapped[datetime] = created_col()
 

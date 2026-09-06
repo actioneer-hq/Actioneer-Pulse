@@ -10,13 +10,17 @@ from voiceobs.judge.schema import JudgeOutput
 from voiceobs.llm import LLMRole, default_prompt
 
 
-def build_messages(script: str | None, transcript: dict, prompt: str | None = None) -> list[dict]:
+def build_messages(
+    script: str | None, transcript: dict, guardrails: str | None = None,
+    prompt: str | None = None,
+) -> list[dict]:
     system = prompt or default_prompt(LLMRole.POST_CALL_ANALYSIS)
     # Full schema (not just properties) so the model sees each enum's allowed values, which
     # live under $defs — otherwise it invents values like "AGENT"/"POOR".
     schema = json.dumps(JudgeOutput.model_json_schema(), indent=0)
     user = (
         f"SCRIPT:\n{script or '(none provided)'}\n\n"
+        f"GUARDRAILS:\n{guardrails or '(none provided)'}\n\n"
         f"TRANSCRIPT:\n{_render(transcript)}"
     )
     # replace, not .format — a tenant's custom prompt may contain unrelated braces.
