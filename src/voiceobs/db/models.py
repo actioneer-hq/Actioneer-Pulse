@@ -174,6 +174,7 @@ class Event(Base):
     type: Mapped[str] = mapped_column(String(48), nullable=False)  # normalized stage or event name
     name: Mapped[str | None] = mapped_column(String(64))  # the producer's own span/event name
     duration_s: Mapped[float | None] = mapped_column(Float)  # spans only; None = never closed
+    error: Mapped[bool | None] = mapped_column(Boolean)  # span failed (status ERROR / exception)
     attrs: Mapped[dict | None] = mapped_column(JSON)  # SHAPE only, allowlisted
     content_text: Mapped[str | None] = mapped_column(Text)  # from voice.content.* — own column
     content_kind: Mapped[str | None] = mapped_column(String(24))  # transcript|llm_raw|llm_spoken

@@ -59,6 +59,8 @@ export default function Boards() {
       p50: snap.latency.p50[i],
       p95: snap.latency.p95[i],
       grRate: +(snap.guardrail.rate[i] * 100).toFixed(1),
+      toolCalls: snap.tools.calls[i],
+      toolErrors: snap.tools.errors[i],
       cost: snap.cost.total[i],
     }));
   }, [snap]);
@@ -77,6 +79,7 @@ export default function Boards() {
     ["p50 latency", t ? ms(t.p50_ms) : "—"],
     ["p95 latency", t ? ms(t.p95_ms) : "—"],
     ["Guardrail violations", t ? rateTile(t.violation_rate) : "—"],
+    ["Tool-call errors", t ? rateTile(t.tool_error_rate) : "—", t ? `${t.tool_calls} calls` : undefined],
     ["Cost", t ? money(t.cost_total) : "—", "sum over range"],
   ];
 
@@ -125,6 +128,11 @@ export default function Boards() {
           <DonutCard title="Disposition mix" data={dispo} />
           <LineCard title="Guardrail-violation rate" data={rows} fmtY={pctFmt}
             series={[{ key: "grRate", label: "Violation %", color: "var(--chart-3)" }]} />
+          <LineCard title="Tool calls & errors" data={rows}
+            series={[
+              { key: "toolCalls", label: "Tool calls", color: "var(--chart-1)" },
+              { key: "toolErrors", label: "Errors", color: "var(--unknown)" },
+            ]} />
           <AreaCard title="Cost" data={rows} fmtY={money}
             series={[{ key: "cost", label: "Cost", color: "var(--chart-2)" }]} />
         </div>
