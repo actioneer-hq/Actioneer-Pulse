@@ -334,7 +334,13 @@ canvas.wave{width:100%;height:56px;display:block;border-radius:var(--r-sm);backg
 .violations ul{margin:0;padding-left:18px}
 .violations li{font-size:12.5px;color:var(--ink);line-height:1.5}
 /* metadata */
-dl.meta{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+/* No overflow:hidden — it clipped the metric hover-tips. Round the corner cells instead so the
+   grid still reads as one rounded card while tooltips can flow past the edges. */
+dl.meta{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r)}
+dl.meta>div:first-child{border-top-left-radius:var(--r)}
+dl.meta>div:nth-child(2){border-top-right-radius:var(--r)}
+dl.meta>div:last-child{border-bottom-right-radius:var(--r)}
+dl.meta>div:nth-last-child(2){border-bottom-left-radius:var(--r)}
 dl.meta div{background:var(--panel);padding:8px 12px;min-width:0}
 dl.meta dt{font-size:11px;color:var(--dim)}
 dl.meta dd{font-weight:500;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
