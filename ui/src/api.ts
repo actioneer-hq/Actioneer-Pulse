@@ -394,6 +394,70 @@ export async function streamChat(
   }
 }
 
+// ---- boards (BI dashboard metrics) ----
+export type BoardFilters = { agent_id?: string; environment?: string; range: string };
+export type BoardSnapshot = {
+  range: string;
+  bucket_s: number;
+  buckets: string[];  // ISO timestamps, the x-axis
+  volume: number[];
+  failure: { failed: number[]; total: number[]; rate: number[] };
+  latency: { p50: (number | null)[]; p95: (number | null)[] };
+  guardrail: { violations: number[]; judged: number[]; rate: number[] };
+  cost: { total: number[]; llm: number[]; stt: number[]; tts: number[] };
+  disposition: Record<string, number>;
+  totals: {
+    calls: number; failure_rate: number; p50_ms: number | null; p95_ms: number | null;
+    cost_total: number; violation_rate: number;
+  };
+};
+
+const boardQuery = (f: BoardFilters) => {
+  const p = new URLSearchParams({ range: f.range });
+  if (f.agent_id) p.set("agent_id", f.agent_id);
+  if (f.environment) p.set("environment", f.environment);
+  return p.toString();
+};
+
+export const getBoardsSummary = (f: BoardFilters) =>
+  get<BoardSnapshot>(`/v1/boards/summary?${boardQuery(f)}`);
+
+/** Open the live board SSE and call `onSnapshot` on each pushed snapshot. Returns an abort fn.
+ *  Hand-rolled reader (same reason as streamChat: cookies + org header on a stream). */
+export function streamBoards(
+  f: BoardFilters, onSnapshot: (s: BoardSnapshot) => void, onError?: () => void,
+): () => void {
+  const ctrl = new AbortController();
+  (async () => {
+    const headers: Record<string, string> = {};
+    if (activeOrg) headers["X-Voiceobs-Org"] = activeOrg;
+    try {
+      const r = await fetch(`/v1/boards/stream?${boardQuery(f)}`,
+        { credentials: "include", headers, signal: ctrl.signal });
+      if (!r.ok || !r.body) throw new Error(`stream ${r.status}`);
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const chunks = buf.split("\n\n");
+        buf = chunks.pop() ?? "";
+        for (const chunk of chunks) {
+          const line = chunk.split("\n").find((l) => l.startsWith("data:"));
+          if (!line) continue;
+          const ev = JSON.parse(line.slice(5).trim());
+          if (ev.type === "snapshot") onSnapshot(ev.data as BoardSnapshot);
+        }
+      }
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") onError?.();
+    }
+  })();
+  return () => ctrl.abort();
+}
+
 // ---- calls (now scoped server-side by the session + active org) ----
 export const listCalls = (limit = 200, agentId?: string) =>
   get<{ items: Call[] }>(
