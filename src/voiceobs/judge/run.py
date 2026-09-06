@@ -1,10 +1,14 @@
 """Judge one call: disposition (always) + two LLM passes on connected calls — the post-call
-judge (JudgeOutput) and, alongside it, a failure-analysis LLM (FailureAnalysis) for root cause.
-Own transaction; neither model failure ever touches the metrics or raises into the caller."""
+judge (JudgeOutput) and, in parallel, a failure-analysis LLM (FailureAnalysis) for root cause.
+
+The two models are network-bound and independent, so they run concurrently in a thread pool;
+each returns plain results and ALL DB/ORM mutation happens on this (main) thread afterwards, so
+the Session is never touched off-thread. Own transaction; neither model failure raises."""
 
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -45,44 +49,68 @@ def judge_call(db: Session, call: Call) -> Judgment:
         j.status, j.model = "skipped", None
         return j
 
+    # DB reads happen here on the main thread; the LLM passes below get plain args.
     script, guardrails = _script(db, call), _guardrails(db, call)
-    _run_judge(j, script, guardrails, transcript, call)
-    _run_failure(j, script, guardrails, transcript, call)  # second LLM, alongside the judge
+    ctx = (script, guardrails, transcript, call.external_call_id)
+
+    # Both models are network-bound and independent → run them at the same time.
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        judge_future = ex.submit(_judge, ctx)
+        failure_future = ex.submit(_failure, ctx)
+        judge_res = judge_future.result()
+        failure_res = failure_future.result()
+
+    _apply_judge(j, judge_res)
+    _apply_failure(j, failure_res)
     return j
 
 
-def _run_judge(j: Judgment, script, guardrails, transcript, call: Call) -> None:
+def _judge(ctx) -> dict:
+    """Run the post-call judge (in a worker thread). Pure: returns results, never touches the DB."""
+    script, guardrails, transcript, call_id = ctx
     resolved = resolve_llm(LLMRole.POST_CALL_ANALYSIS)
-    if resolved is None:  # role not configured (no API key) → skip the LLM pass
-        _clear(j, _JUDGE_FIELDS)
-        j.status, j.model = "skipped", None
-        return
-    j.model = resolved.model
+    if resolved is None:  # role not configured (no API key)
+        return {"status": "skipped", "model": None, "fields": None, "error": None}
     try:
         out = call_model(resolved, build_messages(
             script, transcript, guardrails=guardrails, prompt=resolved.prompt))
-        for f in _JUDGE_FIELDS:
-            setattr(j, f, getattr(out, f))
-        j.status, j.error = "ok", None
+        return {"status": "ok", "model": resolved.model,
+                "fields": {f: getattr(out, f) for f in _JUDGE_FIELDS}, "error": None}
     except Exception as e:  # noqa: BLE001 — record, never raise into the caller
-        log.warning("judge failed for %s: %s", call.external_call_id, e)
-        _clear(j, _JUDGE_FIELDS)
-        j.status, j.error = "failed", str(e)
+        log.warning("judge failed for %s: %s", call_id, e)
+        return {"status": "failed", "model": resolved.model, "fields": None, "error": str(e)}
 
 
-def _run_failure(j: Judgment, script, guardrails, transcript, call: Call) -> None:
-    """Independent failure-analysis pass. Never raises; leaves the columns null on skip/error."""
+def _failure(ctx) -> dict | None:
+    """Run the failure-analysis LLM (in a worker thread). Returns its fields, or None if the role
+    is unconfigured or it errored — best-effort, never raises."""
+    script, guardrails, transcript, call_id = ctx
     resolved = resolve_llm(LLMRole.FAILURE_ANALYSIS)
-    if resolved is None:  # not configured → leave the failure columns null
-        _clear(j, _FAILURE_FIELDS)
-        return
+    if resolved is None:
+        return None
     try:
         out = analyze_failure(resolved, build_failure_messages(
             script, transcript, guardrails=guardrails, prompt=resolved.prompt))
-        for f in _FAILURE_FIELDS:
-            setattr(j, f, getattr(out, f))
+        return {f: getattr(out, f) for f in _FAILURE_FIELDS}
     except Exception as e:  # noqa: BLE001 — failure analysis is best-effort
-        log.warning("failure analysis failed for %s: %s", call.external_call_id, e)
+        log.warning("failure analysis failed for %s: %s", call_id, e)
+        return None
+
+
+def _apply_judge(j: Judgment, res: dict) -> None:
+    j.model, j.status, j.error = res["model"], res["status"], res.get("error")
+    if res["fields"]:
+        for f, v in res["fields"].items():
+            setattr(j, f, v)
+    else:
+        _clear(j, _JUDGE_FIELDS)
+
+
+def _apply_failure(j: Judgment, fields: dict | None) -> None:
+    if fields:
+        for f, v in fields.items():
+            setattr(j, f, v)
+    else:
         _clear(j, _FAILURE_FIELDS)
 
 
