@@ -29,6 +29,9 @@ const tooltipStyle = {
   background: "var(--ink)", border: "none", borderRadius: 4,
   color: "var(--panel)", fontSize: 12, padding: "6px 9px",
 };
+// Recharts colors item/label text by series color by default — force light text on the dark box.
+const tipText = { color: "var(--panel)" };
+const TIP = { contentStyle: tooltipStyle, itemStyle: tipText, labelStyle: tipText } as const;
 
 function Card({ title, right, children }: {
   title: string; right?: React.ReactNode; children: React.ReactNode;
@@ -54,7 +57,7 @@ export function LineCard({ title, right, data, series, xKey = "t", fmtY }: {
         <XAxis dataKey={xKey} tick={AXIS} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={28} />
         <YAxis tick={AXIS} tickLine={false} axisLine={false} width={44}
           tickFormatter={fmtY ? (v) => fmtY(Number(v)) : undefined} />
-        <Tooltip contentStyle={tooltipStyle} formatter={fmtY ? (v) => fmtY(Number(v)) : undefined} />
+        <Tooltip {...TIP} formatter={fmtY ? (v) => fmtY(Number(v)) : undefined} />
         {series.length > 1 && <Legend iconType="plainline" wrapperStyle={{ fontSize: 11 }} />}
         {series.map((s) => (
           <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color}
@@ -84,7 +87,7 @@ export function AreaCard({ title, right, data, series, xKey = "t", fmtY }: {
         <XAxis dataKey={xKey} tick={AXIS} tickLine={false} axisLine={{ stroke: GRID }} minTickGap={28} />
         <YAxis tick={AXIS} tickLine={false} axisLine={false} width={44}
           tickFormatter={fmtY ? (v) => fmtY(Number(v)) : undefined} />
-        <Tooltip contentStyle={tooltipStyle} formatter={fmtY ? (v) => fmtY(Number(v)) : undefined} />
+        <Tooltip {...TIP} formatter={fmtY ? (v) => fmtY(Number(v)) : undefined} />
         {series.map((s) => (
           <Area key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color}
             strokeWidth={2} fill={`url(#g-${s.key})`} connectNulls />
@@ -105,7 +108,7 @@ export function DonutCard({ title, data }: {
           paddingAngle={2} stroke="var(--panel)">
           {data.map((d) => <Cell key={d.name} fill={d.color} />)}
         </Pie>
-        <Tooltip contentStyle={tooltipStyle}
+        <Tooltip {...TIP}
           formatter={(v: number, n) => [`${v} (${total ? Math.round((v / total) * 100) : 0}%)`, n]} />
         <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
       </PieChart>
