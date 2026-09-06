@@ -14,6 +14,8 @@ const DISPO_LABEL: Record<string, string> = {
 
 const pctFmt = (v: number) => `${v.toFixed(0)}%`;
 const rateTile = (r: number) => `${(r * 100).toFixed(1)}%`;
+// cost is raw currency units (often sub-unit per call) — keep precision so it isn't rounded to 0.
+const money = (v: number) => (v === 0 ? "0" : v >= 1 ? v.toFixed(2) : v.toPrecision(2));
 
 // short x-axis label per range: 24h → hour, else month/day
 const labeller = (range: string) => (iso: string) => {
@@ -57,7 +59,7 @@ export default function Boards() {
       p50: snap.latency.p50[i],
       p95: snap.latency.p95[i],
       grRate: +(snap.guardrail.rate[i] * 100).toFixed(1),
-      cost: +snap.cost.total[i].toFixed(2),
+      cost: snap.cost.total[i],
     }));
   }, [snap]);
 
@@ -75,7 +77,7 @@ export default function Boards() {
     ["p50 latency", t ? ms(t.p50_ms) : "—"],
     ["p95 latency", t ? ms(t.p95_ms) : "—"],
     ["Guardrail violations", t ? rateTile(t.violation_rate) : "—"],
-    ["Cost", t ? String(t.cost_total) : "—", "sum over range"],
+    ["Cost", t ? money(t.cost_total) : "—", "sum over range"],
   ];
 
   return (
@@ -123,7 +125,8 @@ export default function Boards() {
           <DonutCard title="Disposition mix" data={dispo} />
           <LineCard title="Guardrail-violation rate" data={rows} fmtY={pctFmt}
             series={[{ key: "grRate", label: "Violation %", color: "var(--chart-3)" }]} />
-          <AreaCard title="Cost" data={rows} series={[{ key: "cost", label: "Cost", color: "var(--chart-2)" }]} />
+          <AreaCard title="Cost" data={rows} fmtY={money}
+            series={[{ key: "cost", label: "Cost", color: "var(--chart-2)" }]} />
         </div>
       </div>
     </div>

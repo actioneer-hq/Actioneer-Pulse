@@ -177,7 +177,7 @@ def build_snapshot(
             "failure_rate": round(sum(failed) / calls_total, 4) if calls_total else 0.0,
             "p50_ms": percentile(all_lat, 50),
             "p95_ms": percentile(all_lat, 95),
-            "cost_total": round(sum(cost["total"]), 2),
+            "cost_total": round(sum(cost["total"]), 4),
             "violation_rate": round(sum(gr_viol) / sum(gr_judged), 4) if sum(gr_judged) else 0.0,
         },
     }

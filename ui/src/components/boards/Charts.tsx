@@ -61,7 +61,8 @@ export function LineCard({ title, right, data, series, xKey = "t", fmtY }: {
         {series.length > 1 && <Legend iconType="plainline" wrapperStyle={{ fontSize: 11 }} />}
         {series.map((s) => (
           <Line key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color}
-            strokeWidth={2} dot={false} connectNulls />
+            strokeWidth={2} dot={{ r: 2, fill: s.color, strokeWidth: 0 }}
+            activeDot={{ r: 4 }} connectNulls />
         ))}
       </LineChart>
     </Card>
@@ -90,7 +91,8 @@ export function AreaCard({ title, right, data, series, xKey = "t", fmtY }: {
         <Tooltip {...TIP} formatter={fmtY ? (v) => fmtY(Number(v)) : undefined} />
         {series.map((s) => (
           <Area key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.color}
-            strokeWidth={2} fill={`url(#g-${s.key})`} connectNulls />
+            strokeWidth={2} fill={`url(#g-${s.key})`} dot={{ r: 2, fill: s.color, strokeWidth: 0 }}
+            activeDot={{ r: 4 }} connectNulls />
         ))}
       </AreaChart>
     </Card>
