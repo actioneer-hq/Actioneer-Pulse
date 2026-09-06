@@ -44,19 +44,25 @@ export default function Discrepancies(
             discrepancies.map((d, i) => (
               <div className="disc" key={i}>
                 <div className="disc-hd">
-                  <span className="disc-field">{label(d)}</span>
+                  <span className="disc-field tip"
+                    data-tip="The reported span field being cross-checked against the audio.">
+                    {label(d)}</span>
                   {d.delta != null && (
-                    <span className="disc-delta">
+                    <span className="disc-delta tip"
+                      data-tip="Gap between reported and audio; flagged only when it exceeds tolerance.">
                       Δ {d.dimension === "transcript" ? `${(d.delta * 100).toFixed(0)}% WER` : `${d.delta} ms`}
                     </span>
                   )}
                 </div>
                 <div className="disc-row">
-                  <span className="disc-lbl">reported</span>
+                  <span className="disc-lbl tip" data-tip="What the engine's own OTLP spans claimed.">
+                    reported</span>
                   <span className="disc-rep">{fmtVal(d, d.reported)}</span>
                 </div>
                 <div className="disc-row">
-                  <span className="disc-lbl">audio</span>
+                  <span className="disc-lbl tip"
+                    data-tip="What we independently measured from the recording — the ground truth.">
+                    audio</span>
                   <span className="disc-mea">{fmtVal(d, d.measured)}</span>
                 </div>
                 {d.note && <div className="disc-note">{d.note}</div>}
