@@ -8,12 +8,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from voiceobs.api import agents, auth, chat, ingest, judge, orgs, read, settings
+from voiceobs.api import agents, auth, boards, chat, ingest, judge, orgs, read, settings
 
 app = FastAPI(title="Pulse")
 app.include_router(auth.router)
 app.include_router(orgs.router)
 app.include_router(agents.router)
+app.include_router(boards.router)
 app.include_router(chat.router)
 app.include_router(ingest.router)
 app.include_router(read.router)
