@@ -6,18 +6,15 @@ from __future__ import annotations
 
 import json
 
+from voiceobs.judge.failure_schema import FailureAnalysis
 from voiceobs.judge.schema import JudgeOutput
 from voiceobs.llm import LLMRole, default_prompt
 
 
-def build_messages(
-    script: str | None, transcript: dict, guardrails: str | None = None,
-    prompt: str | None = None,
-) -> list[dict]:
-    system = prompt or default_prompt(LLMRole.POST_CALL_ANALYSIS)
+def _messages(system: str, schema_model, script, transcript, guardrails) -> list[dict]:
     # Full schema (not just properties) so the model sees each enum's allowed values, which
     # live under $defs — otherwise it invents values like "AGENT"/"POOR".
-    schema = json.dumps(JudgeOutput.model_json_schema(), indent=0)
+    schema = json.dumps(schema_model.model_json_schema(), indent=0)
     user = (
         f"SCRIPT:\n{script or '(none provided)'}\n\n"
         f"GUARDRAILS:\n{guardrails or '(none provided)'}\n\n"
@@ -28,6 +25,24 @@ def build_messages(
         {"role": "system", "content": system.replace("{schema}", schema)},
         {"role": "user", "content": user},
     ]
+
+
+def build_messages(
+    script: str | None, transcript: dict, guardrails: str | None = None,
+    prompt: str | None = None,
+) -> list[dict]:
+    """Messages for the post-call judge (JudgeOutput)."""
+    return _messages(prompt or default_prompt(LLMRole.POST_CALL_ANALYSIS),
+                     JudgeOutput, script, transcript, guardrails)
+
+
+def build_failure_messages(
+    script: str | None, transcript: dict, guardrails: str | None = None,
+    prompt: str | None = None,
+) -> list[dict]:
+    """Messages for the failure-analysis LLM (FailureAnalysis) — same context, its own schema."""
+    return _messages(prompt or default_prompt(LLMRole.FAILURE_ANALYSIS),
+                     FailureAnalysis, script, transcript, guardrails)
 
 
 def _render(transcript: dict) -> str:
