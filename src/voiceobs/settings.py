@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     audio_analysis: bool = False        # global default; per-agent config overrides
     allow_delete: bool = False
+    # dev-only: when set, fetch_bytes resolves s3://bucket/key from {dir}/key on local disk
+    # instead of hitting S3 — lets playback/ingest work without a real bucket. Prod leaves
+    # this unset and always goes to S3; the DB still stores real s3:// URIs either way.
+    dev_audio_dir: str | None = None
     bootstrap_email: str = ""
     bootstrap_org: str = "Default"
 
