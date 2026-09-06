@@ -29,6 +29,7 @@ h1{font-size:18px;font-weight:600;letter-spacing:-.01em}
 .top .brand .logo-dark{display:none}
 .top .brand .brand-sep{width:1px;height:18px;background:var(--line)}
 .top .brand .brand-sub{font-size:12.5px;color:var(--dim);letter-spacing:.01em;font-weight:500}
+.top .brand .pulse-wordmark{height:22px;width:auto;display:block}
 .top nav{display:flex;gap:4px}
 .top nav button,.top nav a{padding:6px 11px;border-radius:var(--r-sm);color:var(--dim);font-size:13.5px;text-decoration:none;display:inline-block}
 .top nav button.on,.top nav a.on{background:var(--soft);color:var(--ink)}

@@ -27,7 +27,7 @@ function Shell() {
         <div className="brand">
           <img className="logo" src="/actioneer-logo.svg" alt="Actioneer" />
           <span className="brand-sep" />
-          <span className="brand-sub">Pulse</span>
+          <img className="pulse-wordmark" src="/pulse-wordmark.png" alt="Pulse" />
         </div>
         <nav>
           <NavLink to="/calls" className={({ isActive }) => (isActive ? "on" : undefined)}>
