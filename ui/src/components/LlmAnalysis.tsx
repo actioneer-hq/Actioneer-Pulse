@@ -36,6 +36,7 @@ export default function LlmAnalysis({ judgment }: { judgment: Judgment | null })
       <h3 className="collapse" role="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <Chev open={open} />
         LLM analysis
+        {judged && judgment!.is_failure && <span className="pill bad" style={{ marginLeft: 8 }}>failure</span>}
         <span className="right">{judged ? (judgment!.model ?? "judged") : "not run"}</span>
       </h3>
       {open && (
@@ -63,12 +64,33 @@ export default function LlmAnalysis({ judgment }: { judgment: Judgment | null })
                   </ul>
                 </div>
               ) : null}
+              {judgment!.is_failure && <FailureBlock j={judgment!} />}
               {judgment!.summary && <p className="fn">{judgment!.summary}</p>}
             </>
           )}
         </div>
       )}
     </section>
+  );
+}
+
+// Root-cause analysis, shown only when the judge flagged the call a failure.
+function FailureBlock({ j }: { j: Judgment }) {
+  return (
+    <div className="failure">
+      <div className="failure-hd">Root-cause analysis</div>
+      <dl className="failure-dl">
+        {j.root_cause && <div><dt>Root cause</dt><dd>{j.root_cause}</dd></div>}
+        {j.model_fault && j.model_fault !== "none" && (
+          <div><dt>Model at fault</dt>
+            <dd><span className="mono">{j.model_fault}</span>{j.model_fault_detail ? ` — ${j.model_fault_detail}` : ""}</dd></div>
+        )}
+        {j.hallucination && (
+          <div><dt>Hallucination</dt><dd>{j.hallucination_detail ?? "yes"}</dd></div>
+        )}
+        {j.suggested_fix && <div><dt>Suggested fix</dt><dd>{j.suggested_fix}</dd></div>}
+      </dl>
+    </div>
   );
 }
 

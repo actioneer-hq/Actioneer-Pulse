@@ -145,6 +145,13 @@ export type Judgment = {
   callback_time: string | null;
   guardrail_violation: boolean | null;
   guardrail_violation_points: string[] | null;
+  is_failure: boolean | null;
+  root_cause: string | null;
+  model_fault: string | null;  // none|asr|llm|tts|other
+  model_fault_detail: string | null;
+  hallucination: boolean | null;
+  hallucination_detail: string | null;
+  suggested_fix: string | null;
   summary: string | null;
 };
 

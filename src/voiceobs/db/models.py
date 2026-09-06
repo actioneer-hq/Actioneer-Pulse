@@ -417,6 +417,14 @@ class Judgment(Base):
     callback_time: Mapped[str | None] = mapped_column(String(128))
     guardrail_violation: Mapped[bool | None] = mapped_column(Boolean)
     guardrail_violation_points: Mapped[list | None] = mapped_column(JSON)  # only when violation
+    # failure analysis (root cause) — only populated when is_failure
+    is_failure: Mapped[bool | None] = mapped_column(Boolean)
+    root_cause: Mapped[str | None] = mapped_column(Text)
+    model_fault: Mapped[str | None] = mapped_column(String(16))  # none|asr|llm|tts|other
+    model_fault_detail: Mapped[str | None] = mapped_column(Text)
+    hallucination: Mapped[bool | None] = mapped_column(Boolean)
+    hallucination_detail: Mapped[str | None] = mapped_column(Text)
+    suggested_fix: Mapped[str | None] = mapped_column(Text)
     summary: Mapped[str | None] = mapped_column(Text)
     judged_at: Mapped[datetime] = created_col()
 

@@ -254,7 +254,9 @@ _JUDGE_FIELDS = (
     "sentiment", "objective_achieved", "answered_by", "primary_language",
     "secondary_languages", "script_adherence", "escalation_requested",
     "callback_requested", "callback_time", "guardrail_violation",
-    "guardrail_violation_points", "summary",
+    "guardrail_violation_points", "is_failure", "root_cause", "model_fault",
+    "model_fault_detail", "hallucination", "hallucination_detail", "suggested_fix",
+    "summary",
 )
 
 
