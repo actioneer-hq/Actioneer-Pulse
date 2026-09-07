@@ -33,7 +33,11 @@ export default function Clusters() {
     for (const [lever] of CLUSTER_LEVERS) {
       getClusters(lever, filters)
         .then((v) => setViews((prev) => ({ ...prev, [lever]: v })))
-        .catch((e: Error) => setError(e.message));
+        .catch((e: Error) => {
+          setError(e.message);
+          // resolve the panel to an empty view so it doesn't spin forever
+          setViews((prev) => ({ ...prev, [lever]: { lever, clusters: [], points: [] } }));
+        });
     }
     getArchetypes(filters).then(setArche).catch(() => setArche(null));
   }, [activeOrg, agentId, range]);
@@ -65,14 +69,16 @@ export default function Clusters() {
         </div>
 
         <div className="board-grid">
-          {CLUSTER_LEVERS.map(([lever, title]) =>
-            views[lever] ? (
-              <ScatterCard key={lever} title={title} view={views[lever]} onSelect={setSelected} />
-            ) : (
+          {CLUSTER_LEVERS.map(([lever, title]) => {
+            const v = views[lever];
+            if (v && v.points.length > 0) {
+              return <ScatterCard key={lever} title={title} view={v} onSelect={setSelected} />;
+            }
+            return (
               <div key={lever} className="panel-card board-card"><h3>{title}</h3>
-                <p className="dimtxt">Loading…</p></div>
-            ),
-          )}
+                <p className="dimtxt">{v ? "No clusters yet." : "Loading…"}</p></div>
+            );
+          })}
         </div>
 
         <ArchetypeTable arche={arche} onSelect={() => { /* row-drill: future */ }} />
