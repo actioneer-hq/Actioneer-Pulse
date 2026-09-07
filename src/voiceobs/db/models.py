@@ -35,6 +35,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from voiceobs.db.base import Base, created_col, pk, tenant_col
+from voiceobs.db.types import Embedding
 
 _CALL_FK = "call.id"
 
@@ -427,6 +428,26 @@ class Judgment(Base):
     suggested_fix: Mapped[str | None] = mapped_column(Text)
     summary: Mapped[str | None] = mapped_column(Text)
     judged_at: Mapped[datetime] = created_col()
+
+
+class CallEmbedding(Base):
+    """One embedding per (call, prose lever) — the semantic-clustering source. `field` names the
+    lever (root_cause | suggested_fix | summary | guardrail_points | hallucination_detail). Vector is
+    pgvector on Postgres, float32 blob on SQLite (see db/types.Embedding)."""
+
+    __tablename__ = "call_embedding"
+    __table_args__ = (
+        UniqueConstraint("call_id", "field", name="uq_call_embedding"),
+        Index("ix_call_embedding_tenant_field", "tenant_id", "field"),
+    )
+
+    id: Mapped[str] = pk()
+    call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
+    tenant_id: Mapped[str] = tenant_col()
+    field: Mapped[str] = mapped_column(String(32), nullable=False)
+    embedding: Mapped[list] = mapped_column(Embedding, nullable=False)
+    model: Mapped[str | None] = mapped_column(String(128))
+    created_at: Mapped[datetime] = created_col()
 
 
 class Tombstone(Base):
