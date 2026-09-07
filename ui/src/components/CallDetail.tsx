@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getCall, type CallDetail as Detail, type Trace } from "../api";
 import { secs, when } from "../format";
 import AudioAnalysis from "./AudioAnalysis";
+import CallChat from "./CallChat";
 import Discrepancies from "./Discrepancies";
 import Latency from "./Latency";
 import LlmAnalysis from "./LlmAnalysis";
@@ -41,6 +42,12 @@ export default function CallDetail({ id, onClose }: Props) {
         {error && <p className="dimtxt pad">{error}</p>}
         {!data && !error && <p className="dimtxt pad">Loading…</p>}
         {data && <Sections data={data} />}
+        {data && (
+          <section className="sec">
+            <h3>Chat</h3>
+            <CallChat callId={id} />
+          </section>
+        )}
       </div>
     </aside>
   );

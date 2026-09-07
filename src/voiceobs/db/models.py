@@ -547,13 +547,18 @@ class Agent(Base):
 
 
 class Conversation(Base):
-    """A saved global-chat thread. Belongs to an org + its creator; the sidebar lists these."""
+    """A saved chat thread. `call_id` NULL = a global-chat thread (the sidebar lists these); set =
+    a per-call thread scoped to one call. Belongs to an org (schema) + its creator."""
 
     __tablename__ = "conversation"
-    __table_args__ = (Index("ix_conversation_owner", "created_by"),)
+    __table_args__ = (
+        Index("ix_conversation_owner", "created_by"),
+        Index("ix_conversation_call", "call_id", "created_by"),
+    )
 
     id: Mapped[str] = pk()
     created_by: Mapped[str | None] = mapped_column(ForeignKey("app_user.id"))
+    call_id: Mapped[str | None] = mapped_column(ForeignKey(_CALL_FK))  # NULL = global thread
     title: Mapped[str] = mapped_column(String(200), nullable=False, default="New chat")
     created_at: Mapped[datetime] = created_col()
     updated_at: Mapped[datetime] = created_col()
