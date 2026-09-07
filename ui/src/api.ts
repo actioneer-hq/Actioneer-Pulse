@@ -283,8 +283,8 @@ const get = <T>(path: string) => req<T>("GET", path);
 
 // ---- auth ----
 export const getAuthConfig = () => get<AuthConfig>("/v1/auth/config");
-export const login = (email: string, password: string) =>
-  req<{ user: Me["user"] }>("POST", "/v1/auth/login", { email, password });
+export const login = (email: string, password: string, org = "default") =>
+  req<{ user: Me["user"] }>("POST", "/v1/auth/login", { email, password, org });
 export const signup = (email: string, password: string, org_name?: string, name?: string) =>
   req("POST", "/v1/auth/signup", { email, password, org_name, name });
 export const acceptInvite = (token: string, password: string, name?: string) =>
@@ -478,7 +478,10 @@ export type ClusterFilters = { agent_id?: string; range?: string };
 export type ClusterInfo = { key: number; label: string | null; size: number };
 export type ClusterPoint = { call_id: string; x: number; y: number; cluster_key: number | null };
 export type ClusterView = { lever: string; clusters: ClusterInfo[]; points: ClusterPoint[] };
-export type Archetype = { combo: Record<string, string>; count: number; lift: number | null };
+export type Archetype = {
+  combo: Record<string, string>; count: number;
+  cause_total: number; consistency: number | null; lift: number | null;
+};
 export type ArchetypeView = { dims: string[]; total: number; archetypes: Archetype[] };
 
 const clusterQuery = (f: ClusterFilters) => {

@@ -219,10 +219,9 @@ def set_agent_script(db: Session, agent: Agent, text: str, user_id: str | None) 
     """Set/replace the agent's script. Content dedupes into Prompt by sha256; a new AgentScript
     version is minted only when the text actually changes. Returns the active version."""
     sha = hashlib.sha256(text.encode()).hexdigest()
-    prompt = db.scalar(select(Prompt).where(
-        Prompt.tenant_id == agent.org_id, Prompt.template_sha256 == sha))
+    prompt = db.scalar(select(Prompt).where(Prompt.template_sha256 == sha))
     if prompt is None:
-        prompt = Prompt(tenant_id=agent.org_id, template_sha256=sha, text=text)
+        prompt = Prompt(template_sha256=sha, text=text)
         db.add(prompt)
         db.flush()
 
@@ -296,10 +295,9 @@ def set_agent_guardrails(db: Session, agent: Agent, text: str, user_id: str | No
     """Set/replace the agent's guardrails. Content dedupes into Prompt by sha256; a new version is
     minted only when the text changes. Returns the active version."""
     sha = hashlib.sha256(text.encode()).hexdigest()
-    prompt = db.scalar(select(Prompt).where(
-        Prompt.tenant_id == agent.org_id, Prompt.template_sha256 == sha))
+    prompt = db.scalar(select(Prompt).where(Prompt.template_sha256 == sha))
     if prompt is None:
-        prompt = Prompt(tenant_id=agent.org_id, template_sha256=sha, text=text)
+        prompt = Prompt(template_sha256=sha, text=text)
         db.add(prompt)
         db.flush()
 

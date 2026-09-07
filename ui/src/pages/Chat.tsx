@@ -79,7 +79,7 @@ export default function Chat() {
       await streamChat(cid!, text, (e) => {
         if (e.type === "token") upd((a) => ({ ...a, content: a.content + e.text }));
         else if (e.type === "tool_call")
-          upd((a) => ({ ...a, steps: [...a.steps, { name: e.name, summary: "…" } as ChatStep] }));
+          upd((a) => ({ ...a, steps: [...a.steps, { name: e.name, args: e.args, summary: "…" } as ChatStep] }));
         else if (e.type === "tool_result")
           upd((a) => ({ ...a, steps: a.steps.map((s, i) =>
             i === a.steps.length - 1 ? { ...s, summary: e.summary } : s) }));
@@ -233,7 +233,10 @@ function Bubble({ msg }: { msg: LiveMsg }) {
         <div className="activity">
           {msg.steps.map((s, i) => (
             <div className="step" key={i}>
-              <span className="step-dot" /> {stepLabel(s)}
+              <div><span className="step-dot" /> {stepLabel(s)}</div>
+              {s.name === "execute_sql" && (s.args as { query?: string })?.query && (
+                <pre className="step-sql">{(s.args as { query?: string }).query}</pre>
+              )}
             </div>
           ))}
         </div>
@@ -249,7 +252,6 @@ function Bubble({ msg }: { msg: LiveMsg }) {
 }
 
 function stepLabel(s: ChatStep): string {
-  const verb = s.name === "search_calls" ? "Searching calls"
-    : s.name === "get_call" ? "Reading call" : s.name;
-  return s.summary === "…" ? `${verb}…` : `${verb} · ${s.summary}`;
+  const verb = s.name === "execute_sql" ? "Ran SQL" : s.name;
+  return s.summary === "…" ? `${verb === "Ran SQL" ? "Running SQL" : verb}…` : `${verb} · ${s.summary}`;
 }

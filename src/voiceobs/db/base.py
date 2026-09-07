@@ -26,10 +26,5 @@ def pk() -> Mapped[str]:
     return mapped_column(String(36), primary_key=True, default=_uuid)
 
 
-def tenant_col() -> Mapped[str]:
-    # tenant = lender. Verbatim from voice.tenant_id. "default" if producer sends none.
-    return mapped_column(String(128), nullable=False, default="default", index=True)
-
-
 def created_col() -> Mapped[datetime]:
     return mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)

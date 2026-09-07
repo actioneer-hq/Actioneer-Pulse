@@ -1,15 +1,17 @@
 """Pulse Postgres schema — SQLAlchemy 2.0 ORM, mirroring MODELS.md.
 
-Thirteen tables. ``tenant_id`` on every one. Load-bearing constraints (idempotency
-and the daily metric-predicate query) are declared explicitly, not left implicit:
+Schema-per-tenant: each org lives in its own Postgres schema holding this entire table set,
+so there is NO ``tenant_id`` column — the schema IS the tenant boundary (search_path selects it;
+SQLite dev runs a single flat schema). Load-bearing constraints (idempotency and the daily
+metric-predicate query) are declared explicitly, not left implicit:
 
-- ``Call``    UNIQUE (tenant_id, external_call_id) — re-delivery is expected
-- ``Metric``  UNIQUE (call_id, name, metric_version) + INDEX (tenant_id, name, value_num)
+- ``Call``    UNIQUE (external_call_id) — re-delivery is expected
+- ``Metric``  UNIQUE (call_id, name, metric_version) + INDEX (name, value_num)
 - ``Media``   UNIQUE (call_id, kind, sha256)
 - ``Turn``    UNIQUE (call_id, turn_index)
 - ``Annotation`` UNIQUE (call_id, kind, source, body_sha256) — append-log, never upsert
-- ``Prompt``  UNIQUE (tenant_id, template_sha256) — templates only
-- ``Tombstone`` PK (tenant_id, call_id) — written first in DELETE, blocks resurrection
+- ``Prompt``  UNIQUE (template_sha256) — templates only
+- ``Tombstone`` PK (call_id) — written first in DELETE, blocks resurrection
 
 Content columns (``Event.content_text``/``content_kind``; ``Turn`` transcript
 columns) are kept apart from shape so ``DELETE`` finds text in one place.
@@ -34,7 +36,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from voiceobs.db.base import Base, created_col, pk, tenant_col
+from voiceobs.db.base import Base, created_col, pk
 from voiceobs.db.types import Embedding
 
 _CALL_FK = "call.id"
@@ -45,10 +47,9 @@ class Prompt(Base):
     call artifact, erased with the call. Never here."""
 
     __tablename__ = "prompt"
-    __table_args__ = (UniqueConstraint("tenant_id", "template_sha256", name="uq_prompt_template"),)
+    __table_args__ = (UniqueConstraint("template_sha256", name="uq_prompt_template"),)
 
     id: Mapped[str] = pk()
-    tenant_id: Mapped[str] = tenant_col()
     template_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     first_seen_at: Mapped[datetime] = created_col()
@@ -57,14 +58,13 @@ class Prompt(Base):
 class Call(Base):
     __tablename__ = "call"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "external_call_id", name="uq_call_external"),
-        Index("ix_call_tenant_env_started", "tenant_id", "environment", "started_at"),
+        UniqueConstraint("external_call_id", name="uq_call_external"),
+        Index("ix_call_env_started", "environment", "started_at"),
         Index("ix_call_status_activity", "status", "last_activity_at"),
-        Index("ix_call_tenant_trace", "tenant_id", "trace_id"),
+        Index("ix_call_trace", "trace_id"),
     )
 
     id: Mapped[str] = pk()
-    tenant_id: Mapped[str] = tenant_col()
     external_call_id: Mapped[str] = mapped_column(String(128), nullable=False)  # voice.call_id
     # OTLP trace id — the only call identity every producer has. Spans arriving in a
     # later batch than the root resolve back to this call through it.
@@ -147,7 +147,6 @@ class RawFragment(Base):
 
     id: Mapped[str] = pk()
     call_id: Mapped[str | None] = mapped_column(ForeignKey(_CALL_FK))
-    tenant_id: Mapped[str] = tenant_col()
     batch_id: Mapped[str | None] = mapped_column(String(64))
     seq: Mapped[int | None] = mapped_column(Integer)
     received_at: Mapped[datetime] = created_col()
@@ -166,7 +165,6 @@ class Event(Base):
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
-    tenant_id: Mapped[str] = tenant_col()
     span_id: Mapped[str | None] = mapped_column(String(64))
     parent_span_id: Mapped[str | None] = mapped_column(String(64))  # null = root
     turn_id: Mapped[str | None] = mapped_column(String(160))  # NULLABLE BY DESIGN
@@ -189,7 +187,6 @@ class Utterance(Base):
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
-    tenant_id: Mapped[str] = tenant_col()
     channel: Mapped[str] = mapped_column(String(16), nullable=False)  # caller | agent
     t_start_s: Mapped[float] = mapped_column(Float, nullable=False)
     t_end_s: Mapped[float] = mapped_column(Float, nullable=False)
@@ -204,7 +201,6 @@ class Turn(Base):
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
-    tenant_id: Mapped[str] = tenant_col()
     turn_index: Mapped[int] = mapped_column(Integer, nullable=False)
     turn_id: Mapped[str | None] = mapped_column(String(160))  # "<call_id>:<n>"
     trigger: Mapped[str | None] = mapped_column(String(16))  # opening | endpoint
@@ -258,12 +254,11 @@ class Metric(Base):
     __tablename__ = "metric"
     __table_args__ = (
         UniqueConstraint("call_id", "name", "metric_version", name="uq_metric_name_version"),
-        Index("ix_metric_tenant_name_value", "tenant_id", "name", "value_num"),
+        Index("ix_metric_name_value", "name", "value_num"),
     )
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
-    tenant_id: Mapped[str] = tenant_col()
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     value_num: Mapped[float | None] = mapped_column(Float)
     value_text: Mapped[str | None] = mapped_column(String(128))
@@ -277,7 +272,6 @@ class MetricDef(Base):
     __tablename__ = "metric_def"
 
     id: Mapped[str] = pk()
-    tenant_id: Mapped[str] = tenant_col()
     name: Mapped[str] = mapped_column(String(64), nullable=False)
     unit: Mapped[str | None] = mapped_column(String(16))
     data_type: Mapped[str | None] = mapped_column(String(16))
@@ -296,7 +290,6 @@ class Media(Base):
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
-    tenant_id: Mapped[str] = tenant_col()
     kind: Mapped[str] = mapped_column(String(24), nullable=False)  # audio|artifact_json|peaks|...
     uri: Mapped[str | None] = mapped_column(String(1024))  # gs:// or s3://
     peaks: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)  # int16 min/max
@@ -313,7 +306,6 @@ class IngestRun(Base):
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
-    tenant_id: Mapped[str] = tenant_col()
     app_version: Mapped[str | None] = mapped_column(String(64))
     metric_version: Mapped[int | None] = mapped_column(Integer)
     adapter_version: Mapped[int | None] = mapped_column(Integer)
@@ -333,7 +325,6 @@ class Annotation(Base):
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
-    tenant_id: Mapped[str] = tenant_col()
     kind: Mapped[str] = mapped_column(String(48), nullable=False)
     source: Mapped[str] = mapped_column(String(48), nullable=False)
     at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -350,7 +341,6 @@ class Label(Base):
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
     turn_id: Mapped[str | None] = mapped_column(String(160))
-    tenant_id: Mapped[str] = tenant_col()
     name: Mapped[str | None] = mapped_column(String(64))
     value: Mapped[str | None] = mapped_column(String(256))
     user_id: Mapped[str | None] = mapped_column(String(64))
@@ -366,7 +356,6 @@ class Transcript(Base):
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
-    tenant_id: Mapped[str] = tenant_col()
     source: Mapped[str] = mapped_column(String(32), default="byo")
     format: Mapped[str | None] = mapped_column(String(24))  # text | jsonl | ...
     content: Mapped[str | None] = mapped_column(Text)  # inline transcript
@@ -375,15 +364,13 @@ class Transcript(Base):
 
 
 class TenantSettings(Base):
-    """Per-tenant platform switches. Audio analysis is off by default (OTLP-only); turning
-    it on requires access to the client's audio store (S3), pointed at by audio_store_prefix.
-    A null flag means "defer to the global VOICEOBS_AUDIO_ANALYSIS default"."""
+    """Platform switches for this org (one row per schema). Audio analysis is off by default
+    (OTLP-only); turning it on requires access to the client's audio store (S3), pointed at by
+    audio_store_prefix. A null flag means "defer to the global VOICEOBS_AUDIO_ANALYSIS default"."""
 
     __tablename__ = "tenant_settings"
-    __table_args__ = (UniqueConstraint("tenant_id", name="uq_tenant_settings_tenant"),)
 
     id: Mapped[str] = pk()
-    tenant_id: Mapped[str] = tenant_col()
     audio_analysis_enabled: Mapped[bool | None] = mapped_column(Boolean)
     audio_store_prefix: Mapped[str | None] = mapped_column(String(1024))
     created_at: Mapped[datetime] = created_col()
@@ -399,7 +386,6 @@ class Judgment(Base):
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
-    tenant_id: Mapped[str] = tenant_col()
 
     disposition: Mapped[str | None] = mapped_column(String(32))  # programmatic
     status: Mapped[str] = mapped_column(String(16), default="skipped")  # ok|skipped|failed
@@ -438,12 +424,11 @@ class CallEmbedding(Base):
     __tablename__ = "call_embedding"
     __table_args__ = (
         UniqueConstraint("call_id", "field", name="uq_call_embedding"),
-        Index("ix_call_embedding_tenant_field", "tenant_id", "field"),
+        Index("ix_call_embedding_field", "field"),
     )
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
-    tenant_id: Mapped[str] = tenant_col()
     field: Mapped[str] = mapped_column(String(32), nullable=False)
     embedding: Mapped[list] = mapped_column(Embedding, nullable=False)
     model: Mapped[str | None] = mapped_column(String(128))
@@ -456,11 +441,10 @@ class Cluster(Base):
 
     __tablename__ = "cluster"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "lever", "cluster_key", name="uq_cluster"),
+        UniqueConstraint("lever", "cluster_key", name="uq_cluster"),
     )
 
     id: Mapped[str] = pk()
-    tenant_id: Mapped[str] = tenant_col()
     lever: Mapped[str] = mapped_column(String(32), nullable=False)
     cluster_key: Mapped[int] = mapped_column(Integer, nullable=False)  # >=0 (noise not stored)
     label: Mapped[str | None] = mapped_column(Text)  # LLM-named theme
@@ -474,12 +458,11 @@ class CallCluster(Base):
     __tablename__ = "call_cluster"
     __table_args__ = (
         UniqueConstraint("call_id", "lever", name="uq_call_cluster"),
-        Index("ix_call_cluster_tenant_lever", "tenant_id", "lever"),
+        Index("ix_call_cluster_lever", "lever"),
     )
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
-    tenant_id: Mapped[str] = tenant_col()
     lever: Mapped[str] = mapped_column(String(32), nullable=False)
     cluster_key: Mapped[int | None] = mapped_column(Integer)  # null = noise
     x: Mapped[float] = mapped_column(Float, nullable=False)
@@ -492,21 +475,19 @@ class Tombstone(Base):
 
     __tablename__ = "tombstone"
 
-    tenant_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     call_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     deleted_at: Mapped[datetime] = created_col()
     deleted_by: Mapped[str | None] = mapped_column(String(64))
 
 
 # ── Identity / RBAC / agents ────────────────────────────────────────────────────
-# These define and scope tenancy (org = tenant_id) rather than carry it, so they use
-# real FKs among themselves and do NOT use tenant_col(). Data tables above stay on the
-# loose `tenant_id` string (= Organization.id) — see CONTRACTS / the identity plan.
+# Under schema-per-tenant these live in the SAME schema as the org's data (one org =
+# one self-contained schema). They use real FKs among themselves and to the data tables.
 
 
 class Organization(Base):
-    """A tenant. Its `id` IS the `tenant_id` stamped on every data row. The self-host
-    default org is seeded with id="default"."""
+    """This schema's org (one row). Its `slug` is the schema name (`t_<slug>`); the self-host
+    default org is seeded with id="default", slug="default"."""
 
     __tablename__ = "organization"
 
@@ -569,10 +550,9 @@ class Conversation(Base):
     """A saved global-chat thread. Belongs to an org + its creator; the sidebar lists these."""
 
     __tablename__ = "conversation"
-    __table_args__ = (Index("ix_conversation_owner", "tenant_id", "created_by"),)
+    __table_args__ = (Index("ix_conversation_owner", "created_by"),)
 
     id: Mapped[str] = pk()
-    tenant_id: Mapped[str] = tenant_col()
     created_by: Mapped[str | None] = mapped_column(ForeignKey("app_user.id"))
     title: Mapped[str] = mapped_column(String(200), nullable=False, default="New chat")
     created_at: Mapped[datetime] = created_col()
@@ -591,7 +571,6 @@ class ChatMessage(Base):
 
     id: Mapped[str] = pk()
     conversation_id: Mapped[str] = mapped_column(ForeignKey("conversation.id"), nullable=False)
-    tenant_id: Mapped[str] = tenant_col()
     seq: Mapped[int] = mapped_column(Integer, nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False)  # user | assistant
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -682,7 +661,6 @@ class AudioDiscrepancy(Base):
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
-    tenant_id: Mapped[str] = tenant_col()
     turn_index: Mapped[int | None] = mapped_column(Integer)
     dimension: Mapped[str] = mapped_column(String(32), nullable=False)
     field: Mapped[str] = mapped_column(String(64), nullable=False)

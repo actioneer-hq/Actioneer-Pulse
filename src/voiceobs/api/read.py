@@ -44,8 +44,7 @@ def list_calls(
     limit: int = Query(50, le=200),
 ) -> dict:
     stmt = (
-        select(Call)
-        .where(Call.tenant_id == mem.org_id)  # never leak across orgs
+        select(Call)  # tenant scope = the schema (search_path); no cross-org leak possible
         # nulls_last: an unprocessed call has no started_at yet and would otherwise
         # sort to the top of every list forever.
         .order_by(Call.started_at.desc().nulls_last(), Call.created_at.desc())

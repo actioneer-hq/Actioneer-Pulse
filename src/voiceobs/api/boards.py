@@ -47,8 +47,7 @@ def _now() -> datetime:
 
 def _scope(stmt: Select, db: Session, mem: Membership,
            agent_id: str | None, environment: str | None) -> Select:
-    """Tenant + RBAC + optional filters — the same clauses as read.list_calls."""
-    stmt = stmt.where(Call.tenant_id == mem.org_id)
+    """RBAC + optional filters — the same clauses as read.list_calls. Tenant scope = schema."""
     ids = visible_agent_ids(db, mem)
     if ids is not None:
         stmt = stmt.where(Call.agent_id.in_(ids))

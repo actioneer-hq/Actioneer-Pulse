@@ -18,8 +18,8 @@ from voiceobs.api.deps import now, session_dep
 from voiceobs.api.schemas import ChatMessageIn
 from voiceobs.auth import current_membership
 from voiceobs.config import resolve_llm
-from voiceobs.db.models import ChatMessage, Conversation, Membership
-from voiceobs.db.session import get_session
+from voiceobs.db.models import ChatMessage, Conversation, Membership, Organization
+from voiceobs.db.session import get_session, use_org_schema
 from voiceobs.llm import LLMRole
 
 log = logging.getLogger(__name__)
@@ -28,8 +28,7 @@ router = APIRouter(prefix="/v1/chat")
 
 def _conv(db: Session, cid: str, mem: Membership) -> Conversation:
     c = db.scalar(select(Conversation).where(
-        Conversation.id == cid, Conversation.tenant_id == mem.org_id,
-        Conversation.created_by == mem.user_id))
+        Conversation.id == cid, Conversation.created_by == mem.user_id))
     if c is None:
         raise HTTPException(404, "conversation not found")
     return c
@@ -40,7 +39,7 @@ def list_conversations(
     db: Session = Depends(session_dep), mem: Membership = Depends(current_membership)
 ) -> dict:
     rows = db.scalars(select(Conversation).where(
-        Conversation.tenant_id == mem.org_id, Conversation.created_by == mem.user_id)
+        Conversation.created_by == mem.user_id)
         .order_by(Conversation.updated_at.desc())).all()
     return {"items": [{"id": c.id, "title": c.title, "updated_at": c.updated_at} for c in rows]}
 
@@ -50,7 +49,7 @@ def create_conversation(
     db: Session = Depends(session_dep), mem: Membership = Depends(current_membership),
     _: None = Depends(require_csrf),
 ) -> dict:
-    c = Conversation(tenant_id=mem.org_id, created_by=mem.user_id, title="New chat")
+    c = Conversation(created_by=mem.user_id, title="New chat")
     db.add(c)
     db.flush()
     return {"id": c.id, "title": c.title}
@@ -86,10 +85,12 @@ def stream_message(
     _: None = Depends(require_csrf),
 ) -> StreamingResponse:
     """Append the user message and stream the agent's reply as SSE. The generator runs after the
-    request session closes, so it opens its own session (org_id/user_id captured here)."""
+    request session closes, so it opens its own session and re-pins the org schema (slug captured
+    here from this schema's single org row)."""
     _conv(db, cid, mem)  # authorize before streaming
-    org_id, user_id, text = mem.org_id, mem.user_id, body.text
-    return StreamingResponse(_run(cid, org_id, user_id, text),
+    org_slug = db.scalar(select(Organization.slug))  # one org per schema
+    user_id, text = mem.user_id, body.text
+    return StreamingResponse(_run(cid, org_slug, user_id, text),
                              media_type="text/event-stream")
 
 
@@ -97,14 +98,14 @@ def _sse(event: dict) -> str:
     return f"data: {json.dumps(event)}\n\n"
 
 
-def _run(cid: str, org_id: str, user_id: str, text: str) -> Iterator[str]:
+def _run(cid: str, org_slug: str, user_id: str, text: str) -> Iterator[str]:
     from voiceobs import chat  # local import: keeps api import-time light
 
     gen = get_session()
     db = next(gen)
     try:
-        mem = db.scalar(select(Membership).where(
-            Membership.org_id == org_id, Membership.user_id == user_id))
+        use_org_schema(db, org_slug)  # this session skipped the request auth, so pin the schema here
+        mem = db.scalar(select(Membership).where(Membership.user_id == user_id))
         resolved = resolve_llm(LLMRole.GLOBAL_CHAT)
         if mem is None or resolved is None:
             yield _sse({"type": "error",
@@ -116,7 +117,7 @@ def _run(cid: str, org_id: str, user_id: str, text: str) -> Iterator[str]:
                        ChatMessage.conversation_id == cid).order_by(ChatMessage.seq))]
         nxt = (db.scalar(select(func.max(ChatMessage.seq)).where(
             ChatMessage.conversation_id == cid)) or 0) + 1
-        db.add(ChatMessage(conversation_id=cid, tenant_id=org_id, seq=nxt,
+        db.add(ChatMessage(conversation_id=cid, seq=nxt,
                            role="user", content=text))
         db.commit()
 
@@ -126,7 +127,7 @@ def _run(cid: str, org_id: str, user_id: str, text: str) -> Iterator[str]:
                 content, steps = event["content"], event["steps"]
             yield _sse(event)
 
-        db.add(ChatMessage(conversation_id=cid, tenant_id=org_id, seq=nxt + 1,
+        db.add(ChatMessage(conversation_id=cid, seq=nxt + 1,
                            role="assistant", content=content, steps=steps or None))
         conv = db.get(Conversation, cid)
         if conv is not None:

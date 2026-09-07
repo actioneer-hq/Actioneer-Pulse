@@ -29,7 +29,7 @@ _ARCHETYPE_ENUMS = ("model_fault", "objective_achieved")
 
 def _scope(stmt: Select, db: Session, mem: Membership, agent_id: str | None,
            range_key: str | None) -> Select:
-    stmt = stmt.where(Call.tenant_id == mem.org_id)
+    # tenant scope = the schema (search_path); only agent-level RBAC + filters remain.
     ids = visible_agent_ids(db, mem)
     if ids is not None:
         stmt = stmt.where(Call.agent_id.in_(ids))
@@ -53,8 +53,7 @@ def archetypes(
     with count and lift (observed vs. independence-expected)."""
     # per-call cluster label per lever
     label_of = {(lev, key): lbl for lev, key, lbl in db.execute(
-        select(Cluster.lever, Cluster.cluster_key, Cluster.label)
-        .where(Cluster.tenant_id == mem.org_id)).all()}
+        select(Cluster.lever, Cluster.cluster_key, Cluster.label)).all()}
     per_call: dict[str, dict[str, str]] = defaultdict(dict)
     cc_rows = db.execute(_scope(
         select(Call.external_call_id, CallCluster.lever, CallCluster.cluster_key)
@@ -92,8 +91,12 @@ def archetypes(
         expected = total
         for d, v in zip(dims, tup):
             expected *= marginals[d][v] / total
+        # consistency: of all calls sharing this root cause, how many follow this exact path
+        cause_total = marginals[_ARCHETYPE_LEVERS[0]][tup[0]]
         items.append({
             "combo": dict(zip(dims, tup)), "count": n,
+            "cause_total": cause_total,
+            "consistency": round(n / cause_total, 3) if cause_total else None,
             "lift": round(n / expected, 2) if expected else None,
         })
     return {"dims": list(dims), "total": total, "archetypes": items}
@@ -112,8 +115,7 @@ def points(
         raise HTTPException(404, "unknown lever")
     clusters = [
         {"key": c.cluster_key, "label": c.label, "size": c.size}
-        for c in db.scalars(select(Cluster).where(
-            Cluster.tenant_id == mem.org_id, Cluster.lever == lever)
+        for c in db.scalars(select(Cluster).where(Cluster.lever == lever)
             .order_by(Cluster.size.desc()))
     ]
     rows = db.execute(_scope(

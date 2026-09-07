@@ -107,6 +107,7 @@ export default function Boards() {
           <span className="count">{error ?? (snap ? `${snap.totals.calls} calls` : "loading…")}</span>
         </div>
 
+        <div className="scroll">
         <div className="board-grid">
           <AreaCard title="Call volume" data={rows} series={[{ key: "volume", label: "Calls", color: "var(--chart-1)" }]} />
           <LineCard title="Failure rate" data={rows} fmtY={pctFmt}
@@ -126,6 +127,7 @@ export default function Boards() {
             ]} />
           <AreaCard title="Cost" data={rows} fmtY={money}
             series={[{ key: "cost", label: "Cost", color: "var(--chart-2)" }]} />
+        </div>
         </div>
       </div>
     </div>

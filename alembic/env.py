@@ -55,13 +55,37 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
+def _org_schemas(connection) -> list[str]:
+    """Existing org schemas on Postgres (`t_*`), always including the default `t_default`."""
+    from sqlalchemy import text
+
+    rows = connection.execute(text(
+        r"SELECT schema_name FROM information_schema.schemata WHERE schema_name LIKE 't\_%'"
+    )).scalars().all()
+    return sorted({"t_default", *rows})
+
+
+def _run_for_schema(connection, schema: str | None) -> None:
+    """Run migrations against one schema (its own version table), or the flat DB when schema=None."""
+    from sqlalchemy import text
+
+    if schema is not None:
+        connection.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
+        connection.execute(text(f'SET search_path TO "{schema}"'))
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        version_table_schema=schema,
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
-    In this scenario we need to create an Engine
-    and associate a connection with the context.
-
-    """
+    Schema-per-tenant: on Postgres, run the migrations once per org schema (search_path pinned to
+    each, its own alembic_version table). On SQLite there is a single flat schema."""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -69,12 +93,11 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
-
-        with context.begin_transaction():
-            context.run_migrations()
+        if connection.dialect.name == "postgresql":
+            for schema in _org_schemas(connection):
+                _run_for_schema(connection, schema)
+        else:
+            _run_for_schema(connection, None)
 
 
 if context.is_offline_mode():

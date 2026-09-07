@@ -31,6 +31,9 @@ class Config(BaseSettings):
     # ── SECRETS (env only; no default in a real deployment) ──────────────────────────
     secret_key: str | None = None
     database_url: str | None = None
+    # Connection string for the read-only agent role (pulse_agent_ro) — the SQL chat-agent's only
+    # DB pipe, scoped to the curated ag_<org> views. None → SQLite/dev reuses the main engine.
+    agent_database_url: str | None = None
     bootstrap_password: str = ""
     # Per-role LLM keys — one per role in LLM_ROLES. Model/provider are set below; keys stay in env.
     post_call_api_key: str | None = None
@@ -44,6 +47,9 @@ class Config(BaseSettings):
     log_level: str = "INFO"
     audio_analysis: bool = False        # global default; per-agent config overrides
     allow_delete: bool = False
+    # Login password for the read-only agent role (pulse_agent_ro), created at provision time on
+    # Postgres. Must match the password in agent_database_url. Override in production.
+    agent_db_password: str = "pulse-agent-ro-dev"
     # dev-only: when set, fetch_bytes resolves s3://bucket/key from {dir}/key on local disk
     # instead of hitting S3 — lets playback/ingest work without a real bucket.
     dev_audio_dir: str | None = None

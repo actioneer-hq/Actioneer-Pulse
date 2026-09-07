@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from voiceobs.config import get_config
 from voiceobs.core.config import METRIC_VERSION
 from voiceobs.db.models import Call
-from voiceobs.db.session import get_session
+from voiceobs.db.session import get_session, org_schema_keys, use_org_schema
 from voiceobs.frameworks import UnsupportedSchema
 from voiceobs.judge import judge_call
 from voiceobs.worker.process import process
@@ -94,9 +94,13 @@ def main() -> None:
 
     log.info("worker up (poll=%ss batch=%s grace=%ss)", POLL_S, BATCH, GRACE_S)
     while not stopping:
+        done = 0
         try:
             with session_scope() as db:
-                done = tick(db)
+                # sweep every org schema each cycle (one flat schema on SQLite)
+                for org in org_schema_keys(db):
+                    use_org_schema(db, org)
+                    done += tick(db)
         except Exception:
             log.exception("tick failed")
             done = 0

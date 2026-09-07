@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from voiceobs.config import get_config
 from voiceobs.db.models import AgentAudioConfig, Call, Media, Tombstone
-from voiceobs.db.session import get_session
+from voiceobs.db.session import get_session, org_schema_keys, use_org_schema
 from voiceobs.storage import list_objects, resolve_s3_creds
 
 session_scope = contextmanager(get_session)
@@ -77,12 +77,12 @@ def _register(db: Session, agent_id: str, call_id: str, uri: str, kind: str) -> 
     )
     if call is None:
         return False  # spans never arrived either — nothing to attach audio to yet
-    if db.get(Tombstone, {"tenant_id": call.tenant_id, "call_id": call_id}) is not None:
+    if db.get(Tombstone, call_id) is not None:
         return False
     if db.scalar(select(Media).where(Media.call_id == call.id, Media.kind == kind)):
         return False  # already registered (POST won, or a prior reconcile)
 
-    db.add(Media(call_id=call.id, tenant_id=call.tenant_id, kind=kind, uri=uri))
+    db.add(Media(call_id=call.id, kind=kind, uri=uri))
     call.media_ready = True
     if call.spans_complete:
         call.status = "ingested"
@@ -95,7 +95,9 @@ def _aware(dt: datetime) -> datetime:
 
 def _run_once() -> None:  # pragma: no cover
     with session_scope() as db:
-        log.info("reconciled %d recording(s)", reconcile(db))
+        for org in org_schema_keys(db):  # sweep each org's schema (one flat schema on SQLite)
+            use_org_schema(db, org)
+            log.info("reconciled %s: %d recording(s)", org, reconcile(db))
 
 
 def main() -> None:  # pragma: no cover — entrypoint

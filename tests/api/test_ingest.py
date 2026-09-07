@@ -240,10 +240,7 @@ def test_tenant_header_names_a_producer_that_sends_none(client, login_as):
 
 
 def test_span_tenant_routes_the_call(client, login_as):
-    """A call that names its own tenant (voice.tenant_id) is reachable in that org."""
-    client.post("/v1/traces", json=sample_call())  # voice.tenant_id = vastu-hfc
-    login_as("vastu-hfc")
+    """Span-based tenant routing is gone; the call lands in the single (default) schema."""
+    client.post("/v1/traces", json=sample_call())
+    login_as("default")
     assert client.get("/v1/calls/c1").status_code == 200
-    # a different org cannot see it
-    login_as("someone-else")
-    assert client.get("/v1/calls/c1").status_code == 404

@@ -10,22 +10,22 @@ _ids = iter(range(10000))
 
 
 def _call(db, org, *, root_key=0, fix_key=0, model_fault="llm", objective="not_achieved"):
-    c = Call(tenant_id=org, external_call_id=f"c{next(_ids)}", source="livekit",
+    c = Call(external_call_id=f"c{next(_ids)}", source="livekit",
              environment="prod", status="ingested", started_at=datetime.now(UTC))
     db.add(c)
     db.flush()
-    db.add(CallCluster(call_id=c.id, tenant_id=org, lever="root_cause",
+    db.add(CallCluster(call_id=c.id, lever="root_cause",
                        cluster_key=root_key, x=1.0, y=2.0))
-    db.add(CallCluster(call_id=c.id, tenant_id=org, lever="suggested_fix",
+    db.add(CallCluster(call_id=c.id, lever="suggested_fix",
                        cluster_key=fix_key, x=0.0, y=0.0))
-    db.add(Judgment(call_id=c.id, tenant_id=org, status="ok",
+    db.add(Judgment(call_id=c.id, status="ok",
                     model_fault=model_fault, objective_achieved=objective))
     return c
 
 
 def _clusters(db, org):
-    db.add(Cluster(tenant_id=org, lever="root_cause", cluster_key=0, label="Skipped verification", size=3))
-    db.add(Cluster(tenant_id=org, lever="suggested_fix", cluster_key=0, label="Add verification step", size=3))
+    db.add(Cluster(lever="root_cause", cluster_key=0, label="Skipped verification", size=3))
+    db.add(Cluster(lever="suggested_fix", cluster_key=0, label="Add verification step", size=3))
 
 
 def test_points_endpoint(client, login_as, db_sessionmaker):
@@ -34,7 +34,6 @@ def test_points_endpoint(client, login_as, db_sessionmaker):
         _clusters(db, "default")
         for _ in range(3):
             _call(db, "default")
-        _call(db, "other-org")  # different tenant — excluded
         db.commit()
     d = client.get("/v1/clusters/root_cause").json()
     assert [c["label"] for c in d["clusters"]] == ["Skipped verification"]

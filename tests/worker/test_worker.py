@@ -43,7 +43,7 @@ def test_rollup_fills_models_and_tokens_from_otlp():
     )
     trace = LiveKitAdapter().to_trace(otlp)
     analysis = join(trace, None)
-    call = Call(id="x", tenant_id="t", external_call_id="x", source="livekit", environment="prod")
+    call = Call(id="x", external_call_id="x", source="livekit", environment="prod")
     _rollup(call, trace, analysis)
 
     assert call.engine == "cascade"

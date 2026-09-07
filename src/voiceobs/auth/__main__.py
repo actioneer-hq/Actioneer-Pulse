@@ -16,14 +16,9 @@ from sqlalchemy import func, select
 from voiceobs.auth.env import DEV_EMAIL, DEV_PASSWORD, dev_open
 from voiceobs.auth.password import hash_password, normalize_email
 from voiceobs.config import get_config
-from voiceobs.db.models import AppUser, Membership, Organization
-from voiceobs.db.session import get_session
-
-
-def _slug(name: str) -> str:
-    import re
-
-    return re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-") or "org"
+from voiceobs.db.models import AppUser, Membership
+from voiceobs.db.provision import provision_org
+from voiceobs.db.session import DEFAULT_ORG, get_session
 
 
 def bootstrap(email: str, password: str, org_name: str) -> int:
@@ -40,20 +35,16 @@ def bootstrap(email: str, password: str, org_name: str) -> int:
     gen = get_session()
     db = next(gen)
     try:
+        # Provision (or adopt) the default org's schema, then bootstrap the first owner inside it.
+        org = provision_org(db, DEFAULT_ORG, org_name or "Default")
         if db.scalar(select(func.count()).select_from(AppUser)):
             print("users already exist — nothing to bootstrap.")
             return 0
+        if org_name:
+            org.name = org_name
         user = AppUser(email=email, password_hash=hash_password(password), is_active=True)
         db.add(user)
         db.flush()
-        # The migration backfill seeds a "default" org from existing tenant data; adopt it
-        # rather than collide on its unique slug. Only create one when it's absent.
-        slug = _slug(org_name or "default")
-        org = db.scalar(select(Organization).where(Organization.slug == slug))
-        if org is None:
-            org = Organization(name=org_name or "Default", slug=slug)
-            db.add(org)
-            db.flush()
         db.add(Membership(org_id=org.id, user_id=user.id, role="owner"))
         db.commit()
         print(f"bootstrapped owner {email} + org {org.name!r} ({org.id})")
