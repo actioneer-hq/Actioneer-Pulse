@@ -14,11 +14,11 @@ from voiceobs.db.models import Call, CallCluster, CallEmbedding, Cluster, Judgme
 def test_recluster_embeds_and_writes(db_sessionmaker, monkeypatch):
     with db_sessionmaker() as db:
         for i in range(8):
-            c = Call(tenant_id="t", external_call_id=f"c{i}", source="livekit",
+            c = Call(external_call_id=f"c{i}", source="livekit",
                      environment="prod", status="ingested", started_at=datetime.now(UTC))
             db.add(c)
             db.flush()
-            db.add(Judgment(call_id=c.id, tenant_id="t", status="ok",
+            db.add(Judgment(call_id=c.id, status="ok",
                             root_cause=f"cause {'A' if i < 4 else 'B'}"))
         db.commit()
 

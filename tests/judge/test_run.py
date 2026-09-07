@@ -28,12 +28,12 @@ _ids = iter(range(1000))
 
 
 def _call(db, *, spoke=True, duration=30.0) -> Call:
-    c = Call(tenant_id="t", external_call_id=f"c{next(_ids)}", source="livekit",
+    c = Call(external_call_id=f"c{next(_ids)}", source="livekit",
              environment="prod", status="computed", duration_s=duration)
     db.add(c)
     db.flush()
     if spoke:
-        db.add(Turn(call_id=c.id, tenant_id="t", turn_index=0, turn_id="c1:0",
+        db.add(Turn(call_id=c.id, turn_index=0, turn_id="c1:0",
                     caller_transcript="haan ji", llm_spoken="boliye"))
     db.commit()
     return c
@@ -92,7 +92,7 @@ def test_guardrails_passed_and_violation_persisted(db, monkeypatch):
     agent = Agent(org_id="t", name="Bot", slug="bot")
     db.add(agent)
     db.flush()
-    p = Prompt(tenant_id="t", template_sha256="sha", text="Always verify the caller.")
+    p = Prompt(template_sha256="sha", text="Always verify the caller.")
     db.add(p)
     db.flush()
     db.add(AgentGuardrail(agent_id=agent.id, prompt_id=p.id, version=1, active=True))

@@ -68,7 +68,7 @@ def process(db: Session, call: Call) -> str:
     Caller owns the transaction: everything here is one unit, so a crash halfway
     cannot leave a call half-analysed."""
     run = IngestRun(
-        call_id=call.id, tenant_id=call.tenant_id, app_version=APP_VERSION,
+        call_id=call.id, app_version=APP_VERSION,
         metric_version=METRIC_VERSION, status="running", started_at=_now(),
     )
     db.add(run)
@@ -123,7 +123,7 @@ def _reconcile(db: Session, call: Call, analysis: Analysis) -> None:
     db.execute(delete(AudioDiscrepancy).where(AudioDiscrepancy.call_id == call.id))
     for d in report.material():  # persist only the surfaced disagreements
         db.add(AudioDiscrepancy(
-            call_id=call.id, tenant_id=call.tenant_id, turn_index=d.turn_index,
+            call_id=call.id, turn_index=d.turn_index,
             dimension=d.dimension.value, field=d.field,
             reported=None if d.reported is None else str(d.reported),
             measured=None if d.measured is None else str(d.measured),
@@ -147,7 +147,7 @@ def _audio_enabled(db: Session, call: Call) -> bool:
     cfg = audio_config(db, call.agent_id)
     if cfg is not None:
         return cfg.enabled
-    s = db.scalar(select(TenantSettings).where(TenantSettings.tenant_id == call.tenant_id))
+    s = db.scalar(select(TenantSettings))  # one row per schema
     if s is not None and s.audio_analysis_enabled is not None:
         return s.audio_analysis_enabled
     return _env_default()
@@ -264,7 +264,7 @@ def _rollup(call: Call, trace: Trace, analysis: Analysis) -> None:
 def _utterance_rows(audio: AudioAnalysis, call: Call, metric_version: int):
     return [
         Utterance(
-            call_id=call.id, tenant_id=call.tenant_id, channel=u.channel,
+            call_id=call.id, channel=u.channel,
             t_start_s=u.t_start, t_end_s=u.t_end, metric_version=metric_version,
         )
         for u in audio.utterances
@@ -273,7 +273,7 @@ def _utterance_rows(audio: AudioAnalysis, call: Call, metric_version: int):
 
 def _peaks_rows(audio: AudioAnalysis, call: Call):
     return [
-        Media(call_id=call.id, tenant_id=call.tenant_id, kind=f"peaks_{channel}", peaks=data)
+        Media(call_id=call.id, kind=f"peaks_{channel}", peaks=data)
         for channel, data in audio.peaks.items()
     ]
 
@@ -281,7 +281,7 @@ def _peaks_rows(audio: AudioAnalysis, call: Call):
 def _energy_rows(audio: AudioAnalysis, call: Call):
     """Per-channel dBFS frame series (LE float32) stored in the media blob, like peaks."""
     return [
-        Media(call_id=call.id, tenant_id=call.tenant_id, kind=f"energy_{channel}", peaks=data)
+        Media(call_id=call.id, kind=f"energy_{channel}", peaks=data)
         for channel, data in audio.energy.items()
         if data
     ]
@@ -308,14 +308,14 @@ def _apply_header(call: Call, h: CallHeader) -> None:
 def _turn_row(turn, call: Call, metric_version: int) -> DBTurn:
     d = {_TURN_RENAMES.get(k, k): v for k, v in turn.model_dump().items()}
     return DBTurn(
-        call_id=call.id, tenant_id=call.tenant_id, metric_version=metric_version,
+        call_id=call.id, metric_version=metric_version,
         **{k: v for k, v in d.items() if k in _cols(DBTurn)},
     )
 
 
 def _metric_row(m, call: Call, metric_version: int) -> Metric:
     return Metric(
-        call_id=call.id, tenant_id=call.tenant_id, name=m.name,
+        call_id=call.id, name=m.name,
         value_num=m.value if isinstance(m.value, int | float) else None,
         value_text=m.value if isinstance(m.value, str) else None,
         samples=m.samples, available=m.available, reason=m.reason,
@@ -328,7 +328,7 @@ def _event_rows(trace: Trace, call: Call):
     for s in trace.spans:
         kind = next((k for k in _PRIMARY_CONTENT if s.content.get(k)), None)
         yield Event(
-            call_id=call.id, tenant_id=call.tenant_id, span_id=s.span_id,
+            call_id=call.id, span_id=s.span_id,
             parent_span_id=s.parent_span_id, turn_id=s.turn_id, t_offset_s=s.t_start,
             kind="span", type=s.stage.value, name=s.name, attrs=s.attrs,
             duration_s=None if s.t_end is None else round(s.t_end - s.t_start, 6),
@@ -338,7 +338,7 @@ def _event_rows(trace: Trace, call: Call):
         for e in s.events:
             ekind = next(iter(e.content), None)
             yield Event(
-                call_id=call.id, tenant_id=call.tenant_id, span_id=s.span_id,
+                call_id=call.id, span_id=s.span_id,
                 parent_span_id=s.parent_span_id, turn_id=s.turn_id, t_offset_s=e.t,
                 kind="event", type=e.name[:48], name=e.name, attrs=e.attrs,
                 content_text=_text(e.content.get(ekind)) if ekind else None,

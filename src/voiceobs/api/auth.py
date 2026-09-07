@@ -12,7 +12,6 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import session_dep
-from voiceobs.api.orgs import unique_org_slug
 from voiceobs.api.schemas import AcceptInviteIn, LoginIn, SignupIn
 from voiceobs.auth import (
     ACCESS_COOKIE,
@@ -35,18 +34,26 @@ from voiceobs.auth import (
 from voiceobs.auth.env import DEV_EMAIL, DEV_PASSWORD, dev_open
 from voiceobs.config import get_config
 from voiceobs.db.models import AppUser, Membership, Organization
+from voiceobs.db.provision import provision_org
+from voiceobs.db.session import DEFAULT_ORG, use_org_schema
 
 router = APIRouter(prefix="/v1/auth")
 
+# Readable (non-httpOnly) cookie carrying the active org slug, so the refresh/logout endpoints —
+# which run without a valid access token — know which schema to operate in.
+ORG_COOKIE = "vo_org"
 
-def _set_auth_cookies(response: Response, user_id: str, db: Session, request: Request) -> None:
-    """Mint an access JWT + a rotating refresh token and set the httpOnly cookies. Also sets a
-    readable CSRF cookie the SPA echoes back as X-CSRF-Token on unsafe requests."""
+
+def _set_auth_cookies(
+    response: Response, user_id: str, db: Session, request: Request, org: str = DEFAULT_ORG
+) -> None:
+    """Mint an access JWT (carrying the org) + a rotating refresh token and set the httpOnly
+    cookies. Also sets a readable CSRF cookie and the readable org cookie."""
     secure = not dev_open()
     ua = request.headers.get("user-agent")
     refresh_plain, _ = mint_refresh(db, user_id, user_agent=ua)
     response.set_cookie(
-        ACCESS_COOKIE, issue_access(user_id), max_age=ACCESS_MAX_AGE_S,
+        ACCESS_COOKIE, issue_access(user_id, org), max_age=ACCESS_MAX_AGE_S,
         httponly=True, samesite="lax", secure=secure, path="/",
     )
     response.set_cookie(
@@ -57,12 +64,17 @@ def _set_auth_cookies(response: Response, user_id: str, db: Session, request: Re
         CSRF_COOKIE, secrets.token_urlsafe(24), max_age=REFRESH_MAX_AGE_S,
         httponly=False, samesite="lax", secure=secure, path="/",  # readable by the SPA
     )
+    response.set_cookie(
+        ORG_COOKIE, org, max_age=REFRESH_MAX_AGE_S,
+        httponly=False, samesite="lax", secure=secure, path="/",  # readable by the SPA + refresh
+    )
 
 
 def _clear_auth_cookies(response: Response) -> None:
     response.delete_cookie(ACCESS_COOKIE, path="/")
     response.delete_cookie(REFRESH_COOKIE, path=REFRESH_PATH)
     response.delete_cookie(CSRF_COOKIE, path="/")
+    response.delete_cookie(ORG_COOKIE, path="/")
 
 
 def require_csrf(request: Request) -> None:
@@ -83,6 +95,7 @@ def config(db: Session = Depends(session_dep)) -> dict:
     fresh install (no users yet). `dev_email`/`dev_password` are non-null ONLY under dev-open,
     so the form can prefill for a one-click sign-in; they are always null in a real deployment.
     """
+    use_org_schema(db, DEFAULT_ORG)  # the bootstrap org lives in the default schema
     signup_open = not db.scalar(select(func.count()).select_from(AppUser))
     dev = dev_open()
     return {
@@ -97,22 +110,22 @@ def config(db: Session = Depends(session_dep)) -> dict:
 def signup(
     body: SignupIn, request: Request, response: Response, db: Session = Depends(session_dep)
 ) -> dict:
-    """Open ONLY when no users exist (first-run). After that, growth is invite-only."""
+    """Open ONLY when no users exist in the default org (first-run). After that, growth is
+    invite-only. The bootstrap user + org live in the `default` schema."""
+    org = provision_org(db, DEFAULT_ORG, body.org_name or "Default")  # pins the default schema
     if db.scalar(select(func.count()).select_from(AppUser)):
         raise HTTPException(403, "signup is closed — ask an admin to invite you")
     email = normalize_email(body.email)
     if not email or not body.password:
         raise HTTPException(400, "email and password are required")
+    if body.org_name:
+        org.name = body.org_name
     user = AppUser(email=email, password_hash=hash_password(body.password),
                    name=body.name, is_active=True)
     db.add(user)
     db.flush()
-    org = Organization(name=body.org_name or "Default",
-                       slug=unique_org_slug(db, body.org_name or "default"))
-    db.add(org)
-    db.flush()
     db.add(Membership(org_id=org.id, user_id=user.id, role="owner"))
-    _set_auth_cookies(response, user.id, db, request)
+    _set_auth_cookies(response, user.id, db, request, DEFAULT_ORG)
     return {"user": {"id": user.id, "email": user.email},
             "org": {"id": org.id, "name": org.name}}
 
@@ -121,12 +134,14 @@ def signup(
 def login(
     body: LoginIn, request: Request, response: Response, db: Session = Depends(session_dep)
 ) -> dict:
+    org = (body.org or DEFAULT_ORG).lower()
+    use_org_schema(db, org)  # authenticate within the org's schema
     user = provider_for("password").authenticate(
         db, {"email": body.email, "password": body.password}
     )
     if user is None:
         raise HTTPException(401, "invalid credentials")
-    _set_auth_cookies(response, user.id, db, request)
+    _set_auth_cookies(response, user.id, db, request, org)
     return {"user": {"id": user.id, "email": user.email}}
 
 
@@ -137,6 +152,8 @@ def refresh(
 ) -> dict:
     """Rotate the refresh token and mint a fresh access JWT. The only way an expired access
     session comes back to life; a revoked/reused refresh token is rejected (401)."""
+    org = request.cookies.get(ORG_COOKIE) or DEFAULT_ORG
+    use_org_schema(db, org)  # refresh tokens live per-schema
     presented = request.cookies.get(REFRESH_COOKIE)
     rotated = rotate_refresh(db, presented, user_agent=request.headers.get("user-agent"))
     if rotated is None:
@@ -145,7 +162,7 @@ def refresh(
     new_refresh, user_id = rotated
     secure = not dev_open()
     response.set_cookie(
-        ACCESS_COOKIE, issue_access(user_id), max_age=ACCESS_MAX_AGE_S,
+        ACCESS_COOKIE, issue_access(user_id, org), max_age=ACCESS_MAX_AGE_S,
         httponly=True, samesite="lax", secure=secure, path="/",
     )
     response.set_cookie(
@@ -162,6 +179,7 @@ def logout(
 ) -> dict:
     """Revoke this session's refresh token and clear cookies. The access JWT dies on its own
     within its short TTL."""
+    use_org_schema(db, request.cookies.get(ORG_COOKIE) or DEFAULT_ORG)
     revoke_refresh(db, request.cookies.get(REFRESH_COOKIE))
     _clear_auth_cookies(response)
     return {"status": "ok"}
@@ -180,19 +198,17 @@ def logout_all(
 
 @router.get("/me")
 def me(user: AppUser = Depends(current_user), db: Session = Depends(session_dep)) -> dict:
-    mems = db.scalars(select(Membership).where(Membership.user_id == user.id)).all()
-    orgs = {
-        o.id: o for o in db.scalars(
-            select(Organization).where(Organization.id.in_([m.org_id for m in mems] or [""]))
-        )
-    }
+    # A user belongs to exactly one org (this schema). current_user already pinned it.
+    mem = db.scalar(select(Membership).where(Membership.user_id == user.id))
+    org = db.scalar(select(Organization))  # one org per schema
+    memberships = (
+        [{"org_id": mem.org_id, "org_name": org.name if org else None,
+          "org_slug": org.slug if org else None, "role": mem.role}]
+        if mem else []
+    )
     return {
         "user": {"id": user.id, "email": user.email, "name": user.name},
-        "memberships": [
-            {"org_id": m.org_id, "org_name": orgs[m.org_id].name if m.org_id in orgs else None,
-             "role": m.role}
-            for m in mems
-        ],
+        "memberships": memberships,
     }
 
 
@@ -201,6 +217,8 @@ def accept_invite(
     body: AcceptInviteIn, request: Request, response: Response,
     db: Session = Depends(session_dep),
 ) -> dict:
+    org = request.cookies.get(ORG_COOKIE) or DEFAULT_ORG
+    use_org_schema(db, org)  # the invited user lives in the inviting org's schema
     uid = decode_invite(body.token)
     if not uid:
         raise HTTPException(400, "invalid or expired invite")
@@ -211,5 +229,5 @@ def accept_invite(
     user.is_active = True
     if body.name:
         user.name = body.name
-    _set_auth_cookies(response, user.id, db, request)
+    _set_auth_cookies(response, user.id, db, request, org)
     return {"user": {"id": user.id, "email": user.email}}

@@ -117,7 +117,7 @@ def _apply_failure(j: Judgment, fields: dict | None) -> None:
 def _row(db: Session, call: Call) -> Judgment:
     j = db.scalar(select(Judgment).where(Judgment.call_id == call.id))
     if j is None:
-        j = Judgment(call_id=call.id, tenant_id=call.tenant_id)
+        j = Judgment(call_id=call.id)
         db.add(j)
     return j
 

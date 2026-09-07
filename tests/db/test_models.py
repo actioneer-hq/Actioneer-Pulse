@@ -36,11 +36,11 @@ def test_all_tables_created():
     assert set(insp.get_table_names()) == EXPECTED_TABLES
 
 
-def test_tenant_id_on_every_data_table():
+def test_no_tenant_id_on_any_data_table():
     insp = _inspector()
     for table in DATA_TABLES:
         cols = {c["name"] for c in insp.get_columns(table)}
-        assert "tenant_id" in cols, f"{table} missing tenant_id"
+        assert "tenant_id" not in cols, f"{table} should not carry tenant_id"
 
 
 def test_identity_constraints_and_call_agent_id():
@@ -59,7 +59,7 @@ def test_identity_constraints_and_call_agent_id():
 def test_call_unique_external_id():
     insp = _inspector()
     uniques = {tuple(u["column_names"]) for u in insp.get_unique_constraints("call")}
-    assert ("tenant_id", "external_call_id") in uniques
+    assert ("external_call_id",) in uniques
 
 
 def test_metric_constraints_and_query_index():
@@ -67,8 +67,10 @@ def test_metric_constraints_and_query_index():
     uniques = {tuple(u["column_names"]) for u in insp.get_unique_constraints("metric")}
     assert ("call_id", "name", "metric_version") in uniques
     # the daily metric-predicate query index
+    idx_names = {i["name"] for i in insp.get_indexes("metric")}
+    assert "ix_metric_name_value" in idx_names
     idx_cols = {tuple(i["column_names"]) for i in insp.get_indexes("metric")}
-    assert ("tenant_id", "name", "value_num") in idx_cols
+    assert ("name", "value_num") in idx_cols
 
 
 def test_media_and_turn_and_annotation_uniques():
@@ -84,10 +86,10 @@ def test_media_and_turn_and_annotation_uniques():
     }
 
 
-def test_tombstone_composite_pk():
+def test_tombstone_pk():
     insp = _inspector()
     pk_cols = insp.get_pk_constraint("tombstone")["constrained_columns"]
-    assert set(pk_cols) == {"tenant_id", "call_id"}
+    assert set(pk_cols) == {"call_id"}
 
 
 def test_event_content_columns_separate_from_attrs():

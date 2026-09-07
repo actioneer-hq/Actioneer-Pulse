@@ -388,3 +388,31 @@ pre{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--sof
 .live-dot{display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--line);margin-left:8px;vertical-align:middle}
 .live-dot.on{background:var(--ok);box-shadow:0 0 0 0 rgb(47 138 85 / .5);animation:pulse 2s infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgb(47 138 85 / .45)}70%{box-shadow:0 0 0 6px rgb(47 138 85 / 0)}100%{box-shadow:0 0 0 0 rgb(47 138 85 / 0)}}
+
+/* Archetypes — recurring failure modes, shown as narrative story cards */
+.arch-wrap{margin-top:22px}
+.arch-head h3{font-size:13px;font-weight:600;margin-bottom:4px}
+.arch-head .dimtxt{max-width:640px;margin-bottom:14px}
+.arch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.arch-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  padding:14px 16px;display:flex;flex-direction:column;gap:9px}
+.arch-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.arch-count{font-size:12.5px;color:var(--dim)}
+.arch-count b{font-size:20px;color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums;margin-right:3px}
+.arch-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.arch-fault{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--dim)}
+.arch-fault .dot{width:8px;height:8px;border-radius:999px;flex:none}
+.arch-cause{font-size:13.5px;line-height:1.45;color:var(--ink)}
+.arch-arrow{font-size:11px;color:var(--dim);letter-spacing:.02em}
+.arch-fix{font-size:12.5px;line-height:1.45;color:var(--ink);padding:8px 10px;
+  background:var(--soft);border-radius:var(--r-sm);border:1px solid var(--line)}
+.arch-strength{display:flex;align-items:center;gap:9px;margin-top:2px}
+.arch-meter{width:64px;height:6px;border-radius:3px;background:var(--line);overflow:hidden;flex:none}
+.arch-meter span.on{display:block;height:100%;background:var(--accent);border-radius:3px}
+.arch-lift{font-size:11.5px;color:var(--dim)}
+.arch-lift b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+
+/* chat: the SQL the agent ran, under its activity step */
+.step-sql{margin:4px 0 2px 14px;padding:6px 9px;background:var(--soft);border:1px solid var(--line);
+  border-radius:var(--r-sm);font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.5;
+  white-space:pre-wrap;overflow-x:auto;color:var(--ink)}

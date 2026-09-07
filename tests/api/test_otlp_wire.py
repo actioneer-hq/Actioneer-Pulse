@@ -84,7 +84,6 @@ def test_protobuf_batch_is_ingested(client, db_sessionmaker, otlp_body):
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
         assert call.external_call_id == "call-pb-1"
-        assert call.tenant_id == "spektra"
         assert call.spans_complete is True
         # hex, not the base64 the protobuf JSON mapping hands back
         assert len(call.trace_id) == 32

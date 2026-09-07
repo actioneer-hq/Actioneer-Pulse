@@ -16,15 +16,14 @@ def _mint_token(client, login_as) -> tuple[str, str]:
     return aid, tok
 
 
-def test_token_routes_call_over_span_tenant(client, login_as, db_sessionmaker):
+def test_token_routes_call_to_its_agent(client, login_as, db_sessionmaker):
     aid, tok = _mint_token(client, login_as)
-    # sample_call carries voice.tenant_id = vastu-hfc, but the acme token is authoritative
+    # the token resolves (org, agent); the call is stamped with the token's agent
     r = client.post("/v1/traces", json=sample_call(),
                     headers={"Authorization": f"Bearer {tok}"})
     assert r.status_code == 200
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
-        assert call.tenant_id == "acme"
         assert call.agent_id == aid
 
 
@@ -39,10 +38,10 @@ def test_tokenless_ingest_requires_dev_open(client, monkeypatch):
     assert client.post("/v1/traces", json=sample_call()).status_code == 401
 
 
-def test_dev_open_tokenless_falls_back_to_span_tenant(client, db_sessionmaker):
-    # autouse dev-open is on → token-less ingest lands under the span tenant, no agent
+def test_dev_open_tokenless_ingests_into_default_schema(client, db_sessionmaker):
+    # autouse dev-open is on → token-less ingest lands in the single (default) schema, no agent
     assert client.post("/v1/traces", json=sample_call()).status_code == 200
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
-        assert call.tenant_id == "vastu-hfc"
+        assert call.external_call_id == "c1"
         assert call.agent_id is None

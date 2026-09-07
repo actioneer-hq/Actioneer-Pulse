@@ -19,7 +19,7 @@ def _seed(db, *, enabled=True, spans_complete=True) -> Agent:
     db.add(agent)
     db.add(AgentAudioConfig(agent_id="ag1", enabled=enabled,
                             s3_bucket="bucket", s3_prefix="recordings"))
-    db.add(Call(tenant_id="org1", agent_id="ag1", external_call_id="c1", source="livekit",
+    db.add(Call(agent_id="ag1", external_call_id="c1", source="livekit",
                 environment="prod", status="awaiting_media", spans_complete=spans_complete))
     db.commit()
     return agent
@@ -66,7 +66,7 @@ def test_skips_when_audio_already_registered(db_sessionmaker, monkeypatch):
     with db_sessionmaker() as db:
         _seed(db)
         call = db.scalar(select(Call).where(Call.external_call_id == "c1"))
-        db.add(Media(call_id=call.id, tenant_id="org1", kind="audio", uri=URI))
+        db.add(Media(call_id=call.id, kind="audio", uri=URI))
         db.commit()
         assert reconcile(db) == 0
 
@@ -75,7 +75,7 @@ def test_skips_tombstoned_call(db_sessionmaker, monkeypatch):
     _lister(monkeypatch, [(URI, OLD)])
     with db_sessionmaker() as db:
         _seed(db)
-        db.add(Tombstone(tenant_id="org1", call_id="c1"))
+        db.add(Tombstone(call_id="c1"))
         db.commit()
         assert reconcile(db) == 0
 

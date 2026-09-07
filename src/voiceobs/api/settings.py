@@ -21,9 +21,9 @@ def set_settings(
     db: Session = Depends(session_dep),
     mem: Membership = Depends(require_role("owner", "admin")),
 ) -> dict:
-    s = db.scalar(select(TenantSettings).where(TenantSettings.tenant_id == mem.org_id))
+    s = db.scalar(select(TenantSettings))  # one row per schema
     if s is None:
-        s = TenantSettings(tenant_id=mem.org_id)
+        s = TenantSettings()
         db.add(s)
     s.audio_analysis_enabled = body.audio_analysis_enabled
     s.audio_store_prefix = body.audio_store_prefix
@@ -35,7 +35,7 @@ def set_settings(
 def get_settings(
     db: Session = Depends(session_dep), mem: Membership = Depends(current_membership)
 ) -> dict:
-    s = db.scalar(select(TenantSettings).where(TenantSettings.tenant_id == mem.org_id))
+    s = db.scalar(select(TenantSettings))  # one row per schema
     if s is None:  # unset — the platform default (audio off) applies
         return {"audio_analysis_enabled": None, "audio_store_prefix": None}
     return {

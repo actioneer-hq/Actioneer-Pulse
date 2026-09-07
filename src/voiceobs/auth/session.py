@@ -8,7 +8,13 @@ surface for callers/tests."""
 
 from __future__ import annotations
 
-from voiceobs.auth.jwt import ACCESS_TTL, REFRESH_TTL, decode_access, encode_access
+from voiceobs.auth.jwt import (
+    ACCESS_TTL,
+    REFRESH_TTL,
+    decode_access,
+    decode_access_org,
+    encode_access,
+)
 
 # httpOnly cookie names.
 ACCESS_COOKIE = "vo_access"
@@ -23,11 +29,17 @@ ACCESS_MAX_AGE_S = int(ACCESS_TTL.total_seconds())
 REFRESH_MAX_AGE_S = int(REFRESH_TTL.total_seconds())
 
 
-def issue_access(user_id: str) -> str:
-    """Mint an access JWT for this user (the value of the vo_access cookie)."""
-    return encode_access(user_id)
+def issue_access(user_id: str, org: str = "default") -> str:
+    """Mint an access JWT for this user (the value of the vo_access cookie). `org` is the user's
+    org slug, which selects the schema the request runs against."""
+    return encode_access(user_id, org)
 
 
 def read_access(cookie: str | None) -> str | None:
     """The user id a valid, unexpired access cookie carries, else None."""
     return decode_access(cookie)
+
+
+def read_access_org(cookie: str | None) -> str | None:
+    """The org slug a valid access cookie carries, else None."""
+    return decode_access_org(cookie)

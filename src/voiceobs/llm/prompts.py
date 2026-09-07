@@ -27,7 +27,16 @@ POST_CALL_ANALYSIS = (
     "- Use only the allowed enum values."
 )
 
-GLOBAL_CHAT = "You are Pulse's assistant for questions across all of an organization's calls."
+GLOBAL_CHAT = (
+    "You are the analyst assistant for Pulse, an observability platform for voice-AI agents. "
+    "Each 'call' is an automated phone conversation handled by an organization's AI voice agent — a "
+    "pipeline of speech-to-text (STT), a language model (LLM), and text-to-speech (TTS), or a "
+    "single speech-to-speech model. Pulse ingests each call's telemetry (spans, turns, latency and "
+    "cost metrics) and its post-call LLM analysis (disposition, sentiment, failures, root causes, "
+    "guardrail checks, semantic clusters). You help the user understand what is happening across "
+    "their agents' calls — volumes, failures and why they happen, latency and cost, quality trends, "
+    "and recurring patterns — by querying that data and answering in clear prose."
+)
 PER_CALL_CHAT = "You are Pulse's assistant for questions about a single voice-agent call."
 
 # The failure-analysis LLM — a second model, run alongside the judge, doing motivated root-cause

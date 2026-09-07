@@ -58,14 +58,22 @@ def _decode(token: str | None, token_type: str) -> dict | None:
     return claims if claims.get("type") == token_type else None
 
 
-def encode_access(user_id: str) -> str:
-    return _encode({"sub": user_id}, ACCESS_TTL, "access")
+def encode_access(user_id: str, org: str = "default") -> str:
+    """Mint an access JWT. `org` is the org slug (= the user's single org); it selects the schema
+    the request runs against under schema-per-tenant."""
+    return _encode({"sub": user_id, "org": org}, ACCESS_TTL, "access")
 
 
 def decode_access(token: str | None) -> str | None:
     """The user id a valid, unexpired access token carries, else None."""
     claims = _decode(token, "access")
     return claims.get("sub") if claims else None
+
+
+def decode_access_org(token: str | None) -> str | None:
+    """The org slug a valid access token carries (defaults to 'default' for legacy tokens)."""
+    claims = _decode(token, "access")
+    return (claims.get("org") or "default") if claims else None
 
 
 def encode_invite(user_id: str) -> str:

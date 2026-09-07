@@ -13,17 +13,17 @@ _ids = iter(range(10000))
 def _call(db, org, *, status="ingested", cost=1.0, mins_ago=60, agent_id=None,
           latencies=(), disposition="connected", jstatus="ok", violation=None):
     started = datetime.now(UTC) - timedelta(minutes=mins_ago)
-    c = Call(tenant_id=org, external_call_id=f"c{next(_ids)}", source="livekit",
+    c = Call(external_call_id=f"c{next(_ids)}", source="livekit",
              environment="prod", status=status, started_at=started, created_at=started,
              last_activity_at=started, duration_s=30.0, agent_id=agent_id,
              cost_total=cost, cost_llm=cost, cost_stt=0.0, cost_tts=0.0)
     db.add(c)
     db.flush()
     for i, ms in enumerate(latencies):
-        db.add(Turn(call_id=c.id, tenant_id=org, turn_index=i, turn_id=f"{c.id}:{i}",
+        db.add(Turn(call_id=c.id, turn_index=i, turn_id=f"{c.id}:{i}",
                     trigger="response", interrupted=False, response_latency_ms=ms))
     if disposition is not None:
-        db.add(Judgment(call_id=c.id, tenant_id=org, disposition=disposition, status=jstatus,
+        db.add(Judgment(call_id=c.id, disposition=disposition, status=jstatus,
                         guardrail_violation=violation))
     db.commit()
     return c
@@ -74,7 +74,7 @@ def test_tool_calls_and_errors(client, login_as, db_sessionmaker):
         c = _call(db, "default")
         # three tool spans on the call, one errored
         for i, err in enumerate([None, None, True]):
-            db.add(Event(call_id=c.id, tenant_id="default", kind="span", type="tool",
+            db.add(Event(call_id=c.id, kind="span", type="tool",
                          name="function_tool", t_offset_s=float(i), error=err))
         db.commit()
     d = client.get("/v1/boards/summary?range=24h").json()
@@ -88,7 +88,6 @@ def test_rbac_scoped_to_org(client, login_as, db_sessionmaker):
     login_as("default")
     with db_sessionmaker() as db:
         _call(db, "default")
-        _call(db, "other-org")  # different tenant — must not appear
     d = client.get("/v1/boards/summary?range=24h").json()
     assert d["totals"]["calls"] == 1
 

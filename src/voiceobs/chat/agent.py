@@ -18,6 +18,7 @@ from collections.abc import Iterator
 from sqlalchemy.orm import Session
 
 from voiceobs.chat import client, tools
+from voiceobs.chat.schema_doc import build_system_prompt
 from voiceobs.config import ResolvedLLM
 from voiceobs.db.models import Membership
 
@@ -25,16 +26,11 @@ log = logging.getLogger(__name__)
 
 MAX_TOOL_ROUNDS = 5
 
-_TOOL_GUIDE = (
-    "\n\nYou can call tools to inspect the organization's voice-agent calls. Use them when a "
-    "question needs real data; otherwise answer directly. Be concise."
-)
-
 
 def run(
     db: Session, mem: Membership, resolved: ResolvedLLM, history: list[dict], user_text: str,
 ) -> Iterator[dict]:
-    system = resolved.prompt + _TOOL_GUIDE
+    system = build_system_prompt(resolved.prompt)
     messages: list[dict] = [{"role": "system", "content": system}, *history,
                             {"role": "user", "content": user_text}]
     steps: list[dict] = []
@@ -73,8 +69,7 @@ def _as_tc(tc: client.ToolCall) -> dict:
 def _summarize(name: str, result: dict) -> str:
     if "error" in result:
         return result["error"]
-    if name == "search_calls":
-        return f"{result.get('count', 0)} calls"
-    if name == "get_call":
-        return f"call {result.get('id', '?')}"
+    if name == "execute_sql":
+        n = result.get("row_count", 0)
+        return f"{n} row{'' if n == 1 else 's'}" + (" (truncated)" if result.get("truncated") else "")
     return "done"

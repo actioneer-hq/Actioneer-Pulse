@@ -16,6 +16,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [orgName, setOrgName] = useState("");
+  const [orgSlug, setOrgSlug] = useState("default");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +45,7 @@ export default function Login() {
     try {
       if (mode === "invite") await acceptInvite(inviteToken!, password, name || undefined);
       else if (mode === "signup") await signup(email, password, orgName || undefined, name || undefined);
-      else await login(email, password);
+      else await login(email, password, orgSlug || "default");
       await refresh();
       nav("/calls", { replace: true });
     } catch (err) {
@@ -96,6 +97,13 @@ export default function Login() {
               <label htmlFor="name">Your name</label>
               <input id="name" value={name} onChange={(e) => setName(e.target.value)}
                 placeholder="Optional" />
+            </div>
+          )}
+          {mode === "login" && (
+            <div className="field">
+              <label htmlFor="org-slug">Organization</label>
+              <input id="org-slug" value={orgSlug} onChange={(e) => setOrgSlug(e.target.value)}
+                autoComplete="organization" placeholder="default" />
             </div>
           )}
           <div className="field">

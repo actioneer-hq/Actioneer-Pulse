@@ -44,6 +44,7 @@ class SignupIn(BaseModel):
 class LoginIn(BaseModel):
     email: str
     password: str
+    org: str = "default"  # org slug — selects the schema to authenticate against
 
 
 class AcceptInviteIn(BaseModel):
