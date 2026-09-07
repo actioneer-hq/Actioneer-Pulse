@@ -12,9 +12,9 @@ from collections.abc import Iterator
 # …). Must be set before any_llm is imported.
 os.environ.setdefault("ANY_LLM_UNIFIED_EXCEPTIONS", "1")
 
-from any_llm import completion
+from any_llm import completion, embedding
 
-from voiceobs.config import ResolvedLLM
+from voiceobs.config import ResolvedEmbedding, ResolvedLLM
 
 
 def _kwargs(resolved: ResolvedLLM) -> dict:
@@ -52,3 +52,12 @@ def stream(resolved: ResolvedLLM, messages: list[dict]) -> Iterator[str]:
         piece = chunk.choices[0].delta.content
         if piece:
             yield piece
+
+
+def embed(resolved: ResolvedEmbedding, inputs: list[str]) -> list[list[float]]:
+    """Embed a batch of texts with the BYO embedding model. Returns one vector per input, in order."""
+    resp = embedding(
+        model=resolved.model, inputs=inputs, provider=resolved.provider,
+        api_key=resolved.api_key, api_base=resolved.base_url,
+    )
+    return [d.embedding for d in resp.data]

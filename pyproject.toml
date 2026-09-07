@@ -18,6 +18,7 @@ dependencies = [
     "cryptography>=42",
     "pydantic-settings>=2",
     "any-llm-sdk[anthropic,openai]>=1.27.1",
+    "pgvector>=0.5.0",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +33,10 @@ dev = [
     # producing a real OTLP/protobuf batch in tests, the way a producer's SDK does
     "opentelemetry-sdk>=1.25",
     "opentelemetry-exporter-otlp-proto-common>=1.25",
+]
+analytics = [
+    "scikit-learn>=1.9.0",
+    "umap-learn>=0.5.12",
 ]
 
 [build-system]

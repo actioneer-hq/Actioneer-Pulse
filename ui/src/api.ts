@@ -466,6 +466,32 @@ export function streamBoards(
   return () => ctrl.abort();
 }
 
+// ---- clusters (semantic clustering of analysis prose) ----
+export const CLUSTER_LEVERS: [string, string][] = [
+  ["root_cause", "Failure themes"],
+  ["suggested_fix", "Fix backlog"],
+  ["summary", "Caller intents"],
+  ["guardrail_points", "Guardrail breaches"],
+  ["hallucination_detail", "Hallucinations"],
+];
+export type ClusterFilters = { agent_id?: string; range?: string };
+export type ClusterInfo = { key: number; label: string | null; size: number };
+export type ClusterPoint = { call_id: string; x: number; y: number; cluster_key: number | null };
+export type ClusterView = { lever: string; clusters: ClusterInfo[]; points: ClusterPoint[] };
+export type Archetype = { combo: Record<string, string>; count: number; lift: number | null };
+export type ArchetypeView = { dims: string[]; total: number; archetypes: Archetype[] };
+
+const clusterQuery = (f: ClusterFilters) => {
+  const p = new URLSearchParams();
+  if (f.range) p.set("range", f.range);
+  if (f.agent_id) p.set("agent_id", f.agent_id);
+  return p.toString();
+};
+export const getClusters = (lever: string, f: ClusterFilters) =>
+  get<ClusterView>(`/v1/clusters/${lever}?${clusterQuery(f)}`);
+export const getArchetypes = (f: ClusterFilters, minCount = 2) =>
+  get<ArchetypeView>(`/v1/clusters/archetypes?${clusterQuery(f)}&min_count=${minCount}`);
+
 // ---- calls (now scoped server-side by the session + active org) ----
 export const listCalls = (limit = 200, agentId?: string) =>
   get<{ items: Call[] }>(

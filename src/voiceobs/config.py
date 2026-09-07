@@ -37,6 +37,7 @@ class Config(BaseSettings):
     global_chat_api_key: str | None = None
     per_call_chat_api_key: str | None = None
     failure_analysis_api_key: str | None = None
+    embedding_api_key: str | None = None  # BYO embedding model (OpenAI-compatible)
 
     # ── APP CONFIG (edit here; env can still override) ───────────────────────────────
     dev_open: bool = False
@@ -49,12 +50,21 @@ class Config(BaseSettings):
     bootstrap_email: str = ""
     bootstrap_org: str = "Default"
 
-    # operational (worker / reconcile)
+    # embeddings (BYO, OpenAI-compatible): provider/model/endpoint here, key in env.
+    embedding_provider: str = "openai"       # any-llm provider id (openai-compatible)
+    embedding_model: str = "bge-m3"          # the embedding model your endpoint serves
+    embedding_base_url: str | None = None    # your OpenAI-compatible endpoint (e.g. http://host/v1)
+    embedding_dim: int = 1024                # BGE-M3 = 1024; text-embedding-3-small = 1536
+
+    # operational (worker / reconcile / clustering)
     worker_poll_s: float = 5.0
     worker_batch: int = 10
     worker_grace_s: float = 60.0
     reconcile_grace_s: float = 600.0
     reconcile_interval_s: float | None = None
+    cluster_interval_s: float | None = None  # None = one-shot; set (seconds) to run as a sidecar loop
+    cluster_window_days: int = 90            # rolling window of calls to (re)cluster
+    cluster_min_size: int = 8                # HDBSCAN min_cluster_size — smallest pattern to surface
 
     # auth token lifetimes
     access_ttl_min: int = 15
@@ -126,4 +136,26 @@ def resolve_llm(role: LLMRole) -> ResolvedLLM | None:
     return ResolvedLLM(
         role=role, provider=cfg.provider, model=cfg.model, api_key=key,
         base_url=cfg.base_url, max_tokens=cfg.max_tokens, prompt=default_prompt(role),
+    )
+
+
+@dataclass(frozen=True)
+class ResolvedEmbedding:
+    """A configured embedding model (BYO, OpenAI-compatible). Separate from ResolvedLLM — embeddings
+    have no prompt and no max_tokens."""
+    provider: str
+    model: str
+    api_key: str
+    base_url: str | None
+    dim: int
+
+
+def resolve_embedding() -> ResolvedEmbedding | None:
+    """The configured embedding model, or None when VOICEOBS_EMBEDDING_API_KEY is unset."""
+    c = get_config()
+    if not c.embedding_api_key:
+        return None
+    return ResolvedEmbedding(
+        provider=c.embedding_provider, model=c.embedding_model, api_key=c.embedding_api_key,
+        base_url=c.embedding_base_url, dim=c.embedding_dim,
     )

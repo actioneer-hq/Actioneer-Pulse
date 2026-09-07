@@ -5,6 +5,7 @@ import Agents from "./pages/Agents";
 import Boards from "./pages/Boards";
 import Calls from "./pages/Calls";
 import Chat from "./pages/Chat";
+import Clusters from "./pages/Clusters";
 import Login from "./pages/Login";
 import Members from "./pages/Members";
 
@@ -39,6 +40,9 @@ function Shell() {
           </NavLink>
           <NavLink to="/boards" className={({ isActive }) => (isActive ? "on" : undefined)}>
             Boards
+          </NavLink>
+          <NavLink to="/clusters" className={({ isActive }) => (isActive ? "on" : undefined)}>
+            Clusters
           </NavLink>
           {isAdmin && (
             <>
@@ -94,6 +98,7 @@ export default function App() {
         <Route path="/calls" element={<Calls />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/boards" element={<Boards />} />
+        <Route path="/clusters" element={<Clusters />} />
         <Route path="/settings/agents"
           element={<RequireAdmin><Agents /></RequireAdmin>} />
         <Route path="/settings/members"
