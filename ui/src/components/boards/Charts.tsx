@@ -9,10 +9,14 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
+  Scatter,
+  ScatterChart,
   Tooltip,
   XAxis,
   YAxis,
+  ZAxis,
 } from "recharts";
+import type { ClusterView } from "../../api";
 
 export const CHART_COLORS = [
   "var(--chart-1)", "var(--chart-2)", "var(--chart-3)",
@@ -95,6 +99,45 @@ export function AreaCard({ title, right, data, series, xKey = "t", fmtY }: {
             activeDot={{ r: 4 }} connectNulls />
         ))}
       </AreaChart>
+    </Card>
+  );
+}
+
+const clusterColor = (k: number | null) =>
+  k == null ? "var(--chart-6)" : `var(--chart-${(k % 6) + 1})`;
+
+// 2D scatter of one lever's clusters: points coloured by cluster, hover shows the theme label.
+export function ScatterCard({ title, view, onSelect }: {
+  title: string; view: ClusterView; onSelect?: (callId: string) => void;
+}) {
+  const labelOf = new Map(view.clusters.map((c) => [c.key, c.label]));
+  const groups = new Map<number | null, ClusterView["points"]>();
+  for (const p of view.points) {
+    if (!groups.has(p.cluster_key)) groups.set(p.cluster_key, []);
+    groups.get(p.cluster_key)!.push(p);
+  }
+  const right = `${view.clusters.length} clusters · ${view.points.length} calls`;
+  const tip = ({ active, payload }: { active?: boolean; payload?: { name?: string; payload?: { call_id?: string } }[] }) =>
+    active && payload?.length ? (
+      <div style={{ ...tooltipStyle }}>
+        <div>{payload[0].name}</div>
+        <div style={{ color: "var(--dim)", fontSize: 11 }}>{payload[0].payload?.call_id}</div>
+      </div>
+    ) : null;
+  return (
+    <Card title={title} right={right}>
+      <ScatterChart margin={{ top: 8, right: 10, bottom: 0, left: 0 }}>
+        <CartesianGrid stroke={GRID} />
+        <XAxis type="number" dataKey="x" hide />
+        <YAxis type="number" dataKey="y" hide />
+        <ZAxis range={[26, 26]} />
+        <Tooltip content={tip} cursor={{ strokeDasharray: "3 3" }} />
+        {[...groups.entries()].map(([k, pts]) => (
+          <Scatter key={String(k)} data={pts} fill={clusterColor(k)}
+            name={k == null ? "unclustered" : (labelOf.get(k) ?? `Cluster ${k}`)}
+            onClick={(p: { call_id?: string }) => p.call_id && onSelect?.(p.call_id)} />
+        ))}
+      </ScatterChart>
     </Card>
   );
 }
