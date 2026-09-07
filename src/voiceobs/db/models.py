@@ -450,6 +450,42 @@ class CallEmbedding(Base):
     created_at: Mapped[datetime] = created_col()
 
 
+class Cluster(Base):
+    """A semantic cluster of one prose lever (root_cause | suggested_fix | summary |
+    guardrail_points | hallucination_detail), tenant-scoped. Rewritten each clustering run."""
+
+    __tablename__ = "cluster"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "lever", "cluster_key", name="uq_cluster"),
+    )
+
+    id: Mapped[str] = pk()
+    tenant_id: Mapped[str] = tenant_col()
+    lever: Mapped[str] = mapped_column(String(32), nullable=False)
+    cluster_key: Mapped[int] = mapped_column(Integer, nullable=False)  # >=0 (noise not stored)
+    label: Mapped[str | None] = mapped_column(Text)  # LLM-named theme
+    size: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = created_col()
+
+
+class CallCluster(Base):
+    """A call's assignment for one lever + its 2D display coords. cluster_key null = HDBSCAN noise."""
+
+    __tablename__ = "call_cluster"
+    __table_args__ = (
+        UniqueConstraint("call_id", "lever", name="uq_call_cluster"),
+        Index("ix_call_cluster_tenant_lever", "tenant_id", "lever"),
+    )
+
+    id: Mapped[str] = pk()
+    call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
+    tenant_id: Mapped[str] = tenant_col()
+    lever: Mapped[str] = mapped_column(String(32), nullable=False)
+    cluster_key: Mapped[int | None] = mapped_column(Integer)  # null = noise
+    x: Mapped[float] = mapped_column(Float, nullable=False)
+    y: Mapped[float] = mapped_column(Float, nullable=False)
+
+
 class Tombstone(Base):
     """Erased calls. Written FIRST in DELETE so a crash mid-erasure leaves an
     un-resurrectable call. Ingest checks it: a straggling re-POST is dropped."""
