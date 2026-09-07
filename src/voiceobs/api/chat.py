@@ -39,7 +39,7 @@ def list_conversations(
     db: Session = Depends(session_dep), mem: Membership = Depends(current_membership)
 ) -> dict:
     rows = db.scalars(select(Conversation).where(
-        Conversation.created_by == mem.user_id)
+        Conversation.created_by == mem.user_id, Conversation.call_id.is_(None))  # global threads only
         .order_by(Conversation.updated_at.desc())).all()
     return {"items": [{"id": c.id, "title": c.title, "updated_at": c.updated_at} for c in rows]}
 

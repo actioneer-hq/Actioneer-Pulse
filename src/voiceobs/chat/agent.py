@@ -29,8 +29,10 @@ MAX_TOOL_ROUNDS = 5
 
 def run(
     db: Session, mem: Membership, resolved: ResolvedLLM, history: list[dict], user_text: str,
+    *, system: str | None = None,
 ) -> Iterator[dict]:
-    system = build_system_prompt(resolved.prompt)
+    # Global chat builds the full SQL/pgvector prompt; per-call chat passes its own (bounded) system.
+    system = system if system is not None else build_system_prompt(resolved.prompt)
     messages: list[dict] = [{"role": "system", "content": system}, *history,
                             {"role": "user", "content": user_text}]
     steps: list[dict] = []
