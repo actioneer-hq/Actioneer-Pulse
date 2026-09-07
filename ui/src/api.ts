@@ -372,15 +372,13 @@ export const deleteConversation = (id: string) =>
   req("DELETE", `/v1/chat/conversations/${id}`);
 
 /** POST a message and stream the agent's SSE events to `onEvent`. Hand-rolled reader because
- *  EventSource can't POST a body / send our cookies+CSRF. */
-export async function streamChat(
-  id: string, text: string, onEvent: (e: ChatEvent) => void,
-): Promise<void> {
+ *  EventSource can't POST a body / send our cookies+CSRF. Shared by global + per-call chat. */
+async function _streamSSE(url: string, text: string, onEvent: (e: ChatEvent) => void): Promise<void> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (activeOrg) headers["X-Voiceobs-Org"] = activeOrg;
   const csrf = csrfToken();
   if (csrf) headers["X-CSRF-Token"] = csrf;
-  const r = await fetch(`/v1/chat/conversations/${id}/stream`, {
+  const r = await fetch(url, {
     method: "POST", credentials: "include", headers, body: JSON.stringify({ text }),
   });
   if (r.status === 401) { onUnauthorized?.(); throw new Error("unauthorized"); }
@@ -400,6 +398,15 @@ export async function streamChat(
     }
   }
 }
+
+export const streamChat = (id: string, text: string, onEvent: (e: ChatEvent) => void) =>
+  _streamSSE(`/v1/chat/conversations/${id}/stream`, text, onEvent);
+
+// ---- per-call chat (scoped to one call) ----
+export const getCallChat = (callId: string) =>
+  get<{ id: string; messages: ChatMsg[] }>(`/v1/calls/${encodeURIComponent(callId)}/chat`);
+export const streamCallChat = (callId: string, text: string, onEvent: (e: ChatEvent) => void) =>
+  _streamSSE(`/v1/calls/${encodeURIComponent(callId)}/chat/stream`, text, onEvent);
 
 // ---- boards (BI dashboard metrics) ----
 export type BoardFilters = { agent_id?: string; environment?: string; range: string };

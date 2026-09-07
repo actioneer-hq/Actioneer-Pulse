@@ -2,8 +2,6 @@ import {
   useCallback, useEffect, useMemo, useRef, useState,
   type KeyboardEvent, type ReactNode,
 } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import {
   createConversation,
   deleteConversation,
@@ -11,16 +9,13 @@ import {
   listCalls,
   listConversations,
   streamChat,
-  type ChatMsg,
   type ChatStep,
   type Conversation,
 } from "../api";
 import { useAuth } from "../auth";
+import { Bubble, type LiveMsg } from "../components/chat/Bubble";
 
 const MENTION = /@([\w-]+)/g;  // @<callId> token
-
-// A message that's mid-stream: content grows, steps accumulate, `streaming` until done.
-type LiveMsg = ChatMsg & { streaming?: boolean };
 
 export default function Chat() {
   const { activeOrg } = useAuth();
@@ -223,35 +218,3 @@ function highlight(text: string): ReactNode[] {
   return out;
 }
 
-function Bubble({ msg }: { msg: LiveMsg }) {
-  if (msg.role === "user") {
-    return <div className="msg-row user"><div className="msg-user">{msg.content}</div></div>;
-  }
-  return (
-    <div className="msg-row assistant">
-      {msg.steps.length > 0 && (
-        <div className="activity">
-          {msg.steps.map((s, i) => (
-            <div className="step" key={i}>
-              <div><span className="step-dot" /> {stepLabel(s)}</div>
-              {s.name === "execute_sql" && (s.args as { query?: string })?.query && (
-                <pre className="step-sql">{(s.args as { query?: string }).query}</pre>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="msg-assistant prose">
-        {msg.content
-          ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-          : (msg.streaming && <span className="cursor">▍</span>)}
-        {msg.content && msg.streaming && <span className="cursor">▍</span>}
-      </div>
-    </div>
-  );
-}
-
-function stepLabel(s: ChatStep): string {
-  const verb = s.name === "execute_sql" ? "Ran SQL" : s.name;
-  return s.summary === "…" ? `${verb === "Ran SQL" ? "Running SQL" : verb}…` : `${verb} · ${s.summary}`;
-}
