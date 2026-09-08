@@ -21,8 +21,9 @@ def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
 
 
-def test_list_and_filter(client, login_as):
+def test_list_and_filter(client, login_as, drain):
     client.post("/v1/traces", json=sample_call())
+    drain()
     login_as("vastu-hfc")  # sample_call's org
     assert len(client.get("/v1/calls").json()["items"]) == 1
     assert len(client.get("/v1/calls?status=awaiting_media").json()["items"]) == 1
@@ -31,11 +32,12 @@ def test_list_and_filter(client, login_as):
     assert client.get("/v1/calls?q=nomatch").json()["items"] == []
 
 
-def test_list_carries_turn_stats(client, login_as, db_sessionmaker, monkeypatch):
+def test_list_carries_turn_stats(client, login_as, db_sessionmaker, monkeypatch, drain):
     monkeypatch.setattr(
         sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri, creds=None: _wav()
     )
     client.post("/v1/traces", json=sample_call())
+    drain()
     with db_sessionmaker() as db:
         process(db, db.scalars(select(Call)).one())
         db.commit()
@@ -47,8 +49,9 @@ def test_list_carries_turn_stats(client, login_as, db_sessionmaker, monkeypatch)
     assert item["analysed"] is True
 
 
-def test_detail_is_one_consolidated_payload(client, login_as):
+def test_detail_is_one_consolidated_payload(client, login_as, drain):
     client.post("/v1/traces", json=sample_call())
+    drain()
     login_as("vastu-hfc")
     d = client.get("/v1/calls/c1").json()
     assert d["call"]["id"] == "c1"
@@ -63,13 +66,14 @@ def test_spans_endpoint_is_gone(client):
     assert client.get("/v1/calls/c1/spans").status_code == 404
 
 
-def test_full_analysis_after_worker(client, login_as, db_sessionmaker, monkeypatch):
+def test_full_analysis_after_worker(client, login_as, db_sessionmaker, monkeypatch, drain):
     monkeypatch.setenv("VOICEOBS_AUDIO_ANALYSIS", "1")  # audio overlay is off by default
     monkeypatch.setattr(
         sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri, creds=None: _wav()
     )
     monkeypatch.setattr("voiceobs.api.read.fetch_bytes", lambda uri, creds=None: _wav())
     client.post("/v1/traces", json=sample_call())
+    drain()
     login_as("vastu-hfc")
     client.post("/v1/calls/c1/artifacts", json={
         "kind": "audio", "uri": "s3://b/c1.wav", "channels": 2, "sample_rate": 8000,

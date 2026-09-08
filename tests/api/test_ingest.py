@@ -17,10 +17,11 @@ def _artifact(**kw) -> dict:
     return body
 
 
-def test_traces_creates_call_and_sets_spans_complete(client, login_as):
+def test_traces_creates_call_and_sets_spans_complete(client, login_as, drain):
     r = client.post("/v1/traces", json=sample_call())
     assert r.status_code == 200
     assert r.json() == {"partialSuccess": {}}
+    drain()
 
     login_as("vastu-hfc")  # sample_call's org
     call = client.get("/v1/calls/c1").json()["call"]
@@ -30,16 +31,18 @@ def test_traces_creates_call_and_sets_spans_complete(client, login_as):
     assert detail["trust"]["media_ready"] is False
 
 
-def test_traces_idempotent_no_duplicate_call(client, login_as):
+def test_traces_idempotent_no_duplicate_call(client, login_as, drain):
     client.post("/v1/traces", json=sample_call())
     client.post("/v1/traces", json=sample_call())
+    drain()
     login_as("vastu-hfc")
     items = client.get("/v1/calls").json()["items"]
     assert [i["id"] for i in items].count("c1") == 1
 
 
-def test_artifact_sets_media_ready_and_flips_status(client, login_as):
+def test_artifact_sets_media_ready_and_flips_status(client, login_as, drain):
     client.post("/v1/traces", json=sample_call())
+    drain()
     r = client.post("/v1/calls/c1/artifacts", json=_artifact())
     assert r.status_code == 200
     assert r.json()["media_ready"] is True
@@ -48,8 +51,9 @@ def test_artifact_sets_media_ready_and_flips_status(client, login_as):
     assert client.get("/v1/calls/c1").json()["call"]["status"] == "ingested"
 
 
-def test_artifact_idempotent(client):
+def test_artifact_idempotent(client, drain):
     client.post("/v1/traces", json=sample_call())
+    drain()
     client.post("/v1/calls/c1/artifacts", json=_artifact())
     r = client.post("/v1/calls/c1/artifacts", json=_artifact())
     assert r.json()["status"] == "exists"
@@ -67,20 +71,22 @@ def test_delete_guarded(client):
     assert client.delete("/v1/calls/c1").status_code == 403
 
 
-def test_delete_erases_and_tombstones(client, login_as, monkeypatch):
+def test_delete_erases_and_tombstones(client, login_as, monkeypatch, drain):
     monkeypatch.setenv("VOICEOBS_ALLOW_DELETE", "1")
     client.post("/v1/traces", json=sample_call())
+    drain()
     r = client.delete("/v1/calls/c1", headers={"X-Voiceobs-Confirm": "c1"})
     assert r.status_code == 200
     login_as("vastu-hfc")
     # call gone
     assert client.get("/v1/calls/c1").status_code == 404
-    # re-POST after erasure is dropped (tombstoned)
+    # re-POST after erasure is dropped (tombstoned — now a consumer-side skip in handle_record)
     client.post("/v1/traces", json=sample_call())
+    drain()
     assert client.get("/v1/calls/c1").status_code == 404
 
 
-def test_unattributed_spans_do_not_crash(client, login_as):
+def test_unattributed_spans_do_not_crash(client, login_as, drain):
     payload = sample_call()
     # no call id and no trace id -> nothing to attribute the spans to at all
     for rs in payload["resourceSpans"]:
@@ -91,6 +97,7 @@ def test_unattributed_spans_do_not_crash(client, login_as):
                     a for a in span["attributes"] if a["key"] != "voice.call_id"
                 ]
     assert client.post("/v1/traces", json=payload).status_code == 200
+    drain()
     login_as("vastu-hfc")
     assert client.get("/v1/calls").json()["items"] == []
 
@@ -103,7 +110,7 @@ def _with_trace_id(payload: dict, trace_id: str) -> dict:
     return payload
 
 
-def test_shards_by_trace_id_not_call_id(client, login_as):
+def test_shards_by_trace_id_not_call_id(client, login_as, drain):
     """Two calls in one batch sharing no call_id still separate — traceId is the only
     call identifier every OTLP producer has."""
     a = _with_trace_id(sample_call(), "aaaa")
@@ -116,11 +123,12 @@ def test_shards_by_trace_id_not_call_id(client, login_as):
                         attr["value"] = {"stringValue": "c2"}
     merged = {"resourceSpans": a["resourceSpans"] + b["resourceSpans"]}
     client.post("/v1/traces", json=merged)
+    drain()
     login_as("vastu-hfc")
     assert {i["id"] for i in client.get("/v1/calls").json()["items"]} == {"c1", "c2"}
 
 
-def test_call_id_falls_back_to_trace_id(client, login_as):
+def test_call_id_falls_back_to_trace_id(client, login_as, drain):
     """A producer with no voice.call_id (Pipecat, LiveKit) is still a call, not a
     dropped batch."""
     payload = _with_trace_id(sample_call(), "deadbeef")
@@ -131,11 +139,12 @@ def test_call_id_falls_back_to_trace_id(client, login_as):
                     a for a in span["attributes"] if a["key"] != "voice.call_id"
                 ]
     client.post("/v1/traces", json=payload)
+    drain()
     login_as("vastu-hfc")
     assert [i["id"] for i in client.get("/v1/calls").json()["items"]] == ["deadbeef"]
 
 
-def test_archived_fragment_keeps_the_resource(client, db_sessionmaker):
+def test_archived_fragment_keeps_the_resource(client, db_sessionmaker, drain):
     """RawFragment is the replay copy; a blank resource loses service.name, and no
     adapter can ever claim it again."""
     import gzip
@@ -145,6 +154,7 @@ def test_archived_fragment_keeps_the_resource(client, db_sessionmaker):
     from voiceobs.frameworks import adapter_for
 
     client.post("/v1/traces", json=sample_call())
+    drain()
     with db_sessionmaker() as db:
         frag = db.scalars(select(RawFragment)).first()
         replayed = json.loads(gzip.decompress(frag.payload_gz))
@@ -152,27 +162,31 @@ def test_archived_fragment_keeps_the_resource(client, db_sessionmaker):
     assert adapter_for(replayed).name == "livekit"
 
 
-def test_later_batch_without_root_rejoins_the_same_call(client, login_as):
+def test_later_batch_without_root_rejoins_the_same_call(client, login_as, drain):
     """VAS puts voice.call_id on the root span only. A follow-up batch of children
     must land on the existing call, not mint a second one keyed by traceId."""
     payload = _with_trace_id(sample_call(), "trace-1")
     client.post("/v1/traces", json=payload)
+    drain()
     client.post("/v1/traces", json=_children_only(sample_call(), "trace-1"))
+    drain()
     login_as("vastu-hfc")
     assert [i["id"] for i in client.get("/v1/calls").json()["items"]] == ["c1"]
 
 
-def test_children_before_root_produce_one_call(client, login_as):
+def test_children_before_root_produce_one_call(client, login_as, drain):
     """The real arrival order: the root span closes last, so its batch lands after
     every child. The call opens under its trace id and is renamed when the root
     arrives — two rows here would split one conversation in half."""
     # no root -> no voice.tenant_id on the batch -> lands under the default org
     client.post("/v1/traces", json=_children_only(sample_call(), "trace-2"))
+    drain()
     login_as("default")
     assert [i["id"] for i in client.get("/v1/calls").json()["items"]] == ["trace-2"]
 
     # the root carries voice.tenant_id -> the call is promoted into that org
     client.post("/v1/traces", json=_with_trace_id(sample_call(), "trace-2"))
+    drain()
     login_as("vastu-hfc")
     items = client.get("/v1/calls").json()["items"]
     assert [i["id"] for i in items] == ["c1"]
@@ -214,33 +228,58 @@ def _pipecat_batch(trace_id: str, with_root: bool) -> dict:
     }]}
 
 
-def test_foreign_producer_is_ingested(client, login_as):
+def test_foreign_producer_is_ingested(client, login_as, drain):
     """No voice.call_id, no voice.tenant_id, no `voice.call` span. The call is named
     after its trace, and the parentless span — OTLP's own definition of a root —
     completes it."""
     client.post("/v1/traces", json=_pipecat_batch("pipecat-1", with_root=False))
+    drain()
     login_as("default")
     assert [i["id"] for i in client.get("/v1/calls").json()["items"]] == ["pipecat-1"]
     assert client.get("/v1/calls/pipecat-1").json()["trust"]["spans_complete"] is False
 
     client.post("/v1/traces", json=_pipecat_batch("pipecat-1", with_root=True))
+    drain()
     detail = client.get("/v1/calls/pipecat-1").json()
     assert detail["trust"]["spans_complete"] is True
     assert detail["call"]["source"] == "pipecat"
 
 
-def test_tenant_header_names_a_producer_that_sends_none(client, login_as):
+def test_tenant_header_names_a_producer_that_sends_none(client, login_as, drain):
     client.post(
         "/v1/traces",
         json=_pipecat_batch("pipecat-2", with_root=True),
         headers={"X-Voiceobs-Tenant": "acme"},
     )
+    drain()
     login_as("acme")
     assert client.get("/v1/calls/pipecat-2").json()["call"]["id"] == "pipecat-2"
 
 
-def test_span_tenant_routes_the_call(client, login_as):
+def test_span_tenant_routes_the_call(client, login_as, drain):
     """Span-based tenant routing is gone; the call lands in the single (default) schema."""
     client.post("/v1/traces", json=sample_call())
+    drain()
     login_as("default")
     assert client.get("/v1/calls/c1").status_code == 200
+
+
+def test_redelivery_is_idempotent(client, db_sessionmaker, bus):
+    """At-least-once: replaying the same raw-spans records must not duplicate RawFragment rows
+    (store_fragment's (call_id, batch_id, seq) pre-check)."""
+    from sqlalchemy import func
+
+    from voiceobs.db.models import RawFragment
+    from voiceobs.worker.run import handle_record
+
+    client.post("/v1/traces", json=sample_call())
+    records = bus.records("raw-spans")
+    assert records
+    with db_sessionmaker() as db:
+        for rec in records:      # first delivery
+            handle_record(db, rec)
+        for rec in records:      # redelivery
+            handle_record(db, rec)
+        db.commit()
+    with db_sessionmaker() as db:
+        assert db.scalar(select(func.count()).select_from(RawFragment)) == len(records)

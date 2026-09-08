@@ -22,11 +22,12 @@ def _configure_judge(monkeypatch) -> None:
     monkeypatch.setenv("VOICEOBS_POST_CALL_API_KEY", "sk-secret")
 
 
-def test_on_demand_judge_and_get(client, login_as, db_sessionmaker, monkeypatch):
+def test_on_demand_judge_and_get(client, login_as, db_sessionmaker, monkeypatch, drain):
     _configure_judge(monkeypatch)
     login_as("vastu-hfc")
     monkeypatch.setattr(sys.modules["voiceobs.judge.run"], "call_model", lambda c, m: _FAKE)
     client.post("/v1/traces", json=sample_call())  # has caller content -> connected
+    drain()
     with db_sessionmaker() as db:
         process(db, db.scalars(select(Call)).one())
         db.commit()
@@ -43,12 +44,13 @@ def test_judgment_404_before_run(client, login_as):
     assert client.get("/v1/calls/c1/judgment").status_code == 404
 
 
-def test_delete_cascades_judgment(client, login_as, db_sessionmaker, monkeypatch):
+def test_delete_cascades_judgment(client, login_as, db_sessionmaker, monkeypatch, drain):
     _configure_judge(monkeypatch)
     login_as("vastu-hfc")
     monkeypatch.setattr(sys.modules["voiceobs.judge.run"], "call_model", lambda c, m: _FAKE)
     monkeypatch.setenv("VOICEOBS_ALLOW_DELETE", "1")
     client.post("/v1/traces", json=sample_call())
+    drain()
     with db_sessionmaker() as db:
         process(db, db.scalars(select(Call)).one())
         db.commit()

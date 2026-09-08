@@ -79,8 +79,9 @@ def _reassemble(db) -> dict:
     return {"resourceSpans": [{"resource": resource, "scopeSpans": [{"spans": spans}]}]}
 
 
-def test_protobuf_batch_is_ingested(client, db_sessionmaker, otlp_body):
+def test_protobuf_batch_is_ingested(client, db_sessionmaker, otlp_body, drain):
     assert client.post("/v1/traces", content=otlp_body, headers=PROTOBUF).status_code == 200
+    drain()
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
         assert call.external_call_id == "call-pb-1"
@@ -90,10 +91,11 @@ def test_protobuf_batch_is_ingested(client, db_sessionmaker, otlp_body):
         int(call.trace_id, 16)
 
 
-def test_protobuf_survives_the_round_trip_to_turns(client, db_sessionmaker, otlp_body):
+def test_protobuf_survives_the_round_trip_to_turns(client, db_sessionmaker, otlp_body, drain):
     """Ids decoded wrong still ingest fine and only break here, silently — so assert
     the parent chain, not just that a call row appeared."""
     client.post("/v1/traces", content=otlp_body, headers=PROTOBUF)
+    drain()
     with db_sessionmaker() as db:
         payload = _reassemble(db)
 
@@ -112,13 +114,14 @@ def test_protobuf_survives_the_round_trip_to_turns(client, db_sessionmaker, otlp
     assert turn.llm_spoken == "boliye"        # lk.pii.response.text
 
 
-def test_gzipped_protobuf_is_ingested(client, login_as, otlp_body):
+def test_gzipped_protobuf_is_ingested(client, login_as, otlp_body, drain):
     r = client.post(
         "/v1/traces",
         content=gzip.compress(otlp_body),
         headers={**PROTOBUF, "content-encoding": "gzip"},
     )
     assert r.status_code == 200
+    drain()
     login_as("spektra")  # the call's org (voice.tenant_id)
     assert client.get("/v1/calls/call-pb-1").status_code == 200
 

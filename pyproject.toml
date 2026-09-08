@@ -48,6 +48,10 @@ storage = [
     "boto3>=1.34",
     "azure-storage-blob>=12.19",
 ]
+# ingest→analysis transport (the raw-spans topic). Go ingest speaks the same contract later.
+kafka = [
+    "confluent-kafka>=2.5",
+]
 
 [build-system]
 requires = ["hatchling"]
