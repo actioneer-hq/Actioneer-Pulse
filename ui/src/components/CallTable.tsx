@@ -30,11 +30,19 @@ export default function CallTable({ calls, selected, onSelect }: Props) {
               onKeyDown={(e) => e.key === "Enter" && onSelect(c.id)}
             >
               <td>
-                <div className="mono">{c.id}</div>
+                <div className="mono">
+                  {c.id}
+                  {c.analysis_mode && c.analysis_mode !== "full" && (
+                    <span className="pill" style={{ marginLeft: 6 }}>{c.analysis_mode}</span>
+                  )}
+                  {c.status === "failed" && (
+                    <span className="pill bad" style={{ marginLeft: 6 }}>failed</span>
+                  )}
+                </div>
                 <div className="dimtxt">
                   {c.source} · {c.environment}
                   {c.labels.campaign_id ? ` · ${c.labels.campaign_id}` : ""}
-                  {c.status === "unsupported" ? " · unsupported" : !c.analysed ? " · not analysed yet" : !c.media_ready ? " · no audio" : ""}
+                  {c.status === "unsupported" ? " · unsupported" : c.status === "failed" ? " · analysis failed" : !c.analysed ? " · not analysed yet" : !c.media_ready ? " · no audio" : ""}
                 </div>
               </td>
               <td className="r">{ms(c.p50_v2v_ms)}</td>

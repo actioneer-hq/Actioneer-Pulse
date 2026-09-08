@@ -41,6 +41,12 @@ export default function CallDetail({ id, onClose }: Props) {
       <div className="body">
         {error && <p className="dimtxt pad">{error}</p>}
         {!data && !error && <p className="dimtxt pad">Loading…</p>}
+        {data?.call.analysis_error && (
+          <div className="analysis-error-banner">
+            <b>Analysis failed</b>
+            <span>{data.call.analysis_error}</span>
+          </div>
+        )}
         {data && <Sections data={data} />}
         {data && (
           <section className="sec">
@@ -61,6 +67,8 @@ function Header({ data }: { data: Detail }) {
         {h.source} · {h.engine ?? "?"} · {h.environment} · started {when(h.started_at)} · lasted {secs(h.duration_s)}
       </div>
       <div className="pills">
+        {h.analysis_mode && h.analysis_mode !== "full" && <span className="pill">{h.analysis_mode}</span>}
+        {h.status === "failed" && <span className="pill bad">analysis failed</span>}
         {h.status === "unsupported" && <span className="pill bad">unsupported</span>}
         {h.status !== "unsupported" && h.metric_version == null && <span className="pill warn">not analysed yet</span>}
         {!data.trust.media_ready && <span className="pill warn">no audio</span>}

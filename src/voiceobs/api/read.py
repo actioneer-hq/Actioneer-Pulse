@@ -150,6 +150,8 @@ def _list_item(c: Call, stats: dict | None) -> dict:
         "status": c.status,
         "media_ready": c.media_ready,
         "analysed": c.metric_version is not None,
+        "analysis_mode": c.analysis_mode,
+        "analysis_error": c.analysis_error,
         **stats,
     }
 

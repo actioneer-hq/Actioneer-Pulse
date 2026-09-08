@@ -8,6 +8,7 @@ import Chat from "./pages/Chat";
 import Clusters from "./pages/Clusters";
 import Login from "./pages/Login";
 import Members from "./pages/Members";
+import BackfillToast from "./components/BackfillToast";
 
 // The chrome around every signed-in page: brand, primary nav, org selector, user menu.
 function Shell() {
@@ -82,6 +83,7 @@ function Shell() {
           </div>
         </div>
       </div>
+      <BackfillToast />
       <Outlet />
     </>
   );

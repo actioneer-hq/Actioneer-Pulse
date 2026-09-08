@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  backfillPreview,
   createAgent,
   deleteAgent,
   getAgentGuardrails,
@@ -23,9 +24,11 @@ import {
   type AudioConfig,
   type CredField,
   type IngestTokenRow,
+  type BackfillPreview,
   type MintedToken,
 } from "../api";
 import { useAuth } from "../auth";
+import { useBackfill } from "../BackfillProvider";
 
 // Producer frameworks offered at agent creation. Only LiveKit is wired up today; the rest
 // are shown disabled so the choice is explicit and the roadmap is visible.
@@ -366,6 +369,60 @@ function StoragePanel({ agent }: { agent: Agent }) {
       <div className="add-row wide">
         <button className="btn-primary" onClick={save}>Save storage config</button>
         {saved && <span className="dimtxt" style={{ alignSelf: "center" }}>Saved ✓</span>}
+      </div>
+      {cfg?.enabled && <BackfillSection agent={agent} />}
+    </div>
+  );
+}
+
+// Scan the agent's bucket for historical audio and analyse it in one pass. Preview first
+// (how many calls have audio), then hand off to the app-wide BackfillProvider so the
+// progress toast survives navigation.
+function BackfillSection({ agent }: { agent: Agent }) {
+  const { start, job } = useBackfill();
+  const [preview, setPreview] = useState<BackfillPreview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const running = !!job && job.agent_id === agent.id
+    && !["done", "failed", "cancelled"].includes(job.status);
+
+  async function doPreview() {
+    setErr(null); setLoading(true); setPreview(null);
+    try {
+      setPreview(await backfillPreview(agent.id));
+    } catch (e) { setErr((e as Error).message); }
+    finally { setLoading(false); }
+  }
+
+  async function confirm() {
+    setErr(null);
+    try { await start(agent.id); setPreview(null); }
+    catch (e) { setErr((e as Error).message); }
+  }
+
+  return (
+    <div className="backfill-section">
+      <div className="strong">Backfill from storage</div>
+      <p className="dimtxt">Scan this bucket for historical recordings and analyse any call
+        that has audio but hasn't been analysed yet.</p>
+      {err && <div className="auth-error">{err}</div>}
+      <div className="add-row">
+        {!preview && (
+          <button className="link" disabled={loading || running} onClick={doPreview}>
+            {loading ? "Scanning…" : "Preview backfill"}</button>
+        )}
+        {preview && (
+          <>
+            <span className="dimtxt" style={{ alignSelf: "center" }}>
+              Found {preview.audio_calls} call{preview.audio_calls === 1 ? "" : "s"} with audio
+              ({preview.files} file{preview.files === 1 ? "" : "s"}).
+            </span>
+            <button className="btn-primary" disabled={running || preview.audio_calls === 0}
+              onClick={confirm}>Start backfill</button>
+            <button className="link" onClick={() => setPreview(null)}>Cancel</button>
+          </>
+        )}
+        {running && <span className="dimtxt" style={{ alignSelf: "center" }}>Backfill running…</span>}
       </div>
     </div>
   );

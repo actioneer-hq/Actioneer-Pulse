@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from voiceobs.api import (
     agents,
     auth,
+    backfill,
     boards,
     call_chat,
     chat,
@@ -34,6 +35,7 @@ app.include_router(ingest.router)
 app.include_router(read.router)
 app.include_router(judge.router)
 app.include_router(settings.router)
+app.include_router(backfill.router)
 
 
 @app.get("/health")

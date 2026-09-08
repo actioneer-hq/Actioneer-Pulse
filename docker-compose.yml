@@ -102,5 +102,18 @@ services:
       redpanda:
         condition: service_healthy
 
+  # backfill worker — claims user-triggered BackfillJobs and analyses blob audio (audio-only).
+  # Polls for queued jobs (VOICEOBS_BACKFILL_INTERVAL_S); no broker needed.
+  backfill:
+    build: .
+    command: ["python", "-m", "voiceobs.worker.backfill"]
+    environment:
+      VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
+      VOICEOBS_BACKFILL_INTERVAL_S: "5"
+      VOICEOBS_SKIP_MIGRATE: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   voiceobs-pg:

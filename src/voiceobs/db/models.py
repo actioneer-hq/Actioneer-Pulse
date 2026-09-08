@@ -739,3 +739,29 @@ class RefreshToken(Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     user_agent: Mapped[str | None] = mapped_column(String(256))
     created_at: Mapped[datetime] = created_col()
+
+
+class BackfillJob(Base):
+    """A user-triggered backfill: discover calls in an agent's blob store and analyse them. Lives in
+    the org schema (like every tenant row); a sidecar worker claims `queued` jobs and drives them to
+    `done`. Progress (total/completed/failed/phase) is polled by the SSE endpoint. Per-item failures
+    are recorded on the Call (status='failed' + analysis_error), so there is no separate item table."""
+
+    __tablename__ = "backfill_job"
+    __table_args__ = (Index("ix_backfill_status", "status", "created_at"),)
+
+    id: Mapped[str] = pk()
+    org_id: Mapped[str | None] = mapped_column(String(64))  # informational; schema already scopes it
+    agent_id: Mapped[str | None] = mapped_column(String(36))
+    source: Mapped[str] = mapped_column(String(16), default="audio")  # audio | otlp
+    options: Mapped[dict | None] = mapped_column(JSON)  # {audio_analysis, stt, diarize, limit}
+    # queued | scanning | running | clustering | done | failed | cancelled
+    status: Mapped[str] = mapped_column(String(16), default="queued")
+    phase: Mapped[str | None] = mapped_column(String(32))
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    completed: Mapped[int] = mapped_column(Integer, default=0)
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = created_col()
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
