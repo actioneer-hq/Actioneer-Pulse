@@ -77,6 +77,19 @@ class Config(BaseSettings):
     kafka_consumer_group: str = "analysis"
     kafka_max_retries: int = 5
 
+    # Judge queue — LLM judging is decoupled from analysis so bursts/backfills don't storm the API.
+    # Realtime is drained before backfill so a big backfill never starves live judging.
+    kafka_topic_judge: str = "judge-requests"
+    kafka_topic_judge_backfill: str = "judge-requests.backfill"
+    kafka_judge_dlq: str = "judge-requests.dlq"
+    kafka_judge_group: str = "judge"
+
+    # LLM rate-limit resilience (non-interactive roles: judge/failure/cluster-label/embeddings).
+    llm_max_retries: int = 5
+    llm_backoff_base_s: float = 1.0
+    # Embedding batch size (providers accept arrays up to ~2048 inputs / 300k tokens per request).
+    embed_batch_size: int = 64
+
     # operational (worker / reconcile / clustering)
     worker_poll_s: float = 5.0
     worker_batch: int = 10

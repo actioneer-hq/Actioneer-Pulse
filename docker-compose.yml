@@ -42,7 +42,10 @@ services:
     command:
       - >
         rpk topic create raw-spans -p 12 -X brokers=redpanda:9092 || true;
-        rpk topic create raw-spans.dlq -p 1 -X brokers=redpanda:9092 || true
+        rpk topic create raw-spans.dlq -p 1 -X brokers=redpanda:9092 || true;
+        rpk topic create judge-requests -p 12 -X brokers=redpanda:9092 || true;
+        rpk topic create judge-requests.backfill -p 12 -X brokers=redpanda:9092 || true;
+        rpk topic create judge-requests.dlq -p 1 -X brokers=redpanda:9092 || true
     restart: "no"
 
   redis:
@@ -103,16 +106,35 @@ services:
         condition: service_healthy
 
   # backfill worker — claims user-triggered BackfillJobs and analyses blob audio (audio-only).
-  # Polls for queued jobs (VOICEOBS_BACKFILL_INTERVAL_S); no broker needed.
+  # Produces judge-requests, so it needs the broker.
   backfill:
     build: .
     command: ["python", "-m", "voiceobs.worker.backfill"]
     environment:
       VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
+      VOICEOBS_KAFKA_BROKERS: redpanda:9092
       VOICEOBS_BACKFILL_INTERVAL_S: "5"
       VOICEOBS_SKIP_MIGRATE: "1"
     depends_on:
       db:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+
+  # judge worker — drains the judge queue and runs the LLM judge at a bounded rate. Scale it
+  # (`--scale judge=N`) to raise throughput; realtime is drained before backfill. Needs the per-role
+  # LLM API keys in the environment (VOICEOBS_POST_CALL_API_KEY, VOICEOBS_FAILURE_ANALYSIS_API_KEY).
+  judge:
+    build: .
+    command: ["python", "-m", "voiceobs.worker.judge"]
+    environment:
+      VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
+      VOICEOBS_KAFKA_BROKERS: redpanda:9092
+      VOICEOBS_SKIP_MIGRATE: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
 
 volumes:

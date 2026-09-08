@@ -15,3 +15,8 @@ class LLMRole(StrEnum):
     GLOBAL_CHAT = "global_chat"                 # chat across all calls
     PER_CALL_CHAT = "per_call_chat"             # chat scoped to one call (reserved)
     FAILURE_ANALYSIS = "failure_analysis"       # failure-board analysis (reserved)
+
+
+# Interactive roles are user-facing and latency-sensitive: they bypass the gateway's rate-limit
+# backoff so a batch backfill (judge/embeddings) can never make a live chat wait behind it.
+INTERACTIVE_ROLES = frozenset({LLMRole.GLOBAL_CHAT, LLMRole.PER_CALL_CHAT})
