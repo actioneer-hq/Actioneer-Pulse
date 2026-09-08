@@ -62,6 +62,39 @@ def _dev_open(monkeypatch) -> None:
     monkeypatch.setenv("VOICEOBS_DEV_OPEN", "1")
 
 
+@pytest.fixture(autouse=True)
+def bus():
+    """Install an in-memory bus double as the producer for every test (ingest produces to it; no
+    real Kafka). Request `bus` to inspect/drain produced records."""
+    from voiceobs.bus import set_producer
+    from voiceobs.bus.memory import InMemoryBus
+
+    b = InMemoryBus()
+    set_producer(b)
+    yield b
+    set_producer(None)
+
+
+@pytest.fixture
+def drain(bus, db_sessionmaker):
+    """Consume the produced raw-spans through the analysis handler on the same in-memory DB —
+    the produce→consume flow that replaces the old synchronous ingest write. Call after POSTing
+    /v1/traces, then assert on the resulting Call/RawFragment/Turn rows."""
+    from voiceobs.config import get_config
+    from voiceobs.worker.run import handle_record
+
+    def _drain() -> int:
+        n = 0
+        with db_sessionmaker() as db:
+            for rec in bus.drain(get_config().kafka_topic_raw):
+                handle_record(db, rec)
+                n += 1
+            db.commit()
+        return n
+
+    return _drain
+
+
 @pytest.fixture
 def login_as(client, db_sessionmaker):
     """Sign `client` in as a member of `org_id` with `role`, seeding the org/user/membership

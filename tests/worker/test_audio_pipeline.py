@@ -17,8 +17,9 @@ def _synth_wav() -> bytes:
     ).build()
 
 
-def _register_audio(client) -> None:
+def _register_audio(client, drain) -> None:
     client.post("/v1/traces", json=sample_call())
+    drain()
     client.post("/v1/calls/c1/artifacts", json={
         "kind": "audio", "uri": "s3://bucket/c1.wav", "sha256": "x",
         "channels": 2, "sample_rate": 8000,
@@ -26,14 +27,14 @@ def _register_audio(client) -> None:
     })
 
 
-def test_audio_produces_utterances_peaks_and_layer1(client, db_sessionmaker, monkeypatch):
+def test_audio_produces_utterances_peaks_and_layer1(client, db_sessionmaker, monkeypatch, drain):
     import sys
 
     monkeypatch.setenv("VOICEOBS_AUDIO_ANALYSIS", "1")  # audio overlay is off by default
     monkeypatch.setattr(
         sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri, creds=None: _synth_wav()
     )
-    _register_audio(client)
+    _register_audio(client, drain)
 
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
@@ -52,14 +53,14 @@ def test_audio_produces_utterances_peaks_and_layer1(client, db_sessionmaker, mon
         assert cov is not None and cov.value_num is not None
 
 
-def test_reprocess_replaces_audio_rows(client, db_sessionmaker, monkeypatch):
+def test_reprocess_replaces_audio_rows(client, db_sessionmaker, monkeypatch, drain):
     import sys
 
     monkeypatch.setenv("VOICEOBS_AUDIO_ANALYSIS", "1")
     monkeypatch.setattr(
         sys.modules["voiceobs.worker.process"], "fetch_bytes", lambda uri, creds=None: _synth_wav()
     )
-    _register_audio(client)
+    _register_audio(client, drain)
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
         process(db, call)
@@ -77,8 +78,9 @@ def test_reprocess_replaces_audio_rows(client, db_sessionmaker, monkeypatch):
         ) == energy_first
 
 
-def test_no_audio_still_spans_only(client, db_sessionmaker):
+def test_no_audio_still_spans_only(client, db_sessionmaker, drain):
     client.post("/v1/traces", json=sample_call())  # no artifact registered
+    drain()
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
         process(db, call)

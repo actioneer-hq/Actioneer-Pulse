@@ -1,8 +1,7 @@
-# Local Pulse: Postgres plus the API. `docker compose up --build`, then point a producer
-# at http://localhost:8000 (the OTLP SDK appends /v1/traces itself).
+# Local Pulse: Postgres + Redpanda (Kafka) + the three services (ingest / analysis / api).
+# `docker compose up --build`, then point a producer's OTLP exporter at the ingest service.
 #
-# Port 8000, not OTLP's conventional 4318: an otel-collector already owns 4317/4318 on
-# a dev box, and you want both reachable while migrating off it. Override with VO_PORT.
+# Port 8000 for the dashboard API, 8001 for ingest (OTLP). Redpanda is the ingest→analysis bus.
 services:
   db:
     image: pgvector/pgvector:pg16
@@ -10,8 +9,7 @@ services:
       POSTGRES_USER: voiceobs
       POSTGRES_PASSWORD: voiceobs
       POSTGRES_DB: voiceobs
-    # NOT 5432: this machine already runs its own Postgres there, and a client aimed at
-    # localhost:5432 silently reaches that one instead ("role voiceobs does not exist").
+    # NOT 5432: this machine already runs its own Postgres there.
     ports: ["${VO_DB_PORT:-5434}:5432"]
     volumes: ["voiceobs-pg:/var/lib/postgresql/data"]
     healthcheck:
@@ -20,30 +18,71 @@ services:
       timeout: 3s
       retries: 30
 
-  vo:
+  redpanda:
+    image: redpandadata/redpanda:latest
+    command:
+      - redpanda start
+      - --mode dev-container
+      - --smp 1
+      - --kafka-addr internal://0.0.0.0:9092
+      - --advertise-kafka-addr internal://redpanda:9092
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  # create the topics once redpanda is healthy
+  redpanda-init:
+    image: redpandadata/redpanda:latest
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        rpk topic create raw-spans -p 12 -X brokers=redpanda:9092 || true;
+        rpk topic create raw-spans.dlq -p 1 -X brokers=redpanda:9092 || true
+    restart: "no"
+
+  # read/dashboard API (also owns migrations). All-in-one app is fine here.
+  api:
     build: .
+    command: ["uvicorn", "voiceobs.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
     ports: ["${VO_PORT:-8000}:8000"]
     depends_on:
       db:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/health')\""]
-      interval: 5s
-      timeout: 3s
-      retries: 10
 
-  # Same image, different command. Scale it (`--scale worker=3`) and SKIP LOCKED
-  # keeps two workers off the same call.
-  worker:
+  # ingest service — thin Kafka producer.
+  ingest:
+    build: .
+    command: ["uvicorn", "voiceobs.ingest_app:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
+      VOICEOBS_KAFKA_BROKERS: redpanda:9092
+      VOICEOBS_SKIP_MIGRATE: "1"
+    ports: ["${VO_INGEST_PORT:-8001}:8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+
+  # analysis service — Kafka consumer. Scale it (`--scale analysis=3`); Kafka assigns partitions.
+  analysis:
     build: .
     command: ["python", "-m", "voiceobs.worker"]
     environment:
       VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
-      VOICEOBS_SKIP_MIGRATE: "1"   # the api container owns migrations
+      VOICEOBS_KAFKA_BROKERS: redpanda:9092
+      VOICEOBS_SKIP_MIGRATE: "1"
     depends_on:
       db:
+        condition: service_healthy
+      redpanda:
         condition: service_healthy
 
 volumes:

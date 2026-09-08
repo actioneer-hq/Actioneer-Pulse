@@ -43,13 +43,14 @@ def test_set_requires_admin(client, login_as):
     assert client.put(f"/v1/agents/{aid}/script", json={"text": "x"}).status_code == 403
 
 
-def test_call_pins_active_script_version(client, login_as, db_sessionmaker):
+def test_call_pins_active_script_version(client, login_as, db_sessionmaker, drain):
     login_as("default")
     aid = client.post("/v1/agents", json={"name": "Bot", "script": "v1 script"}).json()["id"]
     tok = client.post(f"/v1/agents/{aid}/ingest-tokens", json={}).json()["token"]
 
     # ingest a call for this agent → it pins v1
     client.post("/v1/traces", json=sample_call(), headers={"Authorization": f"Bearer {tok}"})
+    drain()
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
         assert call.prompt_id is not None
@@ -58,6 +59,7 @@ def test_call_pins_active_script_version(client, login_as, db_sessionmaker):
     # change the script to v2, then confirm the already-ingested call still points at v1
     client.put(f"/v1/agents/{aid}/script", json={"text": "v2 script"})
     client.post("/v1/traces", json=sample_call(), headers={"Authorization": f"Bearer {tok}"})
+    drain()
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
         assert call.prompt_id == first_prompt  # pinned; not rewritten to v2

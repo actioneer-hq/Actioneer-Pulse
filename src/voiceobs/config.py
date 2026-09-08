@@ -41,6 +41,9 @@ class Config(BaseSettings):
     per_call_chat_api_key: str | None = None
     failure_analysis_api_key: str | None = None
     embedding_api_key: str | None = None  # BYO embedding model (OpenAI-compatible)
+    # Kafka brokers for the ingest→analysis pipeline (the `raw-spans` topic). Required in prod;
+    # tests inject an in-memory bus double. e.g. "redpanda:9092".
+    kafka_brokers: str | None = None
 
     # ── APP CONFIG (edit here; env can still override) ───────────────────────────────
     dev_open: bool = False
@@ -61,6 +64,12 @@ class Config(BaseSettings):
     embedding_model: str = "bge-m3"          # the embedding model your endpoint serves
     embedding_base_url: str | None = None    # your OpenAI-compatible endpoint (e.g. http://host/v1)
     embedding_dim: int = 1024                # BGE-M3 = 1024; text-embedding-3-small = 1536
+
+    # Kafka pipeline (ingest producer → analysis consumer)
+    kafka_topic_raw: str = "raw-spans"
+    kafka_dlq_topic: str = "raw-spans.dlq"
+    kafka_consumer_group: str = "analysis"
+    kafka_max_retries: int = 5
 
     # operational (worker / reconcile / clustering)
     worker_poll_s: float = 5.0

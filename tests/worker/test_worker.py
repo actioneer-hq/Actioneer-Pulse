@@ -12,7 +12,7 @@ from tests.fixtures.livekit_call import sample_call
 from voiceobs.db.models import Call, Event, IngestRun, Metric
 from voiceobs.db.models import Turn as DBTurn
 from voiceobs.worker.process import assemble, process
-from voiceobs.worker.run import claim, tick
+from voiceobs.worker.run import flush_due
 
 
 def _gz(payload: dict) -> bytes:
@@ -69,8 +69,9 @@ def test_assemble_dedupes_retried_spans():
     assert len(spans) == len({s["spanId"] for s in spans})
 
 
-def test_worker_writes_turns_metrics_and_events(client, db_sessionmaker):
+def test_worker_writes_turns_metrics_and_events(client, db_sessionmaker, drain):
     client.post("/v1/traces", json=sample_call())
+    drain()
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
         assert process(db, call) in ("ok", "partial")
@@ -86,9 +87,10 @@ def test_worker_writes_turns_metrics_and_events(client, db_sessionmaker):
         assert kinds == {"span", "event"}
 
 
-def test_header_fields_are_filled_in(client, db_sessionmaker):
+def test_header_fields_are_filled_in(client, db_sessionmaker, drain):
     """The NULLs ingest leaves behind are the worker's job."""
     client.post("/v1/traces", json=sample_call())
+    drain()
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
         assert call.engine is None and call.started_at is None
@@ -101,8 +103,9 @@ def test_header_fields_are_filled_in(client, db_sessionmaker):
         assert call.metric_version and call.adapter_version
 
 
-def test_reprocessing_does_not_double_rows(client, db_sessionmaker):
+def test_reprocessing_does_not_double_rows(client, db_sessionmaker, drain):
     client.post("/v1/traces", json=sample_call())
+    drain()
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
         process(db, call)
@@ -114,24 +117,28 @@ def test_reprocessing_does_not_double_rows(client, db_sessionmaker):
         assert len(db.scalars(select(DBTurn)).all()) == 1
 
 
-def test_claim_skips_calls_already_at_this_version(client, db_sessionmaker):
+def test_flush_due_skips_calls_already_at_this_version(client, db_sessionmaker, drain, monkeypatch):
+    monkeypatch.setenv("VOICEOBS_WORKER_GRACE_S", "0")  # grace path fires immediately
     client.post("/v1/traces", json=sample_call())
+    drain()
     with db_sessionmaker() as db:
-        assert len(claim(db, grace_s=0)) == 1
-        assert tick(db, grace_s=0) == 1
-        db.commit()
-        assert claim(db, grace_s=0) == []  # done, not claimable again
+        assert flush_due(db) == 1  # grace path analyses the spans-complete call
+        assert flush_due(db) == 0  # done, not due again
 
 
-def test_claim_waits_out_the_grace_period(client, db_sessionmaker):
+def test_flush_due_waits_out_the_grace_period(client, db_sessionmaker, drain, monkeypatch):
     """A call still receiving spans must not be analysed mid-flight."""
+    monkeypatch.setenv("VOICEOBS_WORKER_GRACE_S", "3600")
     client.post("/v1/traces", json=sample_call())
+    drain()
     with db_sessionmaker() as db:
-        assert claim(db, grace_s=3600) == []
+        assert flush_due(db) == 0
 
 
-def test_unsupported_producer_is_not_retried_forever(client, db_sessionmaker, monkeypatch):
+def test_unsupported_producer_is_not_retried_forever(client, db_sessionmaker, monkeypatch, drain):
+    monkeypatch.setenv("VOICEOBS_WORKER_GRACE_S", "0")
     client.post("/v1/traces", json=sample_call())
+    drain()
     with db_sessionmaker() as db:
         import voiceobs.worker.run as run_mod
         from voiceobs.frameworks import UnsupportedSchema
@@ -140,13 +147,13 @@ def test_unsupported_producer_is_not_retried_forever(client, db_sessionmaker, mo
             raise UnsupportedSchema("nope")
 
         monkeypatch.setattr(run_mod, "process", boom)
-        assert tick(db, grace_s=0) == 1
+        assert flush_due(db) == 1
         db.commit()
         assert db.scalars(select(Call)).one().status == "unsupported"
-        assert claim(db, grace_s=0) == []
+        assert flush_due(db) == 0
 
 
-def test_foreign_producer_is_unsupported_under_strict_routing(client, db_sessionmaker):
+def test_foreign_producer_is_unsupported_under_strict_routing(client, db_sessionmaker, drain):
     """Strict LiveKit-only: a producer with no `agent_session` matches no registered
     framework, so the worker reports it unsupported rather than reshaping it blindly."""
     import pytest
@@ -162,6 +169,7 @@ def test_foreign_producer_is_unsupported_under_strict_routing(client, db_session
         ]}],
     }]}
     client.post("/v1/traces", json=foreign)
+    drain()
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
         with pytest.raises(UnsupportedSchema):
@@ -178,8 +186,9 @@ def test_worker_names_no_producer():
             assert token not in text, f"{f.name} names a producer: {token}"
 
 
-def test_ingest_run_records_the_attempt(client, db_sessionmaker):
+def test_ingest_run_records_the_attempt(client, db_sessionmaker, drain):
     client.post("/v1/traces", json=sample_call())
+    drain()
     with db_sessionmaker() as db:
         process(db, db.scalars(select(Call)).one())
         db.commit()
@@ -188,7 +197,7 @@ def test_ingest_run_records_the_attempt(client, db_sessionmaker):
         assert run.finished_at is not None
 
 
-def test_foreign_producer_survives_the_worker(client, db_sessionmaker):
+def test_foreign_producer_survives_the_worker(client, db_sessionmaker, drain):
     """The OSS constraint, end to end: a producer with no adapter goes in one side and
     comes out as a call with a timeline — no turns, because it emits no turn spans."""
     T = 1_700_000_000_000_000_000
@@ -204,6 +213,7 @@ def test_foreign_producer_survives_the_worker(client, db_sessionmaker):
         ]}],
     }]}
     client.post("/v1/traces", json=payload)
+    drain()
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
         assert process(db, call) in ("ok", "partial")

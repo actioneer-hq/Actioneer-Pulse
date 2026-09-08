@@ -16,12 +16,13 @@ def _mint_token(client, login_as) -> tuple[str, str]:
     return aid, tok
 
 
-def test_token_routes_call_to_its_agent(client, login_as, db_sessionmaker):
+def test_token_routes_call_to_its_agent(client, login_as, db_sessionmaker, drain):
     aid, tok = _mint_token(client, login_as)
     # the token resolves (org, agent); the call is stamped with the token's agent
     r = client.post("/v1/traces", json=sample_call(),
                     headers={"Authorization": f"Bearer {tok}"})
     assert r.status_code == 200
+    drain()
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
         assert call.agent_id == aid
@@ -38,9 +39,10 @@ def test_tokenless_ingest_requires_dev_open(client, monkeypatch):
     assert client.post("/v1/traces", json=sample_call()).status_code == 401
 
 
-def test_dev_open_tokenless_ingests_into_default_schema(client, db_sessionmaker):
+def test_dev_open_tokenless_ingests_into_default_schema(client, db_sessionmaker, drain):
     # autouse dev-open is on → token-less ingest lands in the single (default) schema, no agent
     assert client.post("/v1/traces", json=sample_call()).status_code == 200
+    drain()
     with db_sessionmaker() as db:
         call = db.scalars(select(Call)).one()
         assert call.external_call_id == "c1"

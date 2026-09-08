@@ -12,8 +12,9 @@ from voiceobs.db.models import Call, Utterance
 from voiceobs.worker.process import process
 
 
-def _register_audio(client) -> None:
+def _register_audio(client, drain) -> None:
     client.post("/v1/traces", json=sample_call())
+    drain()
     client.post("/v1/calls/c1/artifacts", json={
         "kind": "audio", "uri": "s3://bucket/c1.wav", "sha256": "x",
         "channels": 2, "sample_rate": 8000,
@@ -29,10 +30,10 @@ def _patch_fetch(monkeypatch) -> None:
     )
 
 
-def test_default_is_otlp_only_even_with_a_wav(client, db_sessionmaker, monkeypatch):
+def test_default_is_otlp_only_even_with_a_wav(client, db_sessionmaker, monkeypatch, drain):
     monkeypatch.delenv("VOICEOBS_AUDIO_ANALYSIS", raising=False)  # global default: off
     _patch_fetch(monkeypatch)
-    _register_audio(client)
+    _register_audio(client, drain)
 
     with db_sessionmaker() as db:
         analysis_ran = process(db, db.scalars(select(Call)).one())
@@ -41,10 +42,10 @@ def test_default_is_otlp_only_even_with_a_wav(client, db_sessionmaker, monkeypat
         assert db.scalar(select(func.count()).select_from(Utterance)) == 0  # audio skipped
 
 
-def test_toggle_on_runs_layer1(client, login_as, db_sessionmaker, monkeypatch):
+def test_toggle_on_runs_layer1(client, login_as, db_sessionmaker, monkeypatch, drain):
     monkeypatch.delenv("VOICEOBS_AUDIO_ANALYSIS", raising=False)
     _patch_fetch(monkeypatch)
-    _register_audio(client)
+    _register_audio(client, drain)
     login_as("vastu-hfc")  # the call's org; settings now scope to the session org
     client.post("/v1/settings", json={"audio_analysis_enabled": True})
 
@@ -69,9 +70,10 @@ def test_settings_write_requires_admin(client, login_as):
     assert client.post("/v1/settings", json={"audio_analysis_enabled": True}).status_code == 403
 
 
-def test_trust_block_shows_audio_off(client, login_as, db_sessionmaker, monkeypatch):
+def test_trust_block_shows_audio_off(client, login_as, db_sessionmaker, monkeypatch, drain):
     monkeypatch.delenv("VOICEOBS_AUDIO_ANALYSIS", raising=False)
     client.post("/v1/traces", json=sample_call())
+    drain()
     with db_sessionmaker() as db:
         process(db, db.scalars(select(Call)).one())
         db.commit()
