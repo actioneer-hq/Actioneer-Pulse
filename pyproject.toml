@@ -33,6 +33,11 @@ dev = [
     # producing a real OTLP/protobuf batch in tests, the way a producer's SDK does
     "opentelemetry-sdk>=1.25",
     "opentelemetry-exporter-otlp-proto-common>=1.25",
+    "fakeredis>=2.23",  # in-memory Redis for the rate-limiter tests
+]
+# Auth abuse protection store.
+redis = [
+    "redis>=5",
 ]
 analytics = [
     "scikit-learn>=1.9.0",

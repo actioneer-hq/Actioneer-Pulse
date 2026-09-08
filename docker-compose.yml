@@ -45,16 +45,33 @@ services:
         rpk topic create raw-spans.dlq -p 1 -X brokers=redpanda:9092 || true
     restart: "no"
 
+  redis:
+    image: redis:7-alpine
+    ports: ["${VO_REDIS_PORT:-6379}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
   # read/dashboard API (also owns migrations). All-in-one app is fine here.
   api:
     build: .
     command: ["uvicorn", "voiceobs.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
+      VOICEOBS_REDIS_URL: redis://redis:6379   # auth abuse protection
     ports: ["${VO_PORT:-8000}:8000"]
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   # ingest service — thin Kafka producer.
   ingest:
