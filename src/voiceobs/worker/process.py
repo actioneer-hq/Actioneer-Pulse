@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from voiceobs.core import analyze_audio
+from voiceobs.core import analyze_audio, audio_only_metrics, detect_layout
 from voiceobs.core.audio.decode import combine_stereo
 from voiceobs.core.config import METRIC_VERSION, price_call
 from voiceobs.core.model import Analysis, AudioAnalysis, AudioRef, CallHeader, Stage, Trace
@@ -353,3 +353,104 @@ def _text(v) -> str | None:
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+# ── audio-only analysis (backfill / no-OTLP calls) ───────────────────────────────────
+def ensure_audio_call(db: Session, agent_id: str | None, external_call_id: str) -> Call:
+    """Get-or-create a Call that has no spans — the entry point for audio-only backfill, where
+    Call creation is not driven by an ingested spans Batch. Idempotent on external_call_id."""
+    call = db.scalar(select(Call).where(Call.external_call_id == external_call_id))
+    if call is None:
+        call = Call(
+            external_call_id=external_call_id, agent_id=agent_id,
+            source="backfill", environment="prod",
+            status="awaiting_media", analysis_mode="audio-only",
+            last_activity_at=_now(),
+        )
+        db.add(call)
+        db.flush()
+    return call
+
+
+def process_audio_only(db: Session, call: Call) -> str:
+    """Analyse a call from audio alone (no OTLP). Produces the Layer-1 audio metric set with the
+    agent side taken from the agent channel's VAD; no turns/events, no LLM/TTS/cost. Sets
+    `analysis_mode`/`audio_layout` for provenance and `status`; on failure records
+    `analysis_error` and returns 'failed' (never raises into the caller)."""
+    run = IngestRun(
+        call_id=call.id, app_version=APP_VERSION,
+        metric_version=METRIC_VERSION, status="running", started_at=_now(),
+    )
+    db.add(run)
+    try:
+        creds = resolve_creds(db, call.agent_id)
+        kinds = {m.kind: m for m in db.scalars(select(Media).where(Media.call_id == call.id))}
+        wav, sr = _audio_bytes(kinds, creds)
+        if wav is None:
+            return _fail(call, run, "no audio registered for call")
+
+        layout = detect_layout(wav)
+        # separated → caller/agent on their own channels (VAD attributes speech directly).
+        # mono/mixed → only the primary channel is trustworthy without diarization (Phase 3);
+        # analyse it as the caller so quality/caller metrics still land, agent side unavailable.
+        channel_map = ({0: "caller", 1: "agent"} if layout == "separated"
+                       else {0: "caller"})
+        ref = AudioRef(uri="", sha256="", channels=2 if layout == "separated" else 1,
+                       sample_rate=sr, duration_s=_wav_duration_s(wav),
+                       channel_map=channel_map, t0_offset_s=None)
+        audio = analyze_audio(wav, ref)
+        metrics = audio_only_metrics(audio)
+
+        _persist_audio_only(db, call, audio, metrics, layout)
+        run.status = "ok"
+        run.finished_at = _now()
+        return run.status
+    except Exception as e:  # one bad recording must not abort a backfill run
+        log.exception("audio-only analysis failed for %s", call.external_call_id)
+        return _fail(call, run, f"{type(e).__name__}: {e}")
+
+
+def _persist_audio_only(
+    db: Session, call: Call, audio: AudioAnalysis, metrics: list, layout: str
+) -> None:
+    for model in (DBTurn, Metric, Event, Utterance):
+        db.execute(delete(model).where(model.call_id == call.id))
+    db.execute(delete(Media).where(
+        Media.call_id == call.id,
+        Media.kind.like("peaks_%") | Media.kind.like("energy_%"),
+    ))
+    db.add_all(
+        _utterance_rows(audio, call, METRIC_VERSION)
+        + [_metric_row(m, call, METRIC_VERSION) for m in metrics]
+        + _peaks_rows(audio, call)
+        + _energy_rows(audio, call)
+    )
+    if call.duration_s is None:
+        call.duration_s = round(max([u.t_end for u in audio.utterances], default=0.0), 3)
+    call.analysis_mode = "audio-only"
+    call.audio_layout = layout
+    call.analysis_error = None
+    call.metric_version = METRIC_VERSION
+    call.app_version = APP_VERSION
+    call.status = "ingested"
+    call.last_activity_at = _now()
+
+
+def _fail(call: Call, run: IngestRun, reason: str) -> str:
+    call.status = "failed"
+    call.analysis_error = reason
+    run.status = "failed"
+    run.error = reason
+    run.finished_at = _now()
+    return "failed"
+
+
+def _wav_duration_s(wav: bytes) -> float:
+    import io
+    import wave
+
+    try:
+        with wave.open(io.BytesIO(wav), "rb") as w:
+            return w.getnframes() / w.getframerate() if w.getframerate() else 0.0
+    except Exception:  # noqa: BLE001 — a bad/short WAV header just means unknown duration
+        return 0.0
