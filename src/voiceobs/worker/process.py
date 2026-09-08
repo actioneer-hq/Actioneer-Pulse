@@ -372,11 +372,12 @@ def ensure_audio_call(db: Session, agent_id: str | None, external_call_id: str) 
     return call
 
 
-def process_audio_only(db: Session, call: Call) -> str:
+def process_audio_only(db: Session, call: Call, *, use_stt: bool = False) -> str:
     """Analyse a call from audio alone (no OTLP). Produces the Layer-1 audio metric set with the
-    agent side taken from the agent channel's VAD; no turns/events, no LLM/TTS/cost. Sets
-    `analysis_mode`/`audio_layout` for provenance and `status`; on failure records
-    `analysis_error` and returns 'failed' (never raises into the caller)."""
+    agent side from the agent channel's VAD (or diarization). With `use_stt` and a BYO STT configured
+    (Tier B), also transcribes each side into Turns and runs the judge — unlocking content metrics,
+    the LLM-judge, and clustering. Sets `analysis_mode`/`audio_layout` for provenance and `status`;
+    on failure records `analysis_error` and returns 'failed' (never raises into the caller)."""
     run = IngestRun(
         call_id=call.id, app_version=APP_VERSION,
         metric_version=METRIC_VERSION, status="running", started_at=_now(),
@@ -390,10 +391,18 @@ def process_audio_only(db: Session, call: Call) -> str:
             return _fail(call, run, "no audio registered for call")
 
         layout = detect_layout(wav)
-        audio, mode, confidence = _analyze_layout(db, call, wav, sr, layout)
+        audio, mode, confidence, diar, channel_map = _analyze_layout(db, call, wav, sr, layout)
         metrics = audio_only_metrics(audio)
 
-        _persist_audio_only(db, call, audio, metrics, layout, mode, confidence)
+        turns = _stt_turns(db, call, wav, layout, audio, diar, channel_map) if use_stt else []
+        if turns:
+            mode = f"{mode}+stt"
+
+        _persist_audio_only(db, call, audio, metrics, layout, mode, confidence, turns)
+        if turns:
+            from voiceobs.judge import judge_call
+
+            judge_call(db, call)  # transcript now derivable from the turns → content judgment
         run.status = "ok"
         run.finished_at = _now()
         return run.status
@@ -404,8 +413,9 @@ def process_audio_only(db: Session, call: Call) -> str:
 
 def _analyze_layout(
     db: Session, call: Call, wav: bytes, sr: int, layout: str
-) -> tuple[AudioAnalysis, str, float | None]:
-    """Run Layer-1 for a call's layout. Returns (audio, analysis_mode, diarization_confidence).
+) -> tuple[AudioAnalysis, str, float | None, object, dict]:
+    """Run Layer-1 for a call's layout. Returns (audio, analysis_mode, diarization_confidence,
+    diarization|None, channel_map).
 
     - separated → per-channel VAD attributes caller/agent directly (analysis_mode 'audio-only').
     - mixed/mono → if a BYO diarization endpoint is configured, split the single track into
@@ -413,24 +423,38 @@ def _analyze_layout(
       ('audio-only', agent side unavailable)."""
     dur = _wav_duration_s(wav)
     if layout == "separated":
+        cmap = {0: "caller", 1: "agent"}
         ref = AudioRef(uri="", sha256="", channels=2, sample_rate=sr, duration_s=dur,
-                       channel_map={0: "caller", 1: "agent"}, t0_offset_s=None)
-        return analyze_audio(wav, ref), "audio-only", None
+                       channel_map=cmap, t0_offset_s=None)
+        return analyze_audio(wav, ref), "audio-only", None, None, cmap
 
     # mixed / mono — one usable track.
+    cmap = {0: "caller"}
     ref = AudioRef(uri="", sha256="", channels=1, sample_rate=sr, duration_s=dur,
-                   channel_map={0: "caller"}, t0_offset_s=None)
+                   channel_map=cmap, t0_offset_s=None)
     base = analyze_audio(wav, ref)  # peaks/energy/quality of the single track
 
     diar = _run_diarization(db, call.agent_id, wav)
     if diar is None or not diar.segments:
-        return base, "audio-only", None  # not configured (or it returned nothing) → caller-only
+        return base, "audio-only", None, None, cmap  # not configured → caller-only
 
     from voiceobs.diarize.roles import assign_roles, to_utterances
 
     roles = assign_roles(diar)
     diarized = base.model_copy(update={"utterances": to_utterances(diar, roles)})
-    return diarized, "diarized", diar.confidence
+    return diarized, "diarized", diar.confidence, diar, cmap
+
+
+def _stt_turns(db, call, wav, layout, audio, diar, channel_map):
+    """Tier B: transcribe each side and fold into Turns; [] if STT unconfigured or it failed."""
+    from voiceobs.groundtruth.stt import resolve_stt
+    from voiceobs.worker.audio_stt import build_turns, transcribe_sides
+
+    stt = resolve_stt(db, call.agent_id)
+    if stt is None:
+        return []
+    words = transcribe_sides(stt, wav, layout, diar, channel_map)
+    return build_turns(audio.utterances, words) if words else []
 
 
 def _run_diarization(db: Session, agent_id: str | None, wav: bytes):
@@ -442,7 +466,7 @@ def _run_diarization(db: Session, agent_id: str | None, wav: bytes):
 
 def _persist_audio_only(
     db: Session, call: Call, audio: AudioAnalysis, metrics: list, layout: str,
-    mode: str = "audio-only", confidence: float | None = None,
+    mode: str = "audio-only", confidence: float | None = None, turns: list | None = None,
 ) -> None:
     for model in (DBTurn, Metric, Event, Utterance):
         db.execute(delete(model).where(model.call_id == call.id))
@@ -455,6 +479,7 @@ def _persist_audio_only(
         + [_metric_row(m, call, METRIC_VERSION) for m in metrics]
         + _peaks_rows(audio, call)
         + _energy_rows(audio, call)
+        + [_turn_row(t, call, METRIC_VERSION) for t in (turns or [])]
     )
     if call.duration_s is None:
         call.duration_s = round(max([u.t_end for u in audio.utterances], default=0.0), 3)

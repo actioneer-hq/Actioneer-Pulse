@@ -407,6 +407,7 @@ function BackfillSection({ agent }: { agent: Agent }) {
   const { start, job } = useBackfill();
   const [preview, setPreview] = useState<BackfillPreview | null>(null);
   const [loading, setLoading] = useState(false);
+  const [stt, setStt] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const running = !!job && job.agent_id === agent.id
     && !["done", "failed", "cancelled"].includes(job.status);
@@ -421,7 +422,7 @@ function BackfillSection({ agent }: { agent: Agent }) {
 
   async function confirm() {
     setErr(null);
-    try { await start(agent.id); setPreview(null); }
+    try { await start(agent.id, { stt }); setPreview(null); }
     catch (e) { setErr((e as Error).message); }
   }
 
@@ -442,6 +443,10 @@ function BackfillSection({ agent }: { agent: Agent }) {
               Found {preview.audio_calls} call{preview.audio_calls === 1 ? "" : "s"} with audio
               ({preview.files} file{preview.files === 1 ? "" : "s"}).
             </span>
+            <label className="dimtxt" style={{ alignSelf: "center", display: "flex", gap: 6 }}>
+              <input type="checkbox" checked={stt} onChange={(e) => setStt(e.target.checked)} />
+              Transcribe with STT (content + judge; costs per minute)
+            </label>
             <button className="btn-primary" disabled={running || preview.audio_calls === 0}
               onClick={confirm}>Start backfill</button>
             <button className="link" onClick={() => setPreview(null)}>Cancel</button>

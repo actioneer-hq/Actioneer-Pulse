@@ -22,7 +22,7 @@ from voiceobs.auth import current_membership, require_role
 from voiceobs.db.models import BackfillJob, Call, Membership, Organization
 from voiceobs.db.session import get_session, use_org_schema
 from voiceobs.storage import resolve_storage
-from voiceobs.worker.backfill import discover
+from voiceobs.worker.backfill import discover, discover_otlp
 
 router = APIRouter(prefix="/v1/backfill")
 
@@ -52,20 +52,26 @@ def _job_dict(j: BackfillJob) -> dict:
 @router.get("/preview")
 def preview(
     agent_id: str,
+    source: str = "audio",
     db: Session = Depends(session_dep),
     mem: Membership = Depends(require_role("owner", "admin")),
 ) -> dict:
-    """Discover how many calls sit in the agent's store, so the UI can say 'you have N calls with
-    audio…'. Lightweight: lists + groups by call id, does not fetch audio bytes."""
+    """Discover how many calls sit in the agent's store, so the UI can say 'you have N calls…'.
+    Lightweight: lists + groups by call id, does not fetch bytes. `source` selects audio vs OTLP."""
     st = resolve_storage(db, agent_id)
     if st is None:
         raise HTTPException(400, "storage not configured/enabled for this agent")
     try:
+        if source == "otlp":
+            found_otlp = discover_otlp(st)
+            return {"agent_id": agent_id, "source": "otlp", "audio_calls": len(found_otlp),
+                    "files": len(found_otlp), "sample_call_ids": sorted(found_otlp)[:5]}
         found = discover(st)
     except Exception as e:
         raise HTTPException(400, f"could not list storage: {e}") from e
     return {
         "agent_id": agent_id,
+        "source": "audio",
         "audio_calls": len(found),
         "files": sum(len(v) for v in found.values()),
         "sample_call_ids": sorted(found)[:5],
