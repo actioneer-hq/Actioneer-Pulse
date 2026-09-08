@@ -7,11 +7,11 @@ import io
 import pytest
 
 from voiceobs.storage import fetch_bytes
-from voiceobs.storage.fetch import _parse_s3
+from voiceobs.storage.drivers.s3 import _parse
 
 
 def test_parse_s3():
-    assert _parse_s3("s3://my-bucket/a/b/c.wav") == ("my-bucket", "a/b/c.wav")
+    assert _parse("s3://my-bucket/a/b/c.wav") == ("my-bucket", "a/b/c.wav")
 
 
 def test_fetch_s3_reads_body(monkeypatch):

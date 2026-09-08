@@ -26,7 +26,7 @@ from voiceobs.db.models import (
     Prompt,
     Turn,
 )
-from voiceobs.storage import fetch_bytes, resolve_s3_creds
+from voiceobs.storage import fetch_bytes, resolve_creds
 from voiceobs.transcript import resolve
 
 log = logging.getLogger(__name__)
@@ -327,7 +327,7 @@ def get_audio(
     if wav is None:
         raise HTTPException(status_code=404, detail="no audio for this call")
     try:
-        data = fetch_bytes(wav.uri, creds=resolve_s3_creds(db, call.agent_id))
+        data = fetch_bytes(wav.uri, creds=resolve_creds(db, call.agent_id))
     except Exception as e:  # a fetch failure is a 502, not a 500 crash
         log.warning("audio fetch failed for %s: %s", call.external_call_id, e)
         raise HTTPException(status_code=502, detail="audio unavailable") from e

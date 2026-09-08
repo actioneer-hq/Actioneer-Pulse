@@ -1,15 +1,14 @@
-"""Pull-path audio backfill. For each agent with audio analysis enabled, scan its configured
-S3 bucket/prefix and register any settled recording whose Call has no audio yet — matching on
-the call_id (= OTLP trace_id) embedded in the key:
+"""Pull-path audio backfill, provider-agnostic. For each agent with audio analysis enabled, use its
+storage descriptor + driver to list the configured store and register any settled recording whose
+Call has no audio yet — extracting the call id (= OTLP trace_id) from each object key via the
+descriptor's `key_regex`, and mapping the filename to a Media.kind via `file_map`.
 
-    s3://<bucket>/<prefix>/<call_id>/audio.wav            (stereo), or
-    s3://<bucket>/<prefix>/<call_id>/audio_caller.wav + audio_agent.wav
-
-S3 is the source of truth; the artifact POST is just a latency optimization on top."""
+The store is the source of truth; the artifact POST is just a latency optimization on top."""
 
 from __future__ import annotations
 
 import logging
+import re
 import time
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
@@ -20,15 +19,12 @@ from sqlalchemy.orm import Session
 from voiceobs.config import get_config
 from voiceobs.db.models import AgentAudioConfig, Call, Media, Tombstone
 from voiceobs.db.session import get_session, org_schema_keys, use_org_schema
-from voiceobs.storage import list_objects, resolve_s3_creds
+from voiceobs.storage import ResolvedStorage, resolve_storage
 
 session_scope = contextmanager(get_session)
 log = logging.getLogger(__name__)
 
 GRACE_S = get_config().reconcile_grace_s
-
-# filename -> Media.kind (what the worker's _audio_bytes looks for)
-_KINDS = {"audio.wav": "audio", "audio_caller.wav": "audio_caller", "audio_agent.wav": "audio_agent"}
 
 
 def reconcile(db: Session, grace_s: float = GRACE_S) -> int:
@@ -36,39 +32,38 @@ def reconcile(db: Session, grace_s: float = GRACE_S) -> int:
     cutoff = datetime.now(UTC) - timedelta(seconds=grace_s)
     backfilled = 0
     for cfg in db.scalars(select(AgentAudioConfig).where(AgentAudioConfig.enabled.is_(True))):
-        if not cfg.s3_bucket:
+        st = resolve_storage(db, cfg.agent_id)
+        if st is None:
             continue
-        backfilled += _reconcile_agent(db, cfg, cutoff)
+        backfilled += _reconcile_agent(db, cfg.agent_id, st, cutoff)
     return backfilled
 
 
-def _reconcile_agent(db: Session, cfg: AgentAudioConfig, cutoff: datetime) -> int:
-    prefix = (cfg.s3_prefix or "").strip("/")
-    base = f"s3://{cfg.s3_bucket}/{prefix}".rstrip("/")
-    creds = resolve_s3_creds(db, cfg.agent_id)
-    n = 0
+def _reconcile_agent(db: Session, agent_id: str, st: ResolvedStorage, cutoff: datetime) -> int:
+    """List via the driver, then match each key against the descriptor to extract call_id + kind."""
     try:
-        objects = list_objects(base + "/", creds)
+        objects = st.driver.list(st.descriptor, st.creds)
     except Exception as e:  # noqa: BLE001 — one agent's bad bucket must not stall the rest
-        log.warning("reconcile: list failed for agent %s: %s", cfg.agent_id, e)
+        log.warning("reconcile: list failed for agent %s: %s", agent_id, e)
         return 0
+    key_re = re.compile(st.descriptor["key_regex"])
+    id_group = st.descriptor.get("id_group", "call_id")
+    file_map: dict = st.descriptor.get("file_map", {})  # filename -> Media.kind
+    base = f"{st.driver.scheme}://{st.descriptor['bucket']}/"
+    n = 0
     for uri, modified in objects:
-        kind = _KINDS.get(uri.rsplit("/", 1)[-1])
-        if kind is None or _aware(modified) > cutoff:
+        if _aware(modified) > cutoff:
             continue
-        call_id = _parse_call_id(uri, cfg.s3_bucket, prefix)
-        if call_id and _register(db, cfg.agent_id, call_id, uri, kind):
+        kind = file_map.get(uri.rsplit("/", 1)[-1])
+        if kind is None:
+            continue
+        m = key_re.search(uri.removeprefix(base))  # regex is over the key (bucket-relative)
+        if not m:
+            continue
+        call_id = m.groupdict().get(id_group)
+        if call_id and _register(db, agent_id, call_id, uri, kind):
             n += 1
     return n
-
-
-def _parse_call_id(uri: str, bucket: str, prefix: str) -> str | None:
-    """The <call_id> directory in `<prefix>/<call_id>/<file>`, relative to the configured prefix."""
-    key = uri.removeprefix(f"s3://{bucket}/")
-    if prefix:
-        key = key.removeprefix(prefix.strip("/") + "/")
-    parts = [p for p in key.split("/") if p]
-    return parts[0] if len(parts) >= 2 else None  # <call_id>/<file>
 
 
 def _register(db: Session, agent_id: str, call_id: str, uri: str, kind: str) -> bool:

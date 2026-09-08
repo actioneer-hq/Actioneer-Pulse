@@ -1,14 +1,14 @@
-"""storage.list_objects — S3 pagination (no network) and key parsing."""
+"""S3 driver listing (no network) + descriptor key-regex extraction."""
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 
-from voiceobs.storage import list_objects
-from voiceobs.worker.reconcile import _parse_call_id
+from voiceobs.storage.drivers.s3 import S3Driver
 
 
-def test_list_objects_paginates(monkeypatch):
+def test_s3_driver_list_paginates(monkeypatch):
     class _Paginator:
         def paginate(self, Bucket, Prefix):
             yield {"Contents": [{"Key": "recordings/c1/audio.wav",
@@ -23,17 +23,16 @@ def test_list_objects_paginates(monkeypatch):
     import boto3
 
     monkeypatch.setattr(boto3, "client", lambda *a, **k: _Client())
-    got = list_objects("s3://bucket/recordings/")
+    got = S3Driver().list({"bucket": "bucket", "list_prefix": "recordings/"}, {})
     assert [u for u, _ in got] == [
         "s3://bucket/recordings/c1/audio.wav",
         "s3://bucket/recordings/c2/audio.wav",
     ]
 
 
-def test_parse_call_id_from_key():
-    # <prefix>/<call_id>/<file> — call_id is the directory before the filename
-    assert _parse_call_id("s3://b/recordings/CALL123/audio.wav", "b", "recordings") == "CALL123"
-    # empty prefix works too
-    assert _parse_call_id("s3://b/CALL9/audio_caller.wav", "b", "") == "CALL9"
-    # a bare file with no call_id directory yields nothing
-    assert _parse_call_id("s3://b/recordings/loose.wav", "b", "recordings") is None
+def test_default_key_regex_extracts_call_id():
+    # The default convention descriptor: call_id is the directory before the filename.
+    rx = re.compile(r"(?P<call_id>[^/]+)/[^/]+$")
+    assert rx.search("recordings/CALL123/audio.wav").group("call_id") == "CALL123"
+    assert rx.search("CALL9/audio_caller.wav").group("call_id") == "CALL9"
+    assert rx.search("loose.wav") is None  # a bare file (no dir) yields no call_id

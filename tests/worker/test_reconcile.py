@@ -17,8 +17,15 @@ def _seed(db, *, enabled=True, spans_complete=True) -> Agent:
     db.add(Organization(id="org1", name="Org", slug="org1"))
     agent = Agent(id="ag1", org_id="org1", name="Bot", slug="bot")
     db.add(agent)
-    db.add(AgentAudioConfig(agent_id="ag1", enabled=enabled,
-                            s3_bucket="bucket", s3_prefix="recordings"))
+    db.add(AgentAudioConfig(
+        agent_id="ag1", enabled=enabled, provider="s3_compatible",
+        descriptor={
+            "bucket": "bucket", "list_prefix": "recordings/",
+            "key_regex": r"(?P<call_id>[^/]+)/[^/]+$", "id_group": "call_id",
+            "file_map": {"audio.wav": "audio", "audio_caller.wav": "audio_caller",
+                         "audio_agent.wav": "audio_agent"},
+        },
+    ))
     db.add(Call(agent_id="ag1", external_call_id="c1", source="livekit",
                 environment="prod", status="awaiting_media", spans_complete=spans_complete))
     db.commit()
@@ -26,8 +33,9 @@ def _seed(db, *, enabled=True, spans_complete=True) -> Agent:
 
 
 def _lister(monkeypatch, objects):
-    # signature is (prefix, creds) now
-    monkeypatch.setattr("voiceobs.worker.reconcile.list_objects", lambda prefix, creds=None: objects)
+    # stub the driver's list() so reconcile's resolve_storage → S3Driver().list returns these objects
+    monkeypatch.setattr("voiceobs.storage.drivers.s3.S3Driver.list",
+                        lambda self, descriptor, creds: objects)
 
 
 def test_backfills_missing_audio(db_sessionmaker, monkeypatch):
