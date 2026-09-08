@@ -431,7 +431,7 @@ pre{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--sof
   margin-right:2px;animation:pulse 2s infinite}
 
 /* backfill progress toast — fixed top-right, persists across routes */
-.backfill-toast{position:fixed;top:64px;right:20px;z-index:60;width:300px;background:var(--panel);
+.backfill-toast{position:fixed;bottom:20px;right:20px;z-index:60;width:300px;background:var(--panel);
   border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;
   box-shadow:0 8px 28px rgb(0 0 0 / .18);display:flex;flex-direction:column;gap:9px}
 .backfill-toast-hd{display:flex;align-items:center;gap:8px;font-size:13px}
@@ -446,7 +446,7 @@ pre{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--sof
 .backfill-summary{display:flex;flex-direction:column;gap:6px;font-size:12.5px}
 .backfill-summary .bad{color:var(--bad)}
 .backfill-summary .link{align-self:flex-start}
-.backfill-pill{position:fixed;top:64px;right:20px;z-index:60;display:inline-flex;align-items:center;gap:6px;
+.backfill-pill{position:fixed;bottom:20px;right:20px;z-index:60;display:inline-flex;align-items:center;gap:6px;
   background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 12px;
   font-size:12px;color:var(--ink);box-shadow:0 4px 14px rgb(0 0 0 / .12);cursor:pointer}
 
