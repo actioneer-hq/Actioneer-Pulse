@@ -75,8 +75,10 @@ def run_job(db: Session, job: BackfillJob) -> None:
         _finish(db, job, status="failed", error=f"discover failed: {e}")
         return
 
+    opts = job.options or {}
+    use_stt = bool(opts.get("stt"))
     call_ids = sorted(found)
-    limit = (job.options or {}).get("limit")
+    limit = opts.get("limit")
     if limit:
         call_ids = call_ids[: int(limit)]
     job.total = len(call_ids)
@@ -92,7 +94,7 @@ def run_job(db: Session, job: BackfillJob) -> None:
         try:
             call = ensure_audio_call(db, job.agent_id, call_id)
             _register_media(db, call, found[call_id])
-            status = process_audio_only(db, call)
+            status = process_audio_only(db, call, use_stt=use_stt)
             if status == "ok":
                 job.completed += 1
             else:
