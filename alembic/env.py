@@ -79,6 +79,11 @@ def _run_for_schema(connection, schema: str | None) -> None:
     )
     with context.begin_transaction():
         context.run_migrations()
+    # SQLAlchemy 2.0 is commit-as-you-go: the CREATE SCHEMA / SET above (and the per-schema _org_schemas
+    # probe) leave an implicit transaction open, so alembic sees connection.in_transaction() and treats
+    # the transaction as caller-owned — it does NOT commit. Without this the whole run (tables AND the
+    # alembic_version bookkeeping) rolls back on connection close, silently. Commit each schema's work.
+    connection.commit()
 
 
 def run_migrations_online() -> None:
