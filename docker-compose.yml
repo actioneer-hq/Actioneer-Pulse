@@ -73,14 +73,14 @@ services:
       timeout: 3s
       retries: 10
 
-  # ingest service — thin Kafka producer.
+  # ingest service — thin Kafka producer, rewritten in Go (services/ingest). Speaks the same
+  # raw-spans contract as the Python reference. DB URL is a pgx DSN (not the SQLAlchemy form).
   ingest:
-    build: .
-    command: ["uvicorn", "voiceobs.ingest_app:app", "--host", "0.0.0.0", "--port", "8000"]
+    build: ./services/ingest
     environment:
-      VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
+      VOICEOBS_DATABASE_URL: postgres://voiceobs:voiceobs@db:5432/voiceobs
       VOICEOBS_KAFKA_BROKERS: redpanda:9092
-      VOICEOBS_SKIP_MIGRATE: "1"
+      VOICEOBS_DEV_OPEN: "1"   # local compose: accept token-less pushes (P2 adds real token auth)
     ports: ["${VO_INGEST_PORT:-8001}:8000"]
     depends_on:
       db:
