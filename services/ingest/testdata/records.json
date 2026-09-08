@@ -1,0 +1,463 @@
+{
+  "agent_id": "agent-7",
+  "org": "vastu-hfc",
+  "payload": {
+    "resourceSpans": [
+      {
+        "resource": {
+          "attributes": [
+            {
+              "key": "service.name",
+              "value": {
+                "stringValue": "livekit"
+              }
+            },
+            {
+              "key": "deployment.environment",
+              "value": {
+                "stringValue": "prod"
+              }
+            },
+            {
+              "key": "voice.schema_version",
+              "value": {
+                "intValue": "1"
+              }
+            },
+            {
+              "key": "voice.role",
+              "value": {
+                "stringValue": "worker"
+              }
+            }
+          ]
+        },
+        "scopeSpans": [
+          {
+            "spans": [
+              {
+                "attributes": [
+                  {
+                    "key": "voice.call_id",
+                    "value": {
+                      "stringValue": "c1"
+                    }
+                  },
+                  {
+                    "key": "voice.tenant_id",
+                    "value": {
+                      "stringValue": "vastu-hfc"
+                    }
+                  },
+                  {
+                    "key": "voice.campaign_id",
+                    "value": {
+                      "stringValue": "camp-1"
+                    }
+                  }
+                ],
+                "endTimeUnixNano": "1700000003000000000",
+                "name": "agent_session",
+                "spanId": "sess",
+                "startTimeUnixNano": "1700000000000000000",
+                "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+              },
+              {
+                "attributes": [
+                  {
+                    "key": "turn.index",
+                    "value": {
+                      "intValue": "1"
+                    }
+                  },
+                  {
+                    "key": "lk.interrupted",
+                    "value": {
+                      "boolValue": false
+                    }
+                  },
+                  {
+                    "key": "lk.end_of_turn_delay",
+                    "value": {
+                      "doubleValue": 0.4
+                    }
+                  },
+                  {
+                    "key": "lk.pii.user_transcript",
+                    "value": {
+                      "stringValue": "haan ji"
+                    }
+                  }
+                ],
+                "endTimeUnixNano": "1700000001100000000",
+                "name": "user_turn",
+                "parentSpanId": "sess",
+                "spanId": "ut",
+                "startTimeUnixNano": "1700000000900000000",
+                "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+              },
+              {
+                "attributes": [],
+                "endTimeUnixNano": "1700000001000000000",
+                "name": "user_speaking",
+                "parentSpanId": "ut",
+                "spanId": "spk",
+                "startTimeUnixNano": "1700000000500000000",
+                "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+              },
+              {
+                "attributes": [
+                  {
+                    "key": "lk.transcript_confidence",
+                    "value": {
+                      "doubleValue": 0.67
+                    }
+                  }
+                ],
+                "endTimeUnixNano": "1700000001000000000",
+                "name": "eou_detection",
+                "parentSpanId": "ut",
+                "spanId": "eou",
+                "startTimeUnixNano": "1700000000900000000",
+                "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+              },
+              {
+                "attributes": [
+                  {
+                    "key": "lk.interrupted",
+                    "value": {
+                      "boolValue": false
+                    }
+                  },
+                  {
+                    "key": "lk.pii.response.text",
+                    "value": {
+                      "stringValue": "haan ji, boliye"
+                    }
+                  }
+                ],
+                "endTimeUnixNano": "1700000002200000000",
+                "name": "agent_turn",
+                "parentSpanId": "sess",
+                "spanId": "at",
+                "startTimeUnixNano": "1700000001100000000",
+                "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+              },
+              {
+                "attributes": [
+                  {
+                    "key": "lk.llm_metrics",
+                    "value": {
+                      "stringValue": "{\"ttft\": 0.3, \"completion_tokens\": 42, \"prompt_tokens\": 50, \"prompt_cached_tokens\": 8, \"total_tokens\": 92, \"tokens_per_second\": 18.3, \"metadata\": {\"model_name\": \"gpt-x\"}}"
+                    }
+                  }
+                ],
+                "endTimeUnixNano": "1700000001900000000",
+                "events": [
+                  {
+                    "attributes": [],
+                    "name": "llm.first_token",
+                    "timeUnixNano": "1700000001400000000"
+                  }
+                ],
+                "name": "llm_request",
+                "parentSpanId": "at",
+                "spanId": "lreq",
+                "startTimeUnixNano": "1700000001100000000",
+                "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+              },
+              {
+                "attributes": [
+                  {
+                    "key": "lk.tts_metrics",
+                    "value": {
+                      "stringValue": "{\"ttfb\": 0.2, \"characters_count\": 100, \"audio_duration\": 3.19, \"streamed\": false, \"metadata\": {\"model_name\": \"sarvam-tts\"}}"
+                    }
+                  }
+                ],
+                "endTimeUnixNano": "1700000002200000000",
+                "name": "tts_request",
+                "parentSpanId": "at",
+                "spanId": "treq",
+                "startTimeUnixNano": "1700000001500000000",
+                "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+              },
+              {
+                "attributes": [],
+                "endTimeUnixNano": "1700000002200000000",
+                "name": "agent_speaking",
+                "parentSpanId": "at",
+                "spanId": "play",
+                "startTimeUnixNano": "1700000001700000000",
+                "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "records": [
+    {
+      "headers": {
+        "agent_id": "agent-7",
+        "batch_id": "e3995dbe82f84d89b264713ade450d1a",
+        "org": "vastu-hfc",
+        "received_at": "2026-09-08T11:20:56.080219+00:00",
+        "seq": "0",
+        "shard_key": "c1",
+        "trace_id": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+      },
+      "key": "c1",
+      "value": {
+        "resourceSpans": [
+          {
+            "resource": {
+              "attributes": [
+                {
+                  "key": "service.name",
+                  "value": {
+                    "stringValue": "livekit"
+                  }
+                },
+                {
+                  "key": "deployment.environment",
+                  "value": {
+                    "stringValue": "prod"
+                  }
+                },
+                {
+                  "key": "voice.schema_version",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "voice.role",
+                  "value": {
+                    "stringValue": "worker"
+                  }
+                }
+              ]
+            },
+            "scopeSpans": [
+              {
+                "spans": [
+                  {
+                    "attributes": [
+                      {
+                        "key": "voice.call_id",
+                        "value": {
+                          "stringValue": "c1"
+                        }
+                      },
+                      {
+                        "key": "voice.tenant_id",
+                        "value": {
+                          "stringValue": "vastu-hfc"
+                        }
+                      },
+                      {
+                        "key": "voice.campaign_id",
+                        "value": {
+                          "stringValue": "camp-1"
+                        }
+                      }
+                    ],
+                    "endTimeUnixNano": "1700000003000000000",
+                    "name": "agent_session",
+                    "spanId": "sess",
+                    "startTimeUnixNano": "1700000000000000000",
+                    "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "headers": {
+        "agent_id": "agent-7",
+        "batch_id": "e3995dbe82f84d89b264713ade450d1a",
+        "org": "vastu-hfc",
+        "received_at": "2026-09-08T11:20:56.080266+00:00",
+        "seq": "1",
+        "shard_key": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+        "trace_id": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+      },
+      "key": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "value": {
+        "resourceSpans": [
+          {
+            "resource": {
+              "attributes": [
+                {
+                  "key": "service.name",
+                  "value": {
+                    "stringValue": "livekit"
+                  }
+                },
+                {
+                  "key": "deployment.environment",
+                  "value": {
+                    "stringValue": "prod"
+                  }
+                },
+                {
+                  "key": "voice.schema_version",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "voice.role",
+                  "value": {
+                    "stringValue": "worker"
+                  }
+                }
+              ]
+            },
+            "scopeSpans": [
+              {
+                "spans": [
+                  {
+                    "attributes": [
+                      {
+                        "key": "turn.index",
+                        "value": {
+                          "intValue": "1"
+                        }
+                      },
+                      {
+                        "key": "lk.interrupted",
+                        "value": {
+                          "boolValue": false
+                        }
+                      },
+                      {
+                        "key": "lk.end_of_turn_delay",
+                        "value": {
+                          "doubleValue": 0.4
+                        }
+                      },
+                      {
+                        "key": "lk.pii.user_transcript",
+                        "value": {
+                          "stringValue": "haan ji"
+                        }
+                      }
+                    ],
+                    "endTimeUnixNano": "1700000001100000000",
+                    "name": "user_turn",
+                    "parentSpanId": "sess",
+                    "spanId": "ut",
+                    "startTimeUnixNano": "1700000000900000000",
+                    "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+                  },
+                  {
+                    "attributes": [],
+                    "endTimeUnixNano": "1700000001000000000",
+                    "name": "user_speaking",
+                    "parentSpanId": "ut",
+                    "spanId": "spk",
+                    "startTimeUnixNano": "1700000000500000000",
+                    "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+                  },
+                  {
+                    "attributes": [
+                      {
+                        "key": "lk.transcript_confidence",
+                        "value": {
+                          "doubleValue": 0.67
+                        }
+                      }
+                    ],
+                    "endTimeUnixNano": "1700000001000000000",
+                    "name": "eou_detection",
+                    "parentSpanId": "ut",
+                    "spanId": "eou",
+                    "startTimeUnixNano": "1700000000900000000",
+                    "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+                  },
+                  {
+                    "attributes": [
+                      {
+                        "key": "lk.interrupted",
+                        "value": {
+                          "boolValue": false
+                        }
+                      },
+                      {
+                        "key": "lk.pii.response.text",
+                        "value": {
+                          "stringValue": "haan ji, boliye"
+                        }
+                      }
+                    ],
+                    "endTimeUnixNano": "1700000002200000000",
+                    "name": "agent_turn",
+                    "parentSpanId": "sess",
+                    "spanId": "at",
+                    "startTimeUnixNano": "1700000001100000000",
+                    "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+                  },
+                  {
+                    "attributes": [
+                      {
+                        "key": "lk.llm_metrics",
+                        "value": {
+                          "stringValue": "{\"ttft\": 0.3, \"completion_tokens\": 42, \"prompt_tokens\": 50, \"prompt_cached_tokens\": 8, \"total_tokens\": 92, \"tokens_per_second\": 18.3, \"metadata\": {\"model_name\": \"gpt-x\"}}"
+                        }
+                      }
+                    ],
+                    "endTimeUnixNano": "1700000001900000000",
+                    "events": [
+                      {
+                        "attributes": [],
+                        "name": "llm.first_token",
+                        "timeUnixNano": "1700000001400000000"
+                      }
+                    ],
+                    "name": "llm_request",
+                    "parentSpanId": "at",
+                    "spanId": "lreq",
+                    "startTimeUnixNano": "1700000001100000000",
+                    "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+                  },
+                  {
+                    "attributes": [
+                      {
+                        "key": "lk.tts_metrics",
+                        "value": {
+                          "stringValue": "{\"ttfb\": 0.2, \"characters_count\": 100, \"audio_duration\": 3.19, \"streamed\": false, \"metadata\": {\"model_name\": \"sarvam-tts\"}}"
+                        }
+                      }
+                    ],
+                    "endTimeUnixNano": "1700000002200000000",
+                    "name": "tts_request",
+                    "parentSpanId": "at",
+                    "spanId": "treq",
+                    "startTimeUnixNano": "1700000001500000000",
+                    "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+                  },
+                  {
+                    "attributes": [],
+                    "endTimeUnixNano": "1700000002200000000",
+                    "name": "agent_speaking",
+                    "parentSpanId": "at",
+                    "spanId": "play",
+                    "startTimeUnixNano": "1700000001700000000",
+                    "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "topic": "raw-spans"
+}

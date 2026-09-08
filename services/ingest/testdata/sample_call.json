@@ -1,0 +1,196 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "livekit"
+            }
+          },
+          {
+            "key": "deployment.environment",
+            "value": {
+              "stringValue": "prod"
+            }
+          },
+          {
+            "key": "voice.schema_version",
+            "value": {
+              "intValue": "1"
+            }
+          },
+          {
+            "key": "voice.role",
+            "value": {
+              "stringValue": "worker"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "spans": [
+            {
+              "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+              "spanId": "sess",
+              "name": "agent_session",
+              "startTimeUnixNano": "1700000000000000000",
+              "endTimeUnixNano": "1700000003000000000",
+              "attributes": [
+                {
+                  "key": "voice.call_id",
+                  "value": {
+                    "stringValue": "c1"
+                  }
+                },
+                {
+                  "key": "voice.tenant_id",
+                  "value": {
+                    "stringValue": "vastu-hfc"
+                  }
+                },
+                {
+                  "key": "voice.campaign_id",
+                  "value": {
+                    "stringValue": "camp-1"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+              "spanId": "ut",
+              "name": "user_turn",
+              "startTimeUnixNano": "1700000000900000000",
+              "endTimeUnixNano": "1700000001100000000",
+              "attributes": [
+                {
+                  "key": "turn.index",
+                  "value": {
+                    "intValue": "1"
+                  }
+                },
+                {
+                  "key": "lk.interrupted",
+                  "value": {
+                    "boolValue": false
+                  }
+                },
+                {
+                  "key": "lk.end_of_turn_delay",
+                  "value": {
+                    "doubleValue": 0.4
+                  }
+                },
+                {
+                  "key": "lk.pii.user_transcript",
+                  "value": {
+                    "stringValue": "haan ji"
+                  }
+                }
+              ],
+              "parentSpanId": "sess"
+            },
+            {
+              "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+              "spanId": "spk",
+              "name": "user_speaking",
+              "startTimeUnixNano": "1700000000500000000",
+              "endTimeUnixNano": "1700000001000000000",
+              "attributes": [],
+              "parentSpanId": "ut"
+            },
+            {
+              "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+              "spanId": "eou",
+              "name": "eou_detection",
+              "startTimeUnixNano": "1700000000900000000",
+              "endTimeUnixNano": "1700000001000000000",
+              "attributes": [
+                {
+                  "key": "lk.transcript_confidence",
+                  "value": {
+                    "doubleValue": 0.67
+                  }
+                }
+              ],
+              "parentSpanId": "ut"
+            },
+            {
+              "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+              "spanId": "at",
+              "name": "agent_turn",
+              "startTimeUnixNano": "1700000001100000000",
+              "endTimeUnixNano": "1700000002200000000",
+              "attributes": [
+                {
+                  "key": "lk.interrupted",
+                  "value": {
+                    "boolValue": false
+                  }
+                },
+                {
+                  "key": "lk.pii.response.text",
+                  "value": {
+                    "stringValue": "haan ji, boliye"
+                  }
+                }
+              ],
+              "parentSpanId": "sess"
+            },
+            {
+              "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+              "spanId": "lreq",
+              "name": "llm_request",
+              "startTimeUnixNano": "1700000001100000000",
+              "endTimeUnixNano": "1700000001900000000",
+              "attributes": [
+                {
+                  "key": "lk.llm_metrics",
+                  "value": {
+                    "stringValue": "{\"ttft\": 0.3, \"completion_tokens\": 42, \"prompt_tokens\": 50, \"prompt_cached_tokens\": 8, \"total_tokens\": 92, \"tokens_per_second\": 18.3, \"metadata\": {\"model_name\": \"gpt-x\"}}"
+                  }
+                }
+              ],
+              "parentSpanId": "at",
+              "events": [
+                {
+                  "name": "llm.first_token",
+                  "timeUnixNano": "1700000001400000000",
+                  "attributes": []
+                }
+              ]
+            },
+            {
+              "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+              "spanId": "treq",
+              "name": "tts_request",
+              "startTimeUnixNano": "1700000001500000000",
+              "endTimeUnixNano": "1700000002200000000",
+              "attributes": [
+                {
+                  "key": "lk.tts_metrics",
+                  "value": {
+                    "stringValue": "{\"ttfb\": 0.2, \"characters_count\": 100, \"audio_duration\": 3.19, \"streamed\": false, \"metadata\": {\"model_name\": \"sarvam-tts\"}}"
+                  }
+                }
+              ],
+              "parentSpanId": "at"
+            },
+            {
+              "traceId": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+              "spanId": "play",
+              "name": "agent_speaking",
+              "startTimeUnixNano": "1700000001700000000",
+              "endTimeUnixNano": "1700000002200000000",
+              "attributes": [],
+              "parentSpanId": "at"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

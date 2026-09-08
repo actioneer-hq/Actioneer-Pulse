@@ -1,7 +1,12 @@
 """Ingest endpoints. The `/traces` receiver is a thin Kafka producer: shard the OTLP batch per call
 and produce each call's raw span slice to the `raw-spans` topic — the analysis service consumes,
 assembles, and analyses. The other producer endpoints (artifacts/transcript/prompt/erase) are direct
-DB writes and stay synchronous."""
+DB writes and stay synchronous.
+
+In production `/v1/traces` is served by the Go ingest service (`services/ingest`), which speaks the
+identical `raw-spans` contract; this Python implementation stays mounted on `api.app` as the executable
+reference spec + the in-process test surface (POST → in-memory bus → drain). The control-plane writes
+(artifacts/transcript/prompt/erase) are served here in production."""
 
 from __future__ import annotations
 
