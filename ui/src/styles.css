@@ -425,3 +425,7 @@ pre{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--sof
   padding:8px 10px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px}
 .call-chat-composer textarea:focus{outline:none;border-color:var(--accent-line);box-shadow:0 0 0 3px rgb(47 125 90 /.20)}
 .call-chat-composer .btn-primary{height:34px}
+
+/* per-conversation streaming indicator in the chat sidebar */
+.chat-streaming{width:7px;height:7px;border-radius:999px;background:var(--accent);flex:none;
+  margin-right:2px;animation:pulse 2s infinite}
