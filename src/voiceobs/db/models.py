@@ -126,6 +126,13 @@ class Call(Base):
     spans_complete: Mapped[bool] = mapped_column(Boolean, default=False)
     media_ready: Mapped[bool] = mapped_column(Boolean, default=False)
     status: Mapped[str] = mapped_column(String(24), default="awaiting_media")
+    # provenance — how this call was analysed. 'full' = OTLP(+audio); 'audio-only' = VAD from
+    # separated channels; 'diarized' = mixed/mono split by a diarization model. Backfilled/audio-only
+    # calls must never silently pool with live 'full' calls in the boards.
+    analysis_mode: Mapped[str] = mapped_column(String(24), default="full")
+    audio_layout: Mapped[str | None] = mapped_column(String(16))  # separated | mixed | mono
+    diarization_confidence: Mapped[float | None] = mapped_column(Float)
+    analysis_error: Mapped[str | None] = mapped_column(Text)  # why status='failed' (shown in sidebar)
     last_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     bookmarked: Mapped[bool] = mapped_column(Boolean, default=False)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)

@@ -411,6 +411,20 @@ def _mv(
     )
 
 
+def audio_only_metrics(
+    audio: AudioAnalysis, cfg: MetricConfig | None = None
+) -> list[MetricValue]:
+    """Layer-1 metrics for an audio-only call (no spans). Unlike the live path, the agent side is
+    taken from the **agent channel's VAD** (there are no span windows) — coarser than span timing, so
+    the call is marked analysis_mode='audio-only' for provenance. Same metric names/version as the
+    live audio overlay, so the values line up field-for-field."""
+    cfg = cfg or MetricConfig()
+    agent_iv = iv.merge(
+        [(u.t_start, u.t_end) for u in audio.utterances if u.channel == "agent"]
+    )
+    return _audio_metrics(audio, agent_iv, cfg)
+
+
 def _audio_metrics(
     audio: AudioAnalysis, agent_iv: list[iv.Interval], cfg: MetricConfig
 ) -> list[MetricValue]:

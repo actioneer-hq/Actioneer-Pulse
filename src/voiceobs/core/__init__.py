@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from voiceobs.core.audio import analyze_audio
-from voiceobs.core.calculator import Calculator
+from voiceobs.core.audio.layout import detect_layout
+from voiceobs.core.calculator import Calculator, audio_only_metrics
 from voiceobs.core.config import (
     METRIC_DEFS,
     METRIC_DEFS_BY_NAME,
@@ -49,5 +50,7 @@ __all__ = [
     "Turn",
     "Utterance",
     "analyze_audio",
+    "audio_only_metrics",
+    "detect_layout",
     "join",
 ]
