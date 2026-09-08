@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  backfillPreview,
   createAgent,
   deleteAgent,
   getAgentGuardrails,
@@ -23,9 +24,11 @@ import {
   type AudioConfig,
   type CredField,
   type IngestTokenRow,
+  type BackfillPreview,
   type MintedToken,
 } from "../api";
 import { useAuth } from "../auth";
+import { useBackfill } from "../BackfillProvider";
 
 // Producer frameworks offered at agent creation. Only LiveKit is wired up today; the rest
 // are shown disabled so the choice is explicit and the roadmap is visible.
@@ -291,17 +294,22 @@ function StoragePanel({ agent }: { agent: Agent }) {
   const [bucket, setBucket] = useState("");
   const [prefix, setPrefix] = useState("");
   const [creds, setCreds] = useState<Record<string, string>>({});
+  const [diarizeUrl, setDiarizeUrl] = useState("");
+  const [diarizeModel, setDiarizeModel] = useState("");
+  const [diarizeKey, setDiarizeKey] = useState("");
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    setSaved(false); setErr(null); setCreds({});
+    setSaved(false); setErr(null); setCreds({}); setDiarizeKey("");
     getAudioConfig(agent.id).then((c) => {
       setCfg(c);
       setEnabled(c.enabled);
       setProvider(c.provider || "s3_compatible");
       setBucket((c.descriptor?.bucket as string) || "");
       setPrefix((c.descriptor?.list_prefix as string) || "");
+      setDiarizeUrl(c.diarize_base_url || "");
+      setDiarizeModel(c.diarize_model || "");
     }).catch((e: Error) => setErr(e.message));
   }, [agent.id]);
 
@@ -321,8 +329,10 @@ function StoragePanel({ agent }: { agent: Agent }) {
     try {
       const c = await setAudioConfig(agent.id, {
         enabled, provider, descriptor, cred_spec: spec, credentials: creds,
+        diarize_base_url: diarizeUrl || null, diarize_model: diarizeModel || null,
+        diarize_api_key: diarizeKey || undefined,  // omit to keep the stored key
       });
-      setCfg(c); setCreds({}); setSaved(true);
+      setCfg(c); setCreds({}); setDiarizeKey(""); setSaved(true);
     } catch (e) { setErr((e as Error).message); }
   }
 
@@ -360,12 +370,84 @@ function StoragePanel({ agent }: { agent: Agent }) {
                   placeholder={f.secret && cfg?.has_secret?.[f.name] ? "•••• stored" : ""} /></div>
             ))}
           </div>
+          <div className="backfill-section">
+            <div className="dimtxt" style={{ marginBottom: 8 }}>
+              <b>Speaker separation (diarization)</b> — bring your own endpoint. Only used for
+              mixed/mono recordings; separated stereo needs none.
+            </div>
+            <div className="grid2">
+              <div className="field"><label>Diarization endpoint URL</label>
+                <input value={diarizeUrl} onChange={(e) => setDiarizeUrl(e.target.value)}
+                  placeholder="https://diarize.example.com" /></div>
+              <div className="field"><label>Model</label>
+                <input value={diarizeModel} onChange={(e) => setDiarizeModel(e.target.value)}
+                  placeholder="pyannote-3.1" /></div>
+              <div className="field"><label>API key</label>
+                <input type="password" autoComplete="new-password" value={diarizeKey}
+                  onChange={(e) => setDiarizeKey(e.target.value)}
+                  placeholder={cfg?.has_diarize_key ? "•••• stored" : ""} /></div>
+            </div>
+          </div>
         </>
       )}
       {err && <div className="auth-error">{err}</div>}
       <div className="add-row wide">
         <button className="btn-primary" onClick={save}>Save storage config</button>
         {saved && <span className="dimtxt" style={{ alignSelf: "center" }}>Saved ✓</span>}
+      </div>
+      {cfg?.enabled && <BackfillSection agent={agent} />}
+    </div>
+  );
+}
+
+// Scan the agent's bucket for historical audio and analyse it in one pass. Preview first
+// (how many calls have audio), then hand off to the app-wide BackfillProvider so the
+// progress toast survives navigation.
+function BackfillSection({ agent }: { agent: Agent }) {
+  const { start, job } = useBackfill();
+  const [preview, setPreview] = useState<BackfillPreview | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const running = !!job && job.agent_id === agent.id
+    && !["done", "failed", "cancelled"].includes(job.status);
+
+  async function doPreview() {
+    setErr(null); setLoading(true); setPreview(null);
+    try {
+      setPreview(await backfillPreview(agent.id));
+    } catch (e) { setErr((e as Error).message); }
+    finally { setLoading(false); }
+  }
+
+  async function confirm() {
+    setErr(null);
+    try { await start(agent.id); setPreview(null); }
+    catch (e) { setErr((e as Error).message); }
+  }
+
+  return (
+    <div className="backfill-section">
+      <div className="strong">Backfill from storage</div>
+      <p className="dimtxt">Scan this bucket for historical recordings and analyse any call
+        that has audio but hasn't been analysed yet.</p>
+      {err && <div className="auth-error">{err}</div>}
+      <div className="add-row">
+        {!preview && (
+          <button className="link" disabled={loading || running} onClick={doPreview}>
+            {loading ? "Scanning…" : "Preview backfill"}</button>
+        )}
+        {preview && (
+          <>
+            <span className="dimtxt" style={{ alignSelf: "center" }}>
+              Found {preview.audio_calls} call{preview.audio_calls === 1 ? "" : "s"} with audio
+              ({preview.files} file{preview.files === 1 ? "" : "s"}).
+            </span>
+            <button className="btn-primary" disabled={running || preview.audio_calls === 0}
+              onClick={confirm}>Start backfill</button>
+            <button className="link" onClick={() => setPreview(null)}>Cancel</button>
+          </>
+        )}
+        {running && <span className="dimtxt" style={{ alignSelf: "center" }}>Backfill running…</span>}
       </div>
     </div>
   );

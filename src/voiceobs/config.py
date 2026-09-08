@@ -84,6 +84,7 @@ class Config(BaseSettings):
     reconcile_grace_s: float = 600.0
     reconcile_interval_s: float | None = None
     cluster_interval_s: float | None = None  # None = one-shot; set (seconds) to run as a sidecar loop
+    backfill_interval_s: float | None = 5.0  # poll interval for the backfill worker claiming jobs
     cluster_window_days: int = 90            # rolling window of calls to (re)cluster
     cluster_min_size: int = 8                # HDBSCAN min_cluster_size — smallest pattern to surface
 

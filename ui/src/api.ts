@@ -14,6 +14,8 @@ export type Call = {
   barge_ins: number;
   p50_v2v_ms: number | null;
   labels: Record<string, string>;
+  analysis_mode: "full" | "audio-only" | "diarized" | null;
+  analysis_error: string | null;
 };
 
 export type CallHeader = Omit<Call, "turns" | "barge_ins" | "p50_v2v_ms" | "analysed"> & {
@@ -199,6 +201,10 @@ export type AudioConfigIn = {
   descriptor?: Record<string, unknown>;      // where/how to fetch
   cred_spec?: CredField[];                    // the credential form
   credentials?: Record<string, string>;      // { name: value }
+  // BYO diarization endpoint for mixed/mono recordings (write-only key).
+  diarize_base_url?: string | null;
+  diarize_model?: string | null;
+  diarize_api_key?: string | null;
 };
 // Returned by the server — never includes secret values, only which secrets are stored.
 export type AudioConfig = {
@@ -208,6 +214,9 @@ export type AudioConfig = {
   cred_spec: CredField[] | null;
   cred_public: Record<string, string>;
   has_secret: Record<string, boolean>;
+  diarize_base_url?: string | null;
+  diarize_model?: string | null;
+  has_diarize_key?: boolean;
 };
 export type IngestTokenRow = {
   id: string;
@@ -515,3 +524,76 @@ export const listCalls = (limit = 200, agentId?: string) =>
     `/v1/calls?limit=${limit}${agentId ? `&agent_id=${encodeURIComponent(agentId)}` : ""}`,
   ).then((d) => d.items);
 export const getCall = (id: string) => get<CallDetail>(`/v1/calls/${encodeURIComponent(id)}`);
+
+// ---- backfill (analyse historical audio from storage) ----
+export type BackfillPreview = {
+  agent_id: string;
+  audio_calls: number;
+  files: number;
+  sample_call_ids: string[];
+};
+export type BackfillJob = {
+  id: string;
+  agent_id: string;
+  source: string | null;
+  status: "queued" | "scanning" | "running" | "clustering" | "done" | "failed" | "cancelled";
+  phase: string | null;
+  total: number;
+  completed: number;
+  failed: number;
+  error: string | null;
+  created_at: string | null;
+  finished_at: string | null;
+};
+// The SSE union pushed by GET /v1/backfill/{id}/events (mirrors ChatEvent's style).
+export type BackfillEvent =
+  | { type: "progress"; data: BackfillJob }
+  | { type: "call-analyzed"; data: Call }
+  | { type: "boards-refresh" }
+  | { type: "done"; data: BackfillJob }
+  | { type: "error"; error: string };
+
+export const backfillPreview = (agentId: string) =>
+  get<BackfillPreview>(`/v1/backfill/preview?agent_id=${encodeURIComponent(agentId)}`);
+export const createBackfill = (
+  body: { agent_id: string; source?: string; options?: Record<string, unknown> },
+) => req<BackfillJob>("POST", "/v1/backfill", body);
+export const getBackfillJob = (id: string) =>
+  get<BackfillJob>(`/v1/backfill/${encodeURIComponent(id)}`);
+export const cancelBackfill = (id: string) =>
+  req<BackfillJob>("POST", `/v1/backfill/${encodeURIComponent(id)}/cancel`);
+
+/** Open the backfill SSE and call `onEvent` for each pushed event. Returns a stop fn.
+ *  Hand-rolled reader, modelled on streamBoards (cookies + org header on a GET stream). */
+export function streamBackfill(
+  id: string, onEvent: (e: BackfillEvent) => void, onError?: () => void,
+): () => void {
+  const ctrl = new AbortController();
+  (async () => {
+    const headers: Record<string, string> = {};
+    if (activeOrg) headers["X-Voiceobs-Org"] = activeOrg;
+    try {
+      const r = await fetch(`/v1/backfill/${encodeURIComponent(id)}/events`,
+        { credentials: "include", headers, signal: ctrl.signal });
+      if (!r.ok || !r.body) throw new Error(`stream ${r.status}`);
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const chunks = buf.split("\n\n");
+        buf = chunks.pop() ?? "";
+        for (const chunk of chunks) {
+          const line = chunk.split("\n").find((l) => l.startsWith("data:"));
+          if (!line) continue;
+          onEvent(JSON.parse(line.slice(5).trim()) as BackfillEvent);
+        }
+      }
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") onError?.();
+    }
+  })();
+  return () => ctrl.abort();
+}

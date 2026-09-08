@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { listAgents, listCalls, type Agent, type Call } from "../api";
 import { useAuth } from "../auth";
+import { useBackfill } from "../BackfillProvider";
 import CallDetail from "../components/CallDetail";
 import CallTable from "../components/CallTable";
 import { ms, pct } from "../format";
@@ -11,17 +13,22 @@ const TABS: [string, string, (c: Call) => boolean][] = [
   ["all", "All", () => true],
   ["analysed", "Analysed", (c) => c.analysed],
   ["pending", "Not analysed yet", (c) => !c.analysed && c.status !== "unsupported"],
+  ["failed", "Failed", (c) => c.status === "failed"],
   ["unsupported", "Unsupported", (c) => c.status === "unsupported"],
 ];
 
 export default function Calls() {
   const { activeOrg } = useAuth();
-  const [calls, setCalls] = useState<Call[]>([]);
+  const { analyzedCalls } = useBackfill();
+  const [fetched, setFetched] = useState<Call[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentId, setAgentId] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") ?? "all";
+  const setTab = (t: string) =>
+    setSearchParams((p) => { p.set("tab", t); return p; }, { replace: true });
   const [q, setQ] = useState("");
 
   // Re-fetch whenever the active org or agent filter changes; the api layer sends the
@@ -29,13 +36,24 @@ export default function Calls() {
   useEffect(() => {
     setError(null);
     listCalls(200, agentId || undefined)
-      .then(setCalls)
+      .then(setFetched)
       .catch((e: Error) => setError(e.message));
   }, [activeOrg, agentId]);
 
   useEffect(() => {
     listAgents().then(setAgents).catch(() => setAgents([]));
   }, [activeOrg]);
+
+  // Merge live backfill results: prepend the newest, and replace any fetched row with the
+  // same id (so a call already listed is updated in place rather than duplicated).
+  const calls = useMemo(() => {
+    if (!analyzedCalls.length) return fetched;
+    const live = new Map(analyzedCalls.map((c) => [c.id, c]));
+    const merged = fetched.map((c) => live.get(c.id) ?? c);
+    const seen = new Set(fetched.map((c) => c.id));
+    const fresh = analyzedCalls.filter((c) => !seen.has(c.id));
+    return [...fresh, ...merged];
+  }, [fetched, analyzedCalls]);
 
   const byTab = useMemo(() => {
     const m: Record<string, Call[]> = {};
