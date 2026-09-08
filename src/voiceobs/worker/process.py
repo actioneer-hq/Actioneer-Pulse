@@ -390,18 +390,10 @@ def process_audio_only(db: Session, call: Call) -> str:
             return _fail(call, run, "no audio registered for call")
 
         layout = detect_layout(wav)
-        # separated → caller/agent on their own channels (VAD attributes speech directly).
-        # mono/mixed → only the primary channel is trustworthy without diarization (Phase 3);
-        # analyse it as the caller so quality/caller metrics still land, agent side unavailable.
-        channel_map = ({0: "caller", 1: "agent"} if layout == "separated"
-                       else {0: "caller"})
-        ref = AudioRef(uri="", sha256="", channels=2 if layout == "separated" else 1,
-                       sample_rate=sr, duration_s=_wav_duration_s(wav),
-                       channel_map=channel_map, t0_offset_s=None)
-        audio = analyze_audio(wav, ref)
+        audio, mode, confidence = _analyze_layout(db, call, wav, sr, layout)
         metrics = audio_only_metrics(audio)
 
-        _persist_audio_only(db, call, audio, metrics, layout)
+        _persist_audio_only(db, call, audio, metrics, layout, mode, confidence)
         run.status = "ok"
         run.finished_at = _now()
         return run.status
@@ -410,8 +402,47 @@ def process_audio_only(db: Session, call: Call) -> str:
         return _fail(call, run, f"{type(e).__name__}: {e}")
 
 
+def _analyze_layout(
+    db: Session, call: Call, wav: bytes, sr: int, layout: str
+) -> tuple[AudioAnalysis, str, float | None]:
+    """Run Layer-1 for a call's layout. Returns (audio, analysis_mode, diarization_confidence).
+
+    - separated → per-channel VAD attributes caller/agent directly (analysis_mode 'audio-only').
+    - mixed/mono → if a BYO diarization endpoint is configured, split the single track into
+      speaker-labelled utterances ('diarized'); otherwise analyse the primary channel as the caller
+      ('audio-only', agent side unavailable)."""
+    dur = _wav_duration_s(wav)
+    if layout == "separated":
+        ref = AudioRef(uri="", sha256="", channels=2, sample_rate=sr, duration_s=dur,
+                       channel_map={0: "caller", 1: "agent"}, t0_offset_s=None)
+        return analyze_audio(wav, ref), "audio-only", None
+
+    # mixed / mono — one usable track.
+    ref = AudioRef(uri="", sha256="", channels=1, sample_rate=sr, duration_s=dur,
+                   channel_map={0: "caller"}, t0_offset_s=None)
+    base = analyze_audio(wav, ref)  # peaks/energy/quality of the single track
+
+    diar = _run_diarization(db, call.agent_id, wav)
+    if diar is None or not diar.segments:
+        return base, "audio-only", None  # not configured (or it returned nothing) → caller-only
+
+    from voiceobs.diarize.roles import assign_roles, to_utterances
+
+    roles = assign_roles(diar)
+    diarized = base.model_copy(update={"utterances": to_utterances(diar, roles)})
+    return diarized, "diarized", diar.confidence
+
+
+def _run_diarization(db: Session, agent_id: str | None, wav: bytes):
+    from voiceobs.diarize.client import diarize as run_diarize
+    from voiceobs.diarize.config import resolve_diarize
+
+    return run_diarize(resolve_diarize(db, agent_id), wav)
+
+
 def _persist_audio_only(
-    db: Session, call: Call, audio: AudioAnalysis, metrics: list, layout: str
+    db: Session, call: Call, audio: AudioAnalysis, metrics: list, layout: str,
+    mode: str = "audio-only", confidence: float | None = None,
 ) -> None:
     for model in (DBTurn, Metric, Event, Utterance):
         db.execute(delete(model).where(model.call_id == call.id))
@@ -427,8 +458,9 @@ def _persist_audio_only(
     )
     if call.duration_s is None:
         call.duration_s = round(max([u.t_end for u in audio.utterances], default=0.0), 3)
-    call.analysis_mode = "audio-only"
+    call.analysis_mode = mode
     call.audio_layout = layout
+    call.diarization_confidence = confidence
     call.analysis_error = None
     call.metric_version = METRIC_VERSION
     call.app_version = APP_VERSION
