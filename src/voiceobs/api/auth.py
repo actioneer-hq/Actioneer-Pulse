@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from voiceobs import ratelimit
 from voiceobs.api.deps import session_dep
 from voiceobs.api.schemas import AcceptInviteIn, LoginIn, SignupIn
 from voiceobs.auth import (
@@ -89,6 +90,25 @@ def require_csrf(request: Request) -> None:
         raise HTTPException(403, "CSRF check failed")
 
 
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def limit_auth(bucket: str):
+    """Per-IP fixed-window rate-limit dependency for an auth endpoint (429 when exceeded).
+    No-op under dev-open / when Redis is unconfigured (fail-open)."""
+    def dep(request: Request) -> None:
+        c = get_config()
+        if not ratelimit.allow(
+            f"rl:{bucket}:{_client_ip(request)}", c.auth_rate_limit, c.auth_rate_window_s
+        ):
+            raise HTTPException(429, "too many attempts — slow down and try again")
+    return dep
+
+
 @router.get("/config")
 def config(db: Session = Depends(session_dep)) -> dict:
     """Public bootstrap probe the login page calls first. `signup_open` is true only on a
@@ -108,7 +128,8 @@ def config(db: Session = Depends(session_dep)) -> dict:
 
 @router.post("/signup")
 def signup(
-    body: SignupIn, request: Request, response: Response, db: Session = Depends(session_dep)
+    body: SignupIn, request: Request, response: Response, db: Session = Depends(session_dep),
+    _rl: None = Depends(limit_auth("signup")),
 ) -> dict:
     """Open ONLY when no users exist in the default org (first-run). After that, growth is
     invite-only. The bootstrap user + org live in the `default` schema."""
@@ -132,15 +153,23 @@ def signup(
 
 @router.post("/login")
 def login(
-    body: LoginIn, request: Request, response: Response, db: Session = Depends(session_dep)
+    body: LoginIn, request: Request, response: Response, db: Session = Depends(session_dep),
+    _rl: None = Depends(limit_auth("login")),
 ) -> dict:
     org = (body.org or DEFAULT_ORG).lower()
+    email = normalize_email(body.email)
+    c = get_config()
+    lock_key = f"lock:login:{org}:{email}"
+    if ratelimit.fail_count(lock_key) >= c.login_lockout_max:
+        raise HTTPException(429, "account temporarily locked after repeated failed logins")
     use_org_schema(db, org)  # authenticate within the org's schema
     user = provider_for("password").authenticate(
         db, {"email": body.email, "password": body.password}
     )
     if user is None:
+        ratelimit.record_fail(lock_key, c.login_lockout_s)  # per-account brute-force lockout
         raise HTTPException(401, "invalid credentials")
+    ratelimit.clear(lock_key)  # a good login resets the counter
     _set_auth_cookies(response, user.id, db, request, org)
     return {"user": {"id": user.id, "email": user.email}}
 
@@ -148,7 +177,7 @@ def login(
 @router.post("/refresh")
 def refresh(
     request: Request, response: Response, db: Session = Depends(session_dep),
-    _: None = Depends(require_csrf),
+    _: None = Depends(require_csrf), _rl: None = Depends(limit_auth("refresh")),
 ) -> dict:
     """Rotate the refresh token and mint a fresh access JWT. The only way an expired access
     session comes back to life; a revoked/reused refresh token is rejected (401)."""
