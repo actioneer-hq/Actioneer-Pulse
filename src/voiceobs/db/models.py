@@ -712,6 +712,11 @@ class AgentAudioConfig(Base):
     stt_base_url: Mapped[str | None] = mapped_column(String(512))
     stt_model: Mapped[str | None] = mapped_column(String(128))
     stt_key_ciphertext: Mapped[str | None] = mapped_column(Text)  # Fernet blob
+    # BYO diarization for mixed/mono recordings (no separated channels) — a /diarize endpoint that
+    # returns speaker-labelled segments. Optional: absent = mixed/mono stays caller-only.
+    diarize_base_url: Mapped[str | None] = mapped_column(String(512))
+    diarize_model: Mapped[str | None] = mapped_column(String(128))
+    diarize_key_ciphertext: Mapped[str | None] = mapped_column(Text)  # Fernet blob
     created_at: Mapped[datetime] = created_col()
     updated_at: Mapped[datetime] = created_col()
 

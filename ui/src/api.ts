@@ -201,6 +201,10 @@ export type AudioConfigIn = {
   descriptor?: Record<string, unknown>;      // where/how to fetch
   cred_spec?: CredField[];                    // the credential form
   credentials?: Record<string, string>;      // { name: value }
+  // BYO diarization endpoint for mixed/mono recordings (write-only key).
+  diarize_base_url?: string | null;
+  diarize_model?: string | null;
+  diarize_api_key?: string | null;
 };
 // Returned by the server — never includes secret values, only which secrets are stored.
 export type AudioConfig = {
@@ -210,6 +214,9 @@ export type AudioConfig = {
   cred_spec: CredField[] | null;
   cred_public: Record<string, string>;
   has_secret: Record<string, boolean>;
+  diarize_base_url?: string | null;
+  diarize_model?: string | null;
+  has_diarize_key?: boolean;
 };
 export type IngestTokenRow = {
   id: string;

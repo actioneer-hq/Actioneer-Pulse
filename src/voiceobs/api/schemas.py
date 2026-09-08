@@ -77,6 +77,10 @@ class AudioConfigIn(BaseModel):
     stt_base_url: str | None = None
     stt_model: str | None = None
     stt_api_key: str | None = None  # write-only; omit to keep the stored key
+    # BYO diarization for mixed/mono recordings (a /diarize endpoint). Optional.
+    diarize_base_url: str | None = None
+    diarize_model: str | None = None
+    diarize_api_key: str | None = None  # write-only; omit to keep the stored key
 
 
 class ScriptIn(BaseModel):

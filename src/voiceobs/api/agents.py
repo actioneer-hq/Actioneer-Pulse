@@ -204,6 +204,10 @@ def _apply_audio_config(db: Session, agent_id: str, body: AudioConfigIn) -> Agen
     cfg.stt_model = body.stt_model
     if body.stt_api_key is not None:  # write-only
         cfg.stt_key_ciphertext = encrypt(body.stt_api_key)
+    cfg.diarize_base_url = body.diarize_base_url
+    cfg.diarize_model = body.diarize_model
+    if body.diarize_api_key is not None:  # write-only
+        cfg.diarize_key_ciphertext = encrypt(body.diarize_api_key)
     cfg.updated_at = now()
     return cfg
 
@@ -224,6 +228,9 @@ def _audio_config_dict(cfg: AgentAudioConfig | None) -> dict:
         "stt_base_url": cfg.stt_base_url,
         "stt_model": cfg.stt_model,
         "has_stt_key": cfg.stt_key_ciphertext is not None,
+        "diarize_base_url": cfg.diarize_base_url,
+        "diarize_model": cfg.diarize_model,
+        "has_diarize_key": cfg.diarize_key_ciphertext is not None,
     }
 
 
