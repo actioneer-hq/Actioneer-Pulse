@@ -41,9 +41,15 @@ class Config(BaseSettings):
     per_call_chat_api_key: str | None = None
     failure_analysis_api_key: str | None = None
     embedding_api_key: str | None = None  # BYO embedding model (OpenAI-compatible)
+    redis_url: str | None = None  # abuse-protection store (auth rate-limit/lockout); None = disabled
 
     # ── APP CONFIG (edit here; env can still override) ───────────────────────────────
     dev_open: bool = False
+    # Auth abuse protection (Redis-backed; no-op when redis_url is unset or under dev-open).
+    auth_rate_limit: int = 20          # requests per IP per window on login/signup/refresh
+    auth_rate_window_s: int = 60
+    login_lockout_max: int = 8         # failed logins per account before a temporary lock
+    login_lockout_s: int = 900
     log_level: str = "INFO"
     audio_analysis: bool = False        # global default; per-agent config overrides
     allow_delete: bool = False
