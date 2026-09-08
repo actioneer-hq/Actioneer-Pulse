@@ -69,12 +69,10 @@ class OrgIn(BaseModel):
 
 class AudioConfigIn(BaseModel):
     enabled: bool = False
-    s3_bucket: str | None = None
-    s3_prefix: str | None = None
-    s3_region: str | None = None
-    s3_endpoint_url: str | None = None
-    access_key_id: str | None = None
-    secret_access_key: str | None = None  # write-only; omit to keep the stored secret
+    provider: str | None = None                # 's3_compatible' | 'azure'
+    descriptor: dict | None = None             # where/how to fetch (bucket, key_regex, file_map, …)
+    cred_spec: list[dict] | None = None        # [{name,label,type,secret}] — the credential form
+    credentials: dict[str, str] | None = None  # {name: value}; secret values write-only (omit to keep)
     # BYO STT for transcript verification (OpenAI-style /audio/transcriptions). Optional.
     stt_base_url: str | None = None
     stt_model: str | None = None

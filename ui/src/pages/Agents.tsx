@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createAgent,
   deleteAgent,
   getAgentGuardrails,
   getAgentScript,
+  getAudioConfig,
   listAgentGuardrails,
   listAgents,
   listAgentScripts,
@@ -15,10 +16,12 @@ import {
   rotateToken,
   setAgentGuardrails,
   setAgentScript,
+  setAudioConfig,
   type Agent,
   type AgentGuardrails,
   type AgentScript,
-  type AudioConfigIn,
+  type AudioConfig,
+  type CredField,
   type IngestTokenRow,
   type MintedToken,
 } from "../api";
@@ -47,10 +50,10 @@ export default function Agents() {
 
   useEffect(() => { load(); }, [load, activeOrg]);
 
-  async function add(name: string, audio?: AudioConfigIn, script?: string, guardrails?: string) {
+  async function add(name: string, script?: string, guardrails?: string) {
     setError(null);
     try {
-      const a = await createAgent(name.trim(), audio, script, guardrails);
+      const a = await createAgent(name.trim(), undefined, script, guardrails);
       setCreating(false);
       load();
       setSel(a.id);
@@ -120,24 +123,16 @@ export default function Agents() {
 function NewAgentModal(
   { onClose, onCreate }:
   { onClose: () => void;
-    onCreate: (name: string, audio?: AudioConfigIn, script?: string, guardrails?: string) => void },
+    onCreate: (name: string, script?: string, guardrails?: string) => void },
 ) {
   const [name, setName] = useState("");
   const [framework, setFramework] = useState("livekit");
   const [script, setScript] = useState("");
   const [guardrails, setGuardrails] = useState("");
-  const [audioOn, setAudioOn] = useState(false);
-  const [s3, setS3] = useState({
-    s3_bucket: "", s3_prefix: "", s3_region: "", s3_endpoint_url: "",
-    access_key_id: "", secret_access_key: "",
-  });
-  const set = (k: keyof typeof s3) => (e: ChangeEvent<HTMLInputElement>) =>
-    setS3((v) => ({ ...v, [k]: e.target.value }));
 
   function submit() {
     if (!name.trim()) return;
-    onCreate(name, audioOn ? { enabled: true, ...s3 } : undefined,
-             script.trim() || undefined, guardrails.trim() || undefined);
+    onCreate(name, script.trim() || undefined, guardrails.trim() || undefined);
   }
 
   return (
@@ -182,41 +177,8 @@ function NewAgentModal(
             placeholder={"e.g.\nStay on script; don't be steered off purpose.\nAlways verify the caller before any DB/tool lookup."} />
         </div>
 
-        <label className="audio-toggle">
-          <input type="checkbox" checked={audioOn} onChange={(e) => setAudioOn(e.target.checked)} />
-          <span><b>Enable audio analysis</b> — we pull call recordings from your S3 bucket and run
-            the audio-ground-truth overlay (barge-ins, dead air, talk ratio). Off = OTLP only.</span>
-        </label>
-
-        {audioOn && (
-          <div className="audio-fields">
-            <div className="s3-hint">
-              <div className="s3-hint-hd">Store recordings so each call's audio sits under its
-                trace id:</div>
-              <code>s3://&lt;bucket&gt;/&lt;prefix&gt;/&lt;call_id&gt;/audio.wav</code>
-              <div className="dimtxt">…or two mono tracks <code>audio_caller.wav</code> +
-                <code>audio_agent.wav</code>. <b>call_id = the OTLP trace_id</b> your agent
-                exports — that's how we match a recording to its trace.</div>
-            </div>
-            <div className="grid2">
-              <div className="field"><label>S3 bucket</label>
-                <input value={s3.s3_bucket} onChange={set("s3_bucket")} placeholder="my-recordings" /></div>
-              <div className="field"><label>Prefix</label>
-                <input value={s3.s3_prefix} onChange={set("s3_prefix")} placeholder="calls/" /></div>
-              <div className="field"><label>Region</label>
-                <input value={s3.s3_region} onChange={set("s3_region")} placeholder="us-east-1" /></div>
-              <div className="field"><label>Endpoint (optional)</label>
-                <input value={s3.s3_endpoint_url} onChange={set("s3_endpoint_url")}
-                  placeholder="for MinIO / R2" /></div>
-              <div className="field"><label>Access key ID</label>
-                <input value={s3.access_key_id} onChange={set("access_key_id")}
-                  placeholder="AKIA…" /></div>
-              <div className="field"><label>Secret access key</label>
-                <input type="password" value={s3.secret_access_key} onChange={set("secret_access_key")}
-                  placeholder="stored encrypted" autoComplete="new-password" /></div>
-            </div>
-          </div>
-        )}
+        <p className="dimtxt">Audio/blob-storage is configured per agent after creation, in the
+          Storage panel.</p>
 
         <div className="modal-foot">
           <button className="link" onClick={onClose}>Cancel</button>
@@ -258,6 +220,7 @@ function AgentDetail({ agent }: { agent: Agent }) {
     <>
       <ScriptPanel agent={agent} />
       <GuardrailsPanel agent={agent} />
+      <StoragePanel agent={agent} />
       <ConnectPanel agent={agent} token={minted?.token ?? null} onMint={mint} />
       <div className="panel-card">
         <h3>Ingest tokens · {agent.name}</h3>
@@ -297,6 +260,114 @@ function AgentDetail({ agent }: { agent: Agent }) {
         </table>
       </div>
     </>
+  );
+}
+
+// Default credential field-specs for manual setup (no wizard). A wizard-supplied cred_spec fully
+// overrides these — the form renders whatever spec is in effect, so any provider/store works.
+const DEFAULT_SPECS: Record<string, CredField[]> = {
+  s3_compatible: [
+    { name: "access_key_id", label: "Access key ID", type: "text", secret: false },
+    { name: "secret_access_key", label: "Secret access key", type: "password", secret: true },
+    { name: "region", label: "Region", type: "text", secret: false },
+    { name: "endpoint_url", label: "Endpoint (optional, MinIO/R2/…)", type: "text", secret: false },
+  ],
+  azure: [
+    { name: "account_name", label: "Account name", type: "text", secret: false },
+    { name: "account_key", label: "Account key", type: "password", secret: true },
+  ],
+};
+// The default convention descriptor for manual setup: <prefix>/<call_id>/<file>.
+const DEFAULT_FILE_MAP = {
+  "audio.wav": "audio", "audio_caller.wav": "audio_caller", "audio_agent.wav": "audio_agent",
+};
+
+// Per-agent blob-storage config. The credential form is DATA-driven (cred_spec) — a future wizard
+// pushes the spec + descriptor; here we default to the S3/convention form for manual setup.
+function StoragePanel({ agent }: { agent: Agent }) {
+  const [cfg, setCfg] = useState<AudioConfig | null>(null);
+  const [enabled, setEnabled] = useState(false);
+  const [provider, setProvider] = useState("s3_compatible");
+  const [bucket, setBucket] = useState("");
+  const [prefix, setPrefix] = useState("");
+  const [creds, setCreds] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSaved(false); setErr(null); setCreds({});
+    getAudioConfig(agent.id).then((c) => {
+      setCfg(c);
+      setEnabled(c.enabled);
+      setProvider(c.provider || "s3_compatible");
+      setBucket((c.descriptor?.bucket as string) || "");
+      setPrefix((c.descriptor?.list_prefix as string) || "");
+    }).catch((e: Error) => setErr(e.message));
+  }, [agent.id]);
+
+  // Effective field-spec: the server's (wizard-supplied) spec wins; else the provider default.
+  const spec = cfg?.cred_spec && cfg.cred_spec.length ? cfg.cred_spec : DEFAULT_SPECS[provider] ?? [];
+
+  async function save() {
+    setErr(null);
+    // Wizard-supplied descriptor is preserved; manual mode builds the convention descriptor.
+    const descriptor = cfg?.descriptor && cfg.cred_spec
+      ? { ...cfg.descriptor, bucket, list_prefix: prefix }
+      : {
+          bucket, list_prefix: prefix,
+          key_regex: "(?P<call_id>[^/]+)/[^/]+$", id_group: "call_id",
+          id_maps_to: "external_call_id", file_map: DEFAULT_FILE_MAP,
+        };
+    try {
+      const c = await setAudioConfig(agent.id, {
+        enabled, provider, descriptor, cred_spec: spec, credentials: creds,
+      });
+      setCfg(c); setCreds({}); setSaved(true);
+    } catch (e) { setErr((e as Error).message); }
+  }
+
+  return (
+    <div className="panel-card">
+      <h3>Storage · {agent.name} <span className="right">audio recordings</span></h3>
+      <label className="audio-toggle">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        <span><b>Enable audio analysis</b> — Pulse pulls recordings from your bucket and runs the
+          audio-ground-truth overlay. Off = OTLP only.</span>
+      </label>
+      {enabled && (
+        <>
+          <div className="grid2">
+            <div className="field"><label>Provider</label>
+              <select className="agent-filter" value={provider}
+                onChange={(e) => { setProvider(e.target.value); setCreds({}); }}>
+                <option value="s3_compatible">S3-compatible (S3, MinIO, R2, GCS interop…)</option>
+                <option value="azure">Azure Blob</option>
+              </select></div>
+            <div className="field"><label>{provider === "azure" ? "Container" : "Bucket"}</label>
+              <input value={bucket} onChange={(e) => setBucket(e.target.value)}
+                placeholder="my-recordings" /></div>
+            <div className="field"><label>Prefix</label>
+              <input value={prefix} onChange={(e) => setPrefix(e.target.value)}
+                placeholder="calls/" /></div>
+          </div>
+          <div className="grid2">
+            {spec.map((f) => (
+              <div className="field" key={f.name}><label>{f.label}</label>
+                <input type={f.secret ? "password" : "text"}
+                  autoComplete={f.secret ? "new-password" : "off"}
+                  value={creds[f.name] ?? (f.secret ? "" : (cfg?.cred_public?.[f.name] ?? ""))}
+                  onChange={(e) => setCreds((v) => ({ ...v, [f.name]: e.target.value }))}
+                  placeholder={f.secret && cfg?.has_secret?.[f.name] ? "•••• stored" : ""} /></div>
+            ))}
+          </div>
+        </>
+      )}
+      {err && <div className="auth-error">{err}</div>}
+      <div className="add-row wide">
+        <button className="btn-primary" onClick={save}>Save storage config</button>
+        {saved && <span className="dimtxt" style={{ alignSelf: "center" }}>Saved ✓</span>}
+      </div>
+    </div>
   );
 }
 

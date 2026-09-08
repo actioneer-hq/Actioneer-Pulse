@@ -679,11 +679,15 @@ class AudioDiscrepancy(Base):
 
 
 class AgentAudioConfig(Base):
-    """Per-agent audio-analysis config (pull path). When `enabled`, a reconcile worker scans
-    `s3://{s3_bucket}/{s3_prefix}` with these creds and attaches recordings to calls, matching
-    on the call_id (= OTLP trace_id) embedded in the key: `<prefix>/<call_id>/audio.wav`.
-    `secret_ciphertext` is the Fernet-encrypted secret access key — write-only over the API,
-    never echoed."""
+    """Per-agent audio-analysis config (pull path), provider-agnostic. When `enabled`, the reconcile
+    worker uses the `provider` driver + `descriptor` to list a blob store and attach recordings,
+    matching each object's key to a call via the descriptor's `key_regex`.
+
+    Everything customer-variable is DATA (so a future setup wizard can emit it): `descriptor` is the
+    layout (bucket, prefix, key_regex, id mapping, file_map); `cred_spec` is the credential field-spec
+    the UI renders; `cred_public` holds non-secret cred values (echoed); `cred_secret_ciphertext` is
+    the Fernet-encrypted JSON of the secret values (write-only, never echoed). The only per-provider
+    CODE is the driver (S3-compatible / Azure), because auth signing can't be data."""
 
     __tablename__ = "agent_audio_config"
     __table_args__ = (UniqueConstraint("agent_id", name="uq_agent_audio_config_agent"),)
@@ -691,12 +695,11 @@ class AgentAudioConfig(Base):
     id: Mapped[str] = pk()
     agent_id: Mapped[str] = mapped_column(ForeignKey("agent.id"), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    s3_bucket: Mapped[str | None] = mapped_column(String(255))
-    s3_prefix: Mapped[str | None] = mapped_column(String(1024))
-    s3_region: Mapped[str | None] = mapped_column(String(64))
-    s3_endpoint_url: Mapped[str | None] = mapped_column(String(512))  # MinIO / R2 / etc.
-    access_key_id: Mapped[str | None] = mapped_column(String(128))
-    secret_ciphertext: Mapped[str | None] = mapped_column(Text)  # Fernet blob
+    provider: Mapped[str | None] = mapped_column(String(32))  # 's3_compatible' | 'azure'
+    descriptor: Mapped[dict | None] = mapped_column(JSON)      # where/how to fetch (layout)
+    cred_spec: Mapped[list | None] = mapped_column(JSON)       # [{name,label,type,secret}] for the UI
+    cred_public: Mapped[dict | None] = mapped_column(JSON)     # non-secret cred values (echoed)
+    cred_secret_ciphertext: Mapped[str | None] = mapped_column(Text)  # Fernet(JSON of secret values)
     # BYO STT for transcript verification — an OpenAI-style /audio/transcriptions endpoint.
     # Optional: absent = transcript reconciliation is skipped gracefully. Key encrypted at rest.
     stt_base_url: Mapped[str | None] = mapped_column(String(512))

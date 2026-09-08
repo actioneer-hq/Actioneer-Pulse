@@ -38,6 +38,11 @@ analytics = [
     "scikit-learn>=1.9.0",
     "umap-learn>=0.5.12",
 ]
+# blob-store drivers: boto3 covers all S3-compatible stores (+ GCS interop); azure for Azure Blob.
+storage = [
+    "boto3>=1.34",
+    "azure-storage-blob>=12.19",
+]
 
 [build-system]
 requires = ["hatchling"]

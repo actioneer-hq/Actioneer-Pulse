@@ -5,6 +5,7 @@ create/modify and token management require admin. The plaintext token is shown o
 from __future__ import annotations
 
 import hashlib
+import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -21,7 +22,7 @@ from voiceobs.api.schemas import (
     ScriptIn,
 )
 from voiceobs.auth import current_membership, mint_ingest_token, require_role, visible_agent_ids
-from voiceobs.auth.crypto import encrypt
+from voiceobs.auth.crypto import decrypt, encrypt
 from voiceobs.db.models import (
     Agent,
     AgentAudioConfig,
@@ -174,19 +175,31 @@ def revoke_token(
 # --- audio analysis config (per-agent S3, pull path) --------------------------- #
 
 
+def _secret_names(spec: list | None) -> set[str]:
+    return {f["name"] for f in (spec or []) if f.get("secret")}
+
+
 def _apply_audio_config(db: Session, agent_id: str, body: AudioConfigIn) -> AgentAudioConfig:
     cfg = db.scalar(select(AgentAudioConfig).where(AgentAudioConfig.agent_id == agent_id))
     if cfg is None:
         cfg = AgentAudioConfig(agent_id=agent_id)
         db.add(cfg)
     cfg.enabled = body.enabled
-    cfg.s3_bucket = body.s3_bucket
-    cfg.s3_prefix = body.s3_prefix
-    cfg.s3_region = body.s3_region
-    cfg.s3_endpoint_url = body.s3_endpoint_url
-    cfg.access_key_id = body.access_key_id
-    if body.secret_access_key is not None:  # write-only: omit to keep the stored secret
-        cfg.secret_ciphertext = encrypt(body.secret_access_key)
+    if body.provider is not None:
+        cfg.provider = body.provider
+    if body.descriptor is not None:
+        cfg.descriptor = body.descriptor
+    if body.cred_spec is not None:
+        cfg.cred_spec = body.cred_spec
+    if body.credentials is not None:
+        secret_names = _secret_names(cfg.cred_spec)
+        # non-secret values are stored plaintext + echoed; secret values are merged over the stored
+        # set (write-only: omit a secret field to keep its stored value) and encrypted.
+        cfg.cred_public = {k: v for k, v in body.credentials.items() if k not in secret_names}
+        existing = json.loads(decrypt(cfg.cred_secret_ciphertext) or "{}")
+        provided = {k: v for k, v in body.credentials.items() if k in secret_names and v}
+        merged = {**existing, **provided}
+        cfg.cred_secret_ciphertext = encrypt(json.dumps(merged)) if merged else None
     cfg.stt_base_url = body.stt_base_url
     cfg.stt_model = body.stt_model
     if body.stt_api_key is not None:  # write-only
@@ -197,15 +210,17 @@ def _apply_audio_config(db: Session, agent_id: str, body: AudioConfigIn) -> Agen
 
 def _audio_config_dict(cfg: AgentAudioConfig | None) -> dict:
     if cfg is None:
-        return {"enabled": False, "has_secret": False}
+        return {"enabled": False, "provider": None, "descriptor": None, "cred_spec": None,
+                "cred_public": {}, "has_secret": {}}
+    stored_secrets = set(json.loads(decrypt(cfg.cred_secret_ciphertext) or "{}"))
     return {
         "enabled": cfg.enabled,
-        "s3_bucket": cfg.s3_bucket,
-        "s3_prefix": cfg.s3_prefix,
-        "s3_region": cfg.s3_region,
-        "s3_endpoint_url": cfg.s3_endpoint_url,
-        "access_key_id": cfg.access_key_id,
-        "has_secret": cfg.secret_ciphertext is not None,  # never echo the secret itself
+        "provider": cfg.provider,
+        "descriptor": cfg.descriptor,
+        "cred_spec": cfg.cred_spec,
+        "cred_public": cfg.cred_public or {},
+        # per-secret-field presence so the UI can show "stored" — never the secret values.
+        "has_secret": {n: (n in stored_secrets) for n in _secret_names(cfg.cred_spec)},
         "stt_base_url": cfg.stt_base_url,
         "stt_model": cfg.stt_model,
         "has_stt_key": cfg.stt_key_ciphertext is not None,

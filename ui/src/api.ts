@@ -190,18 +190,25 @@ export type Me = {
   memberships: Membership[];
 };
 export type Agent = { id: string; name: string; slug: string; org_id: string };
-// Sent to the server (secret_access_key write-only). All fields optional so partial edits work.
+// A credential input the UI renders dynamically (from the wizard/default field-spec).
+export type CredField = { name: string; label: string; type: string; secret: boolean };
+// Sent to the server. `credentials` secret values are write-only (omit to keep the stored one).
 export type AudioConfigIn = {
   enabled: boolean;
-  s3_bucket?: string;
-  s3_prefix?: string;
-  s3_region?: string;
-  s3_endpoint_url?: string;
-  access_key_id?: string;
-  secret_access_key?: string;
+  provider?: string;                         // 's3_compatible' | 'azure'
+  descriptor?: Record<string, unknown>;      // where/how to fetch
+  cred_spec?: CredField[];                    // the credential form
+  credentials?: Record<string, string>;      // { name: value }
 };
-// Returned by the server — never includes the secret, only has_secret.
-export type AudioConfig = Omit<AudioConfigIn, "secret_access_key"> & { has_secret: boolean };
+// Returned by the server — never includes secret values, only which secrets are stored.
+export type AudioConfig = {
+  enabled: boolean;
+  provider: string | null;
+  descriptor: Record<string, unknown> | null;
+  cred_spec: CredField[] | null;
+  cred_public: Record<string, string>;
+  has_secret: Record<string, boolean>;
+};
 export type IngestTokenRow = {
   id: string;
   prefix: string;

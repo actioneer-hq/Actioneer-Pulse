@@ -22,8 +22,12 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("conversation", sa.Column("call_id", sa.String(36), nullable=True))
-    op.create_index("ix_conversation_call", "conversation", ["call_id", "created_by"])
+    # Idempotent: the create_all baseline already builds current-model columns on a fresh DB.
+    insp = sa.inspect(op.get_bind())
+    if "call_id" not in {c["name"] for c in insp.get_columns("conversation")}:
+        op.add_column("conversation", sa.Column("call_id", sa.String(36), nullable=True))
+    if "ix_conversation_call" not in {i["name"] for i in insp.get_indexes("conversation")}:
+        op.create_index("ix_conversation_call", "conversation", ["call_id", "created_by"])
 
 
 def downgrade() -> None:
