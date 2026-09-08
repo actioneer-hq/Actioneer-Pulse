@@ -56,6 +56,65 @@ def discover(st: ResolvedStorage) -> dict[str, dict[str, str]]:
     return out
 
 
+def discover_otlp(st: ResolvedStorage) -> dict[str, str]:
+    """List the store for OTLP trace files (file_map kind == 'otlp') → {call_id: uri}. One file per
+    call; later files for the same call id win."""
+    objects = st.driver.list(st.descriptor, st.creds)
+    key_re = re.compile(st.descriptor["key_regex"])
+    id_group = st.descriptor.get("id_group", "call_id")
+    file_map: dict = st.descriptor.get("file_map", {})
+    base = f"{st.driver.scheme}://{st.descriptor['bucket']}/"
+    out: dict[str, str] = {}
+    for uri, _modified in objects:
+        if file_map.get(uri.rsplit("/", 1)[-1]) != "otlp":
+            continue
+        m = key_re.search(uri.removeprefix(base))
+        if not m:
+            continue
+        call_id = m.groupdict().get(id_group)
+        if call_id:
+            out[call_id] = uri
+    return out
+
+
+def _process_otlp_call(db: Session, agent_id: str | None, call_id: str, uri: str, creds) -> str:
+    """Backfill one call from an OTLP file in blob: decode → create Call + RawFragment → full analysis
+    (analysis_mode stays 'full'). Reuses the exact adapter/analysis path the live consumer uses."""
+    from uuid import uuid4
+
+    from voiceobs.frameworks import UnsupportedSchema
+    from voiceobs.frameworks.otlp import decode_otlp
+    from voiceobs.ingestion import identify, store_fragment, upsert_call
+    from voiceobs.judge import judge_call
+    from voiceobs.storage import fetch_bytes
+    from voiceobs.worker.process import process
+
+    raw = fetch_bytes(uri, creds)
+    payload = decode_otlp(raw, filename=uri.rsplit("/", 1)[-1])
+    rs = payload.get("resourceSpans") or []
+    resource = rs[0].get("resource", {}) if rs else {}
+    spans = [s for r in rs for sc in r.get("scopeSpans", []) for s in sc.get("spans", [])]
+    if not spans:
+        return "failed"  # empty export — nothing to attribute (no Call created)
+
+    b = identify(db, resource, spans, agent_id)
+    if b.call_id is None:
+        return "failed"
+    upsert_call(db, b)
+    db.flush()
+    store_fragment(db, b, uuid4().hex, 0)
+    db.flush()
+    call = db.scalar(select(Call).where(Call.external_call_id == b.call_id))
+    try:
+        process(db, call)
+        judge_call(db, call)
+    except UnsupportedSchema as e:
+        call.status = "failed"
+        call.analysis_error = f"unsupported OTLP schema: {e}"
+        return "failed"
+    return "ok"
+
+
 def run_job(db: Session, job: BackfillJob) -> None:
     """Execute one backfill job end-to-end within the already-pinned org schema. Commits per call so
     the SSE endpoint sees progress and analysed calls stream into the UI."""
@@ -68,8 +127,9 @@ def run_job(db: Session, job: BackfillJob) -> None:
     job.updated_at = _now()
     db.commit()
 
+    otlp = job.source == "otlp"
     try:
-        found = discover(st)
+        found = discover_otlp(st) if otlp else discover(st)
     except Exception as e:
         log.exception("backfill discover failed for job %s", job.id)
         _finish(db, job, status="failed", error=f"discover failed: {e}")
@@ -92,9 +152,12 @@ def run_job(db: Session, job: BackfillJob) -> None:
             _finish(db, job, status="cancelled")
             return
         try:
-            call = ensure_audio_call(db, job.agent_id, call_id)
-            _register_media(db, call, found[call_id])
-            status = process_audio_only(db, call, use_stt=use_stt)
+            if otlp:
+                status = _process_otlp_call(db, job.agent_id, call_id, found[call_id], st.creds)
+            else:
+                call = ensure_audio_call(db, job.agent_id, call_id)
+                _register_media(db, call, found[call_id])
+                status = process_audio_only(db, call, use_stt=use_stt)
             if status == "ok":
                 job.completed += 1
             else:

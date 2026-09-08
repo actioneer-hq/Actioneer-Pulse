@@ -7,10 +7,29 @@ that needs to know which one arrived."""
 from __future__ import annotations
 
 import base64
+import gzip
+import json
 from collections.abc import Iterator
 from typing import Any
 
 Scalar = str | int | float | bool | None
+
+
+def decode_otlp(raw: bytes, *, filename: str = "") -> dict:
+    """Decode an OTLP export from a stored file (gzip-aware, JSON or protobuf) into the OTLP/JSON dict
+    shape. Used by OTLP-from-blob backfill, where there's no content-type — infer from the gzip magic
+    and the file extension, falling back to try-JSON-then-protobuf for unknown names."""
+    if raw[:2] == b"\x1f\x8b":  # gzip magic
+        raw = gzip.decompress(raw)
+    name = filename.lower()
+    if name.endswith((".pb", ".protobuf", ".bin")):
+        return decode_protobuf(raw)
+    if name.endswith(".json"):
+        return json.loads(raw)
+    try:
+        return json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
+        return decode_protobuf(raw)
 
 
 def unwrap(anyvalue: dict) -> Scalar | list | dict:
