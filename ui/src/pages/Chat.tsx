@@ -17,73 +17,94 @@ import { Bubble, type LiveMsg } from "../components/chat/Bubble";
 
 const MENTION = /@([\w-]+)/g;  // @<callId> token
 
+// One thread's live state, kept per-conversation so multiple chats stream at once.
+type Thread = { messages: LiveMsg[]; streaming: boolean };
+
 export default function Chat() {
   const { activeOrg } = useAuth();
   const [convos, setConvos] = useState<Conversation[]>([]);
   const [active, setActive] = useState<string | null>(null);
-  const [messages, setMessages] = useState<LiveMsg[]>([]);
+  // A registry of threads by conversation id — a stream mutates its own thread, so switching the
+  // shown conversation never cancels or clobbers an in-flight stream on another.
+  const [threads, setThreads] = useState<Record<string, Thread>>({});
   const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
   const threadRef = useRef<HTMLDivElement>(null);
+
+  const messages = (active && threads[active]?.messages) || [];
+  const activeStreaming = !!(active && threads[active]?.streaming);
 
   const loadConvos = useCallback(() => {
     listConversations().then(setConvos).catch(() => setConvos([]));
   }, []);
-  useEffect(() => { loadConvos(); setActive(null); setMessages([]); }, [loadConvos, activeOrg]);
+  useEffect(() => { loadConvos(); setActive(null); setThreads({}); }, [loadConvos, activeOrg]);
 
-  // load a conversation's messages when selected
+  // Load a conversation's messages on first view — but never refetch a thread that already has local
+  // state (loaded or mid-stream), or we'd wipe an in-flight stream.
   useEffect(() => {
-    if (!active) { setMessages([]); return; }
-    getConversation(active).then((c) => setMessages(c.messages)).catch(() => setMessages([]));
-  }, [active]);
+    if (!active || threads[active]) return;
+    getConversation(active)
+      .then((c) => setThreads((t) => (t[active] ? t : { ...t, [active]: { messages: c.messages, streaming: false } })))
+      .catch(() => setThreads((t) => ({ ...t, [active]: { messages: [], streaming: false } })));
+  }, [active, threads]);
 
-  // autoscroll to bottom as content streams in
+  // autoscroll to bottom as the shown thread streams in
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight });
   }, [messages]);
 
+  // Update the last message of a specific thread (keyed by cid, not the shown one).
+  const updLast = (cid: string, fn: (a: LiveMsg) => LiveMsg) =>
+    setThreads((t) => {
+      const th = t[cid];
+      if (!th) return t;
+      const n = th.messages.length;
+      return { ...t, [cid]: { ...th, messages: th.messages.map((m, i) => (i === n - 1 ? fn(m) : m)) } };
+    });
+
   async function newChat() {
     const c = await createConversation();
     setConvos((cs) => [{ id: c.id, title: c.title }, ...cs]);
+    setThreads((t) => ({ ...t, [c.id]: { messages: [], streaming: false } }));
     setActive(c.id);
-    setMessages([]);
   }
 
   async function remove(id: string) {
     if (!confirm("Delete this conversation?")) return;
     await deleteConversation(id);
-    if (active === id) { setActive(null); setMessages([]); }
+    setThreads((t) => { const { [id]: _drop, ...rest } = t; return rest; });
+    if (active === id) setActive(null);
     loadConvos();
   }
 
   async function send() {
     const text = input.trim();
-    if (!text || sending) return;
+    // Only block a second send to the SAME thread; other threads can stream concurrently.
+    if (!text || activeStreaming) return;
     let cid = active;
     if (!cid) { const c = await createConversation(); cid = c.id; setActive(cid); loadConvos(); }
+    const id = cid!;
     setInput("");
-    setSending(true);
-    setMessages((m) => [...m,
-      { role: "user", content: text, steps: [] },
-      { role: "assistant", content: "", steps: [], streaming: true }]);
-
-    const upd = (fn: (a: LiveMsg) => LiveMsg) =>
-      setMessages((m) => m.map((msg, i) => (i === m.length - 1 ? fn(msg) : msg)));
+    setThreads((t) => ({ ...t, [id]: {
+      streaming: true,
+      messages: [...(t[id]?.messages ?? []),
+        { role: "user", content: text, steps: [] },
+        { role: "assistant", content: "", steps: [], streaming: true }],
+    } }));
 
     try {
-      await streamChat(cid!, text, (e) => {
-        if (e.type === "token") upd((a) => ({ ...a, content: a.content + e.text }));
+      await streamChat(id, text, (e) => {
+        if (e.type === "token") updLast(id, (a) => ({ ...a, content: a.content + e.text }));
         else if (e.type === "tool_call")
-          upd((a) => ({ ...a, steps: [...a.steps, { name: e.name, args: e.args, summary: "…" } as ChatStep] }));
+          updLast(id, (a) => ({ ...a, steps: [...a.steps, { name: e.name, args: e.args, summary: "…" } as ChatStep] }));
         else if (e.type === "tool_result")
-          upd((a) => ({ ...a, steps: a.steps.map((s, i) =>
+          updLast(id, (a) => ({ ...a, steps: a.steps.map((s, i) =>
             i === a.steps.length - 1 ? { ...s, summary: e.summary } : s) }));
         else if (e.type === "error")
-          upd((a) => ({ ...a, content: a.content || `⚠️ ${e.error}`, streaming: false }));
+          updLast(id, (a) => ({ ...a, content: a.content || `⚠️ ${e.error}`, streaming: false }));
       });
-    } catch { upd((a) => ({ ...a, content: a.content || "⚠️ stream failed" })); }
-    upd((a) => ({ ...a, streaming: false }));
-    setSending(false);
+    } catch { updLast(id, (a) => ({ ...a, content: a.content || "⚠️ stream failed" })); }
+    updLast(id, (a) => ({ ...a, streaming: false }));
+    setThreads((t) => (t[id] ? { ...t, [id]: { ...t[id], streaming: false } } : t));
     loadConvos();  // refresh titles/order
   }
 
@@ -96,6 +117,7 @@ export default function Chat() {
           {convos.map((c) => (
             <div key={c.id} className={`chat-item ${c.id === active ? "on" : ""}`}
               onClick={() => setActive(c.id)}>
+              {threads[c.id]?.streaming && <span className="chat-streaming" title="Responding…" />}
               <span className="chat-title">{c.title}</span>
               <button className="chat-del" onClick={(e) => { e.stopPropagation(); remove(c.id); }}
                 title="Delete">×</button>
@@ -114,7 +136,7 @@ export default function Chat() {
           )}
           {messages.map((m, i) => <Bubble key={i} msg={m} />)}
         </div>
-        <Composer value={input} onChange={setInput} onSend={send} sending={sending} />
+        <Composer value={input} onChange={setInput} onSend={send} sending={activeStreaming} />
       </div>
     </div>
   );
