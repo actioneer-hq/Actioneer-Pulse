@@ -399,10 +399,8 @@ def process_audio_only(db: Session, call: Call, *, use_stt: bool = False) -> str
             mode = f"{mode}+stt"
 
         _persist_audio_only(db, call, audio, metrics, layout, mode, confidence, turns)
-        if turns:
-            from voiceobs.judge import judge_call
-
-            judge_call(db, call)  # transcript now derivable from the turns → content judgment
+        # Judging (Tier B: transcript now derivable from the turns) is enqueued by the caller after
+        # the commit — the analysis_mode '…+stt' suffix signals there's a transcript to judge.
         run.status = "ok"
         run.finished_at = _now()
         return run.status

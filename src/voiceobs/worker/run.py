@@ -28,7 +28,7 @@ from voiceobs.db.models import Call
 from voiceobs.db.session import get_session, org_schema_keys, use_org_schema
 from voiceobs.frameworks import UnsupportedSchema
 from voiceobs.ingestion import decode_record, identify, store_fragment, tombstoned, upsert_call
-from voiceobs.judge import judge_call
+from voiceobs.judge.queue import enqueue_judge
 from voiceobs.worker.process import process
 
 log = logging.getLogger(__name__)
@@ -44,18 +44,22 @@ def _ready_now(call: Call) -> bool:
     )
 
 
-def _analyse(db: Session, call: Call) -> None:
+def _analyse(db: Session, call: Call) -> bool:
+    """Analyse a ready call. Returns True if it should be queued for judging (analysed OK), False for
+    a permanent skip (unsupported). Judging itself is enqueued by the caller AFTER the DB commit."""
     try:
         status = process(db, call)
         log.info("analysed %s (%s)", call.external_call_id, status)
-        judge_call(db, call)
+        return True
     except UnsupportedSchema as e:  # permanent — no retry makes this payload parseable
         log.warning("unsupported %s: %s", call.external_call_id, e)
         call.status = "unsupported"
+        return False
 
 
-def handle_record(db: Session, record: Record) -> None:
-    """Assemble one raw-spans record into its call and analyse if ready. Idempotent."""
+def handle_record(db: Session, record: Record) -> str | None:
+    """Assemble one raw-spans record into its call and analyse if ready. Idempotent. Returns the
+    external call id to queue for judging (or None) — the caller enqueues after the DB commit."""
     org = record.headers.get("org") or "default"
     agent_id = record.headers.get("agent_id") or None
     batch_id = record.headers["batch_id"]
@@ -64,15 +68,16 @@ def handle_record(db: Session, record: Record) -> None:
     resource, spans = decode_record(record)
     b = identify(db, resource, spans, agent_id)
     if tombstoned(db, b.call_id):
-        return
+        return None
     if b.call_id is not None:
         upsert_call(db, b)
     store_fragment(db, b, batch_id, seq)
     db.flush()
     if b.call_id is not None:
         call = db.scalar(select(Call).where(Call.external_call_id == b.call_id))
-        if call is not None and _ready_now(call):
-            _analyse(db, call)
+        if call is not None and _ready_now(call) and _analyse(db, call):
+            return call.external_call_id
+    return None
 
 
 def flush_due(db: Session) -> int:
@@ -90,10 +95,14 @@ def flush_due(db: Session) -> int:
                 (Call.metric_version.is_(None)) | (Call.metric_version != METRIC_VERSION),
             ).order_by(Call.last_activity_at).limit(batch)
         )
+        judged: list[str] = []
         for call in db.scalars(stmt):
-            _analyse(db, call)
+            if _analyse(db, call):
+                judged.append(call.external_call_id)
             total += 1
         db.commit()
+        for cid in judged:  # enqueue after the commit (grace path = live calls → realtime priority)
+            enqueue_judge(get_producer(), org, cid, backfill=False)
     return total
 
 
@@ -135,7 +144,10 @@ def _consume_one(consumer, record: Record) -> bool:  # pragma: no cover
     for attempt in range(get_config().kafka_max_retries):
         try:
             with session_scope() as db:
-                handle_record(db, record)
+                cid = handle_record(db, record)
+            if cid:  # enqueue judging only after the analysis txn committed
+                enqueue_judge(get_producer(), record.headers.get("org") or "default",
+                              cid, backfill=False)
             return True
         except Exception:
             log.exception("handle_record failed (attempt %d)", attempt + 1)

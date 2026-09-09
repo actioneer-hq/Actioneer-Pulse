@@ -26,7 +26,6 @@ LEVERS: dict[str, Callable[[Judgment], str | None]] = {
     "guardrail_points": lambda j: " ".join(j.guardrail_violation_points or []) or None,
     "hallucination_detail": lambda j: j.hallucination_detail,
 }
-_EMBED_BATCH = 64
 _MIN_TO_CLUSTER = 6  # fewer calls than this in a lever → skip (nothing meaningful to cluster)
 
 
@@ -57,8 +56,9 @@ def _backfill_embeddings(db, resolved) -> None:
             text = extract(j)
             if text and text.strip():
                 pending.append((j.call_id, text.strip()))
-        for i in range(0, len(pending), _EMBED_BATCH):
-            batch = pending[i : i + _EMBED_BATCH]
+        batch_size = get_config().embed_batch_size
+        for i in range(0, len(pending), batch_size):
+            batch = pending[i : i + batch_size]
             try:
                 vecs = gateway.embed(resolved, [t for _, t in batch])
             except Exception as e:  # noqa: BLE001 — embedding is best-effort; skip the batch

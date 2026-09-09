@@ -18,9 +18,11 @@ from contextlib import contextmanager
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from voiceobs.bus import get_producer
 from voiceobs.config import get_config
 from voiceobs.db.models import BackfillJob, Call, Media
 from voiceobs.db.session import get_session, org_schema_keys, use_org_schema
+from voiceobs.judge.queue import enqueue_judge
 from voiceobs.storage import ResolvedStorage, resolve_storage
 from voiceobs.worker.process import ensure_audio_call, process_audio_only
 
@@ -85,7 +87,6 @@ def _process_otlp_call(db: Session, agent_id: str | None, call_id: str, uri: str
     from voiceobs.frameworks import UnsupportedSchema
     from voiceobs.frameworks.otlp import decode_otlp
     from voiceobs.ingestion import identify, store_fragment, upsert_call
-    from voiceobs.judge import judge_call
     from voiceobs.storage import fetch_bytes
     from voiceobs.worker.process import process
 
@@ -106,8 +107,7 @@ def _process_otlp_call(db: Session, agent_id: str | None, call_id: str, uri: str
     db.flush()
     call = db.scalar(select(Call).where(Call.external_call_id == b.call_id))
     try:
-        process(db, call)
-        judge_call(db, call)
+        process(db, call)  # judging is enqueued by run_job after the commit, not inline
     except UnsupportedSchema as e:
         call.status = "failed"
         call.analysis_error = f"unsupported OTLP schema: {e}"
@@ -151,13 +151,19 @@ def run_job(db: Session, job: BackfillJob) -> None:
         if _is_cancelled(db, job.id):
             _finish(db, job, status="cancelled")
             return
+        judge_cid = None
         try:
             if otlp:
                 status = _process_otlp_call(db, job.agent_id, call_id, found[call_id], st.creds)
+                if status == "ok":
+                    judge_cid = call_id  # full-fidelity OTLP call → judge
             else:
                 call = ensure_audio_call(db, job.agent_id, call_id)
                 _register_media(db, call, found[call_id])
                 status = process_audio_only(db, call, use_stt=use_stt)
+                # only audio calls with a transcript (Tier B) have anything to judge
+                if status == "ok" and (call.analysis_mode or "").endswith("+stt"):
+                    judge_cid = call.external_call_id
             if status == "ok":
                 job.completed += 1
             else:
@@ -168,6 +174,8 @@ def run_job(db: Session, job: BackfillJob) -> None:
             job.error = job.error or f"{call_id}: {e}"
         job.updated_at = _now()
         db.commit()
+        if judge_cid:  # enqueue after the commit → backfill-priority judge queue
+            enqueue_judge(get_producer(), job.org_id or "default", judge_cid, backfill=True)
 
     # Clusters once at the end (meaningful only when there is judgment prose — audio+STT / OTLP).
     job.status = "clustering"

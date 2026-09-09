@@ -70,16 +70,14 @@ def test_process_audio_only_tier_b(db_sessionmaker, monkeypatch):
         return Transcript(text="hi", words=[Word("hello", 0.6, 1.9), Word("reply", 2.6, 4.4)])
 
     monkeypatch.setattr(audio_stt, "transcribe", fake_transcribe)
-    judged = []
-    monkeypatch.setattr("voiceobs.judge.judge_call", lambda db, call: judged.append(call.id))
 
     with db_sessionmaker() as db:
         call = _seed_stt_call(db)
         assert process_audio_only(db, call, use_stt=True) == "ok"
         db.commit()
+        # Tier B produces turns + the '+stt' mode; judging is now enqueued by the caller, not inline.
         assert call.analysis_mode == "audio-only+stt"
         assert db.scalar(select(func.count()).select_from(DBTurn)) > 0
-        assert judged == [call.id]  # the judge ran on the reconstructed transcript
 
 
 def test_tier_a_when_stt_unconfigured(db_sessionmaker, monkeypatch):
