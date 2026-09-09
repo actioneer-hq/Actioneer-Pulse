@@ -14,6 +14,10 @@ import {
 } from "../api";
 import { useAuth } from "../auth";
 import { Bubble, type LiveMsg } from "../components/chat/Bubble";
+import { AudioToggle } from "../components/chat/AudioToggle";
+
+// Per-conversation audio-native state, kept alongside threads so it reloads on switch.
+type AudioState = { enabled: boolean; available: boolean };
 
 const MENTION = /@([\w-]+)/g;  // @<callId> token
 
@@ -27,6 +31,7 @@ export default function Chat() {
   // A registry of threads by conversation id — a stream mutates its own thread, so switching the
   // shown conversation never cancels or clobbers an in-flight stream on another.
   const [threads, setThreads] = useState<Record<string, Thread>>({});
+  const [audio, setAudio] = useState<Record<string, AudioState>>({});
   const [input, setInput] = useState("");
   const threadRef = useRef<HTMLDivElement>(null);
 
@@ -36,14 +41,17 @@ export default function Chat() {
   const loadConvos = useCallback(() => {
     listConversations().then(setConvos).catch(() => setConvos([]));
   }, []);
-  useEffect(() => { loadConvos(); setActive(null); setThreads({}); }, [loadConvos, activeOrg]);
+  useEffect(() => { loadConvos(); setActive(null); setThreads({}); setAudio({}); }, [loadConvos, activeOrg]);
 
   // Load a conversation's messages on first view — but never refetch a thread that already has local
   // state (loaded or mid-stream), or we'd wipe an in-flight stream.
   useEffect(() => {
     if (!active || threads[active]) return;
     getConversation(active)
-      .then((c) => setThreads((t) => (t[active] ? t : { ...t, [active]: { messages: c.messages, streaming: false } })))
+      .then((c) => {
+        setThreads((t) => (t[active] ? t : { ...t, [active]: { messages: c.messages, streaming: false } }));
+        setAudio((a) => ({ ...a, [active]: { enabled: c.audio_native_enabled, available: c.audio_native_available } }));
+      })
       .catch(() => setThreads((t) => ({ ...t, [active]: { messages: [], streaming: false } })));
   }, [active, threads]);
 
@@ -65,6 +73,7 @@ export default function Chat() {
     const c = await createConversation();
     setConvos((cs) => [{ id: c.id, title: c.title }, ...cs]);
     setThreads((t) => ({ ...t, [c.id]: { messages: [], streaming: false } }));
+    setAudio((a) => ({ ...a, [c.id]: { enabled: c.audio_native_enabled, available: c.audio_native_available } }));
     setActive(c.id);
   }
 
@@ -81,7 +90,11 @@ export default function Chat() {
     // Only block a second send to the SAME thread; other threads can stream concurrently.
     if (!text || activeStreaming) return;
     let cid = active;
-    if (!cid) { const c = await createConversation(); cid = c.id; setActive(cid); loadConvos(); }
+    if (!cid) {
+      const c = await createConversation(); cid = c.id;
+      setAudio((a) => ({ ...a, [c.id]: { enabled: c.audio_native_enabled, available: c.audio_native_available } }));
+      setActive(cid); loadConvos();
+    }
     const id = cid!;
     setInput("");
     setThreads((t) => ({ ...t, [id]: {
@@ -135,6 +148,16 @@ export default function Chat() {
             </div>
           )}
           {messages.map((m, i) => <Bubble key={i} msg={m} />)}
+        </div>
+        <div className="composer-tools">
+          <AudioToggle
+            cid={active}
+            enabled={!!(active && audio[active]?.enabled)}
+            available={!!(active && audio[active]?.available)}
+            onChange={(v) => active && setAudio((a) => ({
+              ...a, [active]: { enabled: v, available: a[active]?.available ?? false },
+            }))}
+          />
         </div>
         <Composer value={input} onChange={setInput} onSend={send} sending={activeStreaming} />
       </div>
