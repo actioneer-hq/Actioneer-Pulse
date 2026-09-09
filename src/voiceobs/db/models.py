@@ -724,6 +724,26 @@ class AgentAudioConfig(Base):
     updated_at: Mapped[datetime] = created_col()
 
 
+class AgentOtlpMapping(Base):
+    """Per-agent OTLP translation, as DATA not code. Holds one JSONata `expression` that converts this
+    agent's producer OTLP dialect into Pulse's canonical `Trace` JSON (see `frameworks/jsonata.py`).
+
+    Authored once by the Pulse wizard (which reads the producer's source to write the expression) and
+    reused on every ingest. When a row exists the analysis path applies it *instead* of the built-in
+    code adapters (`framework_for`); absent = the built-in matching runs unchanged. `version` bumps on
+    each write so provenance records which mapping produced a call."""
+
+    __tablename__ = "agent_otlp_mapping"
+    __table_args__ = (UniqueConstraint("agent_id", name="uq_agent_otlp_mapping_agent"),)
+
+    id: Mapped[str] = pk()
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agent.id"), nullable=False)
+    expression: Mapped[str] = mapped_column(Text, nullable=False)  # a JSONata expression
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)  # bumped on each write
+    created_at: Mapped[datetime] = created_col()
+    updated_at: Mapped[datetime] = created_col()
+
+
 class RefreshToken(Base):
     """A revocable login session. The rotating plaintext `vor_<prefix>_<secret>` lives only in
     the httpOnly refresh cookie; only its argon2 hash is stored. `family_id` groups the rotation

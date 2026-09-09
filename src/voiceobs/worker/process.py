@@ -26,6 +26,8 @@ from voiceobs.db.models import (
 )
 from voiceobs.db.models import Turn as DBTurn
 from voiceobs.frameworks import UnsupportedSchema, framework_for
+from voiceobs.frameworks.jsonata import JSONataAdapter
+from voiceobs.mapping import resolve_mapping
 from voiceobs.storage import audio_config, fetch_bytes, resolve_creds
 
 log = logging.getLogger(__name__)
@@ -80,20 +82,30 @@ def process(db: Session, call: Call) -> str:
     ).all()
     payload = assemble(list(payloads))
 
-    fw = framework_for(payload)
-    if fw is None:  # only reachable if the generic framework is unregistered
-        raise UnsupportedSchema("no framework matched")
-    trace = fw.adapter.to_trace(payload)
+    # A tenant-registered JSONata mapping wins; otherwise the built-in code adapters match by dialect.
+    # JSONata output is already canonical, so it uses the default Calculator.
+    mapping = resolve_mapping(db, call.agent_id)
+    if mapping:
+        from voiceobs.core.calculator import Calculator
+
+        expr, ver = mapping
+        adapter, calculator, adapter_version = JSONataAdapter(expr, ver), Calculator(), ver
+    else:
+        fw = framework_for(payload)
+        if fw is None:  # only reachable if the generic framework is unregistered
+            raise UnsupportedSchema("no framework matched")
+        adapter, calculator, adapter_version = fw.adapter, fw.calculator, fw.adapter.version
+    trace = adapter.to_trace(payload)
 
     # Audio analysis is the opt-in overlay: OTLP is the engine's account, audio is our own
     # independent one. Off by default and per-tenant — when off we never fetch the WAV.
     audio_enabled = _audio_enabled(db, call)
     audio = _load_audio(db, call) if audio_enabled else None
-    analysis = fw.calculator.analyze(
+    analysis = calculator.analyze(
         trace, audio, t0_offset_s=call.audio_t0_offset_s, audio_enabled=audio_enabled
     )
 
-    _persist(db, call, trace, analysis, fw.adapter.version, audio)
+    _persist(db, call, trace, analysis, adapter_version, audio)
     if audio_enabled:
         _reconcile(db, call, analysis)
 

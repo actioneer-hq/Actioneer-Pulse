@@ -19,6 +19,7 @@ from voiceobs.api.schemas import (
     AudioConfigIn,
     GuardrailsIn,
     IngestTokenIn,
+    OtlpMappingIn,
     ScriptIn,
 )
 from voiceobs.auth import current_membership, mint_ingest_token, require_role, visible_agent_ids
@@ -27,6 +28,7 @@ from voiceobs.db.models import (
     Agent,
     AgentAudioConfig,
     AgentGuardrail,
+    AgentOtlpMapping,
     AgentScript,
     IngestToken,
     Membership,
@@ -407,3 +409,46 @@ def set_audio_config(
     cfg = _apply_audio_config(db, agent_id, body)
     db.flush()
     return _audio_config_dict(cfg)
+
+
+@router.get("/{agent_id}/otlp-mapping")
+def get_otlp_mapping(
+    agent_id: str,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(require_role("owner", "admin")),
+) -> dict:
+    _org_agent(db, mem, agent_id)
+    row = db.scalar(select(AgentOtlpMapping).where(AgentOtlpMapping.agent_id == agent_id))
+    if row is None:
+        raise HTTPException(404, "no otlp mapping configured")
+    return {"expression": row.expression, "version": row.version, "updated_at": row.updated_at}
+
+
+@router.put("/{agent_id}/otlp-mapping")
+def set_otlp_mapping(
+    agent_id: str, body: OtlpMappingIn,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(require_role("owner", "admin")),
+) -> dict:
+    """Store this agent's JSONata OTLP mapping (upsert, bumps version). The expression is parse-checked
+    here; the wizard is responsible for validating that its OUTPUT is a correct Trace."""
+    _org_agent(db, mem, agent_id)
+    try:
+        import jsonata
+
+        jsonata.Jsonata(body.expression)
+    except ImportError:
+        pass  # engine only present on the analysis service; skip the parse check where unavailable
+    except Exception as e:
+        raise HTTPException(422, f"invalid jsonata expression: {e}") from e
+
+    row = db.scalar(select(AgentOtlpMapping).where(AgentOtlpMapping.agent_id == agent_id))
+    if row is None:
+        row = AgentOtlpMapping(agent_id=agent_id, expression=body.expression, version=1)
+        db.add(row)
+    else:
+        row.expression = body.expression
+        row.version += 1
+        row.updated_at = now()
+    db.flush()
+    return {"expression": row.expression, "version": row.version, "updated_at": row.updated_at}

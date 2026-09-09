@@ -117,6 +117,28 @@ def test_reprocessing_does_not_double_rows(client, db_sessionmaker, drain):
         assert len(db.scalars(select(DBTurn)).all()) == 1
 
 
+def test_registered_jsonata_mapping_is_used_instead_of_builtin(client, login_as, db_sessionmaker, drain):
+    """A per-agent JSONata mapping wins over the built-in adapter matching. Proven by the recorded
+    adapter_version (the mapping's version) and by turns still landing from the canonical output."""
+    from tests.frameworks.test_jsonata import EXPR
+    from voiceobs.db.models import AgentOtlpMapping
+
+    login_as("default")  # owner, to create the agent
+    aid = client.post("/v1/agents", json={"name": "Bot"}).json()["id"]
+    client.post("/v1/traces", json=sample_call())
+    drain()
+    with db_sessionmaker() as db:
+        call = db.scalars(select(Call)).one()
+        call.agent_id = aid  # bind the call to the agent that owns the mapping
+        db.add(AgentOtlpMapping(agent_id=aid, expression=EXPR, version=7))
+        db.commit()
+
+        assert process(db, call) in ("ok", "partial")
+        db.commit()
+        assert call.adapter_version == 7  # the JSONata path ran, not the built-in LiveKit adapter
+        assert [t.turn_index for t in db.scalars(select(DBTurn))] == [1]
+
+
 def test_flush_due_skips_calls_already_at_this_version(client, db_sessionmaker, drain, monkeypatch):
     monkeypatch.setenv("VOICEOBS_WORKER_GRACE_S", "0")  # grace path fires immediately
     client.post("/v1/traces", json=sample_call())
