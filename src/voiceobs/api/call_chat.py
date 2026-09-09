@@ -46,11 +46,16 @@ def get_call_chat(
     call: Call = Depends(get_scoped_call),
     db: Session = Depends(session_dep), mem: Membership = Depends(current_membership),
 ) -> dict:
+    from voiceobs.api.chat import audio_native_available
+
     conv = _thread(db, call, mem)
     msgs = db.scalars(select(ChatMessage).where(ChatMessage.conversation_id == conv.id)
                       .order_by(ChatMessage.seq)).all()
-    return {"id": conv.id, "messages": [
-        {"role": m.role, "content": m.content, "steps": m.steps or []} for m in msgs]}
+    return {"id": conv.id,
+            "audio_native_enabled": conv.audio_native_enabled,
+            "audio_native_available": audio_native_available(),
+            "messages": [
+                {"role": m.role, "content": m.content, "steps": m.steps or []} for m in msgs]}
 
 
 @router.post("/{call_id}/chat/stream")
@@ -97,9 +102,12 @@ def _run(call_ext_id: str, org_slug: str, user_id: str, text: str) -> Iterator[s
         db.add(ChatMessage(conversation_id=conv.id, seq=nxt, role="user", content=text))
         db.commit()
 
-        system = build_per_call_prompt(db, call, resolved.prompt)
+        # Per-chat opt-in AND a model configured at build time; read fresh each turn (mid-chat toggle).
+        audio_native = conv.audio_native_enabled and resolve_llm(LLMRole.AUDIO_NATIVE) is not None
+        system = build_per_call_prompt(db, call, resolved.prompt, audio_native=audio_native)
         content, steps = "", []
-        for event in chat.run(db, mem, resolved, history, text, system=system):
+        for event in chat.run(db, mem, resolved, history, text,
+                              system=system, call=call, audio_native=audio_native):
             if event["type"] == "done":
                 content, steps = event["content"], event["steps"]
             yield _sse(event)

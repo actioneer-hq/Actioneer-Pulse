@@ -381,11 +381,20 @@ export type ChatEvent =
 export const listConversations = () =>
   get<{ items: Conversation[] }>("/v1/chat/conversations").then((d) => d.items);
 export const createConversation = () =>
-  req<{ id: string; title: string }>("POST", "/v1/chat/conversations");
+  req<{ id: string; title: string; audio_native_enabled: boolean; audio_native_available: boolean }>(
+    "POST", "/v1/chat/conversations");
 export const getConversation = (id: string) =>
-  get<{ id: string; title: string; messages: ChatMsg[] }>(`/v1/chat/conversations/${id}`);
+  get<{
+    id: string; title: string; messages: ChatMsg[];
+    audio_native_enabled: boolean; audio_native_available: boolean;
+  }>(`/v1/chat/conversations/${id}`);
 export const deleteConversation = (id: string) =>
   req("DELETE", `/v1/chat/conversations/${id}`);
+// Toggle a conversation's audio-native opt-in. `available` reflects build-time config; the
+// choice persists even when unavailable, but only takes effect when both are true.
+export const patchConversation = (id: string, body: { audio_native_enabled: boolean }) =>
+  req<{ id: string; audio_native_enabled: boolean; audio_native_available: boolean }>(
+    "PATCH", `/v1/chat/conversations/${id}`, body);
 
 /** POST a message and stream the agent's SSE events to `onEvent`. Hand-rolled reader because
  *  EventSource can't POST a body / send our cookies+CSRF. Shared by global + per-call chat. */
@@ -420,7 +429,10 @@ export const streamChat = (id: string, text: string, onEvent: (e: ChatEvent) => 
 
 // ---- per-call chat (scoped to one call) ----
 export const getCallChat = (callId: string) =>
-  get<{ id: string; messages: ChatMsg[] }>(`/v1/calls/${encodeURIComponent(callId)}/chat`);
+  get<{
+    id: string; messages: ChatMsg[];
+    audio_native_enabled: boolean; audio_native_available: boolean;
+  }>(`/v1/calls/${encodeURIComponent(callId)}/chat`);
 export const streamCallChat = (callId: string, text: string, onEvent: (e: ChatEvent) => void) =>
   _streamSSE(`/v1/calls/${encodeURIComponent(callId)}/chat/stream`, text, onEvent);
 

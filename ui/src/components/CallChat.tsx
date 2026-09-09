@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { getCallChat, streamCallChat, type ChatStep } from "../api";
 import { Bubble, type LiveMsg } from "./chat/Bubble";
+import { AudioToggle } from "./chat/AudioToggle";
 
 // A chat scoped to one call. History persists per call; the agent answers from the call's
 // dumped transcript/metrics/analysis and can run execute_sql over this call's spans.
@@ -8,10 +9,20 @@ export default function CallChat({ callId }: { callId: string }) {
   const [msgs, setMsgs] = useState<LiveMsg[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  // Conversation id + audio-native state for this call's chat (from GET /v1/calls/{id}/chat).
+  const [cid, setCid] = useState<string | null>(null);
+  const [audio, setAudio] = useState<{ enabled: boolean; available: boolean }>(
+    { enabled: false, available: false });
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    getCallChat(callId).then((d) => setMsgs(d.messages as LiveMsg[])).catch(() => setMsgs([]));
+    getCallChat(callId)
+      .then((d) => {
+        setMsgs(d.messages as LiveMsg[]);
+        setCid(d.id);
+        setAudio({ enabled: d.audio_native_enabled, available: d.audio_native_available });
+      })
+      .catch(() => { setMsgs([]); setCid(null); });
   }, [callId]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ block: "end" }); }, [msgs]);
@@ -55,6 +66,10 @@ export default function CallChat({ callId }: { callId: string }) {
         )}
         {msgs.map((m, i) => <Bubble key={i} msg={m} />)}
         <div ref={endRef} />
+      </div>
+      <div className="composer-tools">
+        <AudioToggle cid={cid} enabled={audio.enabled} available={audio.available}
+          onChange={(v) => setAudio((a) => ({ ...a, enabled: v }))} />
       </div>
       <div className="call-chat-composer">
         <textarea value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onKey}

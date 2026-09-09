@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from voiceobs.api.auth import require_csrf
 from voiceobs.api.deps import now, session_dep
-from voiceobs.api.schemas import ChatMessageIn
+from voiceobs.api.schemas import ChatMessageIn, ConversationPatchIn
 from voiceobs.auth import current_membership
 from voiceobs.config import resolve_llm
 from voiceobs.db.models import ChatMessage, Conversation, Membership, Organization
@@ -44,6 +44,12 @@ def list_conversations(
     return {"items": [{"id": c.id, "title": c.title, "updated_at": c.updated_at} for c in rows]}
 
 
+def audio_native_available() -> bool:
+    """Was an audio-native model configured at build time? (The per-chat toggle only has effect
+    when this is true.)"""
+    return resolve_llm(LLMRole.AUDIO_NATIVE) is not None
+
+
 @router.post("/conversations")
 def create_conversation(
     db: Session = Depends(session_dep), mem: Membership = Depends(current_membership),
@@ -52,7 +58,8 @@ def create_conversation(
     c = Conversation(created_by=mem.user_id, title="New chat")
     db.add(c)
     db.flush()
-    return {"id": c.id, "title": c.title}
+    return {"id": c.id, "title": c.title, "audio_native_enabled": c.audio_native_enabled,
+            "audio_native_available": audio_native_available()}
 
 
 @router.get("/conversations/{cid}")
@@ -63,8 +70,26 @@ def get_conversation(
     c = _conv(db, cid, mem)
     msgs = db.scalars(select(ChatMessage).where(ChatMessage.conversation_id == cid)
                       .order_by(ChatMessage.seq)).all()
-    return {"id": c.id, "title": c.title, "messages": [
-        {"role": m.role, "content": m.content, "steps": m.steps or []} for m in msgs]}
+    return {"id": c.id, "title": c.title,
+            "audio_native_enabled": c.audio_native_enabled,
+            "audio_native_available": audio_native_available(),
+            "messages": [
+                {"role": m.role, "content": m.content, "steps": m.steps or []} for m in msgs]}
+
+
+@router.patch("/conversations/{cid}")
+def update_conversation(
+    cid: str, body: ConversationPatchIn,
+    db: Session = Depends(session_dep), mem: Membership = Depends(current_membership),
+    _: None = Depends(require_csrf),
+) -> dict:
+    """Toggle the per-chat audio-native opt-in. Persists the choice regardless of availability; it
+    only takes effect (the tool is offered) when a model was configured at build time."""
+    c = _conv(db, cid, mem)
+    if body.audio_native_enabled is not None:
+        c.audio_native_enabled = body.audio_native_enabled
+    return {"id": c.id, "audio_native_enabled": c.audio_native_enabled,
+            "audio_native_available": audio_native_available()}
 
 
 @router.delete("/conversations/{cid}")
@@ -121,8 +146,12 @@ def _run(cid: str, org_slug: str, user_id: str, text: str) -> Iterator[str]:
                            role="user", content=text))
         db.commit()
 
+        # Effective per-turn: the chat's opt-in AND a model configured at build time. Read fresh each
+        # turn so a mid-chat toggle takes effect on the next message.
+        conv = db.get(Conversation, cid)
+        audio_native = bool(conv and conv.audio_native_enabled) and audio_native_available()
         content, steps = "", []
-        for event in chat.run(db, mem, resolved, history, text):
+        for event in chat.run(db, mem, resolved, history, text, audio_native=audio_native):
             if event["type"] == "done":
                 content, steps = event["content"], event["steps"]
             yield _sse(event)

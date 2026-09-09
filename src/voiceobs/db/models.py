@@ -567,6 +567,9 @@ class Conversation(Base):
     created_by: Mapped[str | None] = mapped_column(ForeignKey("app_user.id"))
     call_id: Mapped[str | None] = mapped_column(ForeignKey(_CALL_FK))  # NULL = global thread
     title: Mapped[str] = mapped_column(String(200), nullable=False, default="New chat")
+    # Per-chat opt-in for the audio-native tool. Off by default (audio analysis is costly); the tool
+    # is only offered when this is on AND an audio-native model was configured at build time.
+    audio_native_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = created_col()
     updated_at: Mapped[datetime] = created_col()
 

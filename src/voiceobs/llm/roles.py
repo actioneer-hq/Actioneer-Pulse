@@ -15,6 +15,7 @@ class LLMRole(StrEnum):
     GLOBAL_CHAT = "global_chat"                 # chat across all calls
     PER_CALL_CHAT = "per_call_chat"             # chat scoped to one call (reserved)
     FAILURE_ANALYSIS = "failure_analysis"       # failure-board analysis (reserved)
+    AUDIO_NATIVE = "audio_native"               # BYO audio-in model; the chat agents' audio tool
 
 
 # Interactive roles are user-facing and latency-sensitive: they bypass the gateway's rate-limit

@@ -95,6 +95,10 @@ class ChatMessageIn(BaseModel):
     text: str
 
 
+class ConversationPatchIn(BaseModel):
+    audio_native_enabled: bool | None = None
+
+
 class AgentIn(BaseModel):
     name: str
     slug: str | None = None

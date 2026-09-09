@@ -64,11 +64,24 @@ FAILURE_ANALYSIS = (
     "- Use only the allowed enum values."
 )
 
+# The audio-native sub-model — receives a call's caller/agent audio + a question from the chat agent.
+# Its own system prompt: it only describes/answers what can be HEARD, and never invents content.
+AUDIO_NATIVE = (
+    "You are an audio analyst for voice-agent phone calls. You are given the recording of ONE call "
+    "(caller and agent audio) and a specific question. Answer ONLY from what is audible — tone, "
+    "emotion, prosody, raised voices, pace, hesitation, background noise or music, audio quality "
+    "(clipping, echo, dropouts, distortion), silence, and overlap/crosstalk between the two "
+    "speakers. Be concrete and concise; cite rough timestamps when useful. Do not transcribe verbatim "
+    "unless asked, and never invent words or facts you cannot hear. If the audio can't support an "
+    "answer, say so plainly."
+)
+
 _DEFAULTS: dict[LLMRole, str] = {
     LLMRole.POST_CALL_ANALYSIS: POST_CALL_ANALYSIS,
     LLMRole.GLOBAL_CHAT: GLOBAL_CHAT,
     LLMRole.PER_CALL_CHAT: PER_CALL_CHAT,
     LLMRole.FAILURE_ANALYSIS: FAILURE_ANALYSIS,
+    LLMRole.AUDIO_NATIVE: AUDIO_NATIVE,
 }
 
 
