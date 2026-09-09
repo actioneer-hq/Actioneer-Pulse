@@ -66,9 +66,21 @@ def _judgment_block(db: Session, call: Call) -> str:
     return "\n".join(out) or "(analysis produced no notable findings)"
 
 
-def build_per_call_prompt(db: Session, call: Call, persona: str) -> str:
+# Bound-to-this-call phrasing of the audio-tool scope guard (per-call chat needs no call_id).
+_AUDIO_NATIVE_BLOCK = (
+    "\n\n--- Audio analysis tool: audio_native_llm ---\n"
+    "You have `audio_native_llm(prompt)` — it sends THIS call's recording to a model that LISTENS "
+    "and answers your prompt. Use it ONLY for questions that require hearing the audio: tone, "
+    "emotion, raised voices, pace/hesitation, background noise or music, audio quality (clipping, "
+    "echo, dropouts), and crosstalk/overlap. NEVER for anything the context/tables already give you "
+    "(transcript, metrics, timings, judgment). It is slow and costly — call it at most once, and "
+    "only when the answer genuinely needs the audio."
+)
+
+
+def build_per_call_prompt(db: Session, call: Call, persona: str, *, audio_native: bool = False) -> str:
     """persona + this call's transcript, metrics, and LLM analysis, plus the events-table note."""
-    return (
+    prompt = (
         f"{persona}\n\n"
         f"You are focused on a SINGLE call (external id: {call.external_call_id}). "
         f"Answer from the context below; use the tool only for span-level detail.\n\n"
@@ -81,3 +93,4 @@ def build_per_call_prompt(db: Session, call: Call, persona: str) -> str:
         f"--- LLM analysis (judgment) ---\n{_judgment_block(db, call)}\n\n"
         f"--- Span/event trace (via tool) ---\n{_EVENTS_NOTE.format(call_id=call.id)}"
     )
+    return prompt + _AUDIO_NATIVE_BLOCK if audio_native else prompt

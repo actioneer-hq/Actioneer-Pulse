@@ -41,6 +41,11 @@ class Config(BaseSettings):
     per_call_chat_api_key: str | None = None
     failure_analysis_api_key: str | None = None
     embedding_api_key: str | None = None  # BYO embedding model (OpenAI-compatible)
+    audio_native_api_key: str | None = None  # BYO audio-in model for the chat agents' audio tool
+    # BYO audio-native model (name/path). Enabled ⇔ audio_native_api_key is set.
+    audio_native_provider: str = "openai"
+    audio_native_model: str = "gpt-4o-audio-preview"
+    audio_native_base_url: str | None = None  # OpenAI-compatible endpoint (self-hosted Qwen/Kimi, …)
     # Kafka brokers for the ingest→analysis pipeline (the `raw-spans` topic). Required in prod;
     # tests inject an in-memory bus double. e.g. "redpanda:9092".
     kafka_brokers: str | None = None
@@ -143,6 +148,7 @@ _ROLE_KEY_FIELD: dict[LLMRole, str] = {
     LLMRole.GLOBAL_CHAT: "global_chat_api_key",
     LLMRole.PER_CALL_CHAT: "per_call_chat_api_key",
     LLMRole.FAILURE_ANALYSIS: "failure_analysis_api_key",
+    LLMRole.AUDIO_NATIVE: "audio_native_api_key",
 }
 
 
@@ -162,11 +168,20 @@ class ResolvedLLM:
 def resolve_llm(role: LLMRole) -> ResolvedLLM | None:
     """The configured model for a role, or None when its API key is unset (role not configured —
     callers skip gracefully). Merges LLM_ROLES[role] + the env key + default_prompt(role)."""
+    conf = get_config()
+    key = conf._role_api_key(role)
+    if not key:
+        return None
+    # AUDIO_NATIVE is BYO: provider/model/base_url come from env (a name/path the operator sets),
+    # not the committed LLM_ROLES table.
+    if role is LLMRole.AUDIO_NATIVE:
+        return ResolvedLLM(
+            role=role, provider=conf.audio_native_provider, model=conf.audio_native_model,
+            api_key=key, base_url=conf.audio_native_base_url, max_tokens=1024,
+            prompt=default_prompt(role),
+        )
     cfg = LLM_ROLES.get(role)
     if cfg is None:
-        return None
-    key = get_config()._role_api_key(role)
-    if not key:
         return None
     return ResolvedLLM(
         role=role, provider=cfg.provider, model=cfg.model, api_key=key,

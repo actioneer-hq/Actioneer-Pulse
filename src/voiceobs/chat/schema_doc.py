@@ -444,7 +444,27 @@ COMMIT;
 """
 
 
-def build_system_prompt(persona: str) -> str:
+# Scope guard for the optional audio-native tool. Appended ONLY when it's enabled. The emphasis is
+# deliberate: without it the model reaches for the slow/costly audio tool on questions SQL can answer.
+AUDIO_NATIVE_SKILL = (
+    "--- Audio analysis tool: audio_native_llm ---\n"
+    "You also have `audio_native_llm(call_id, prompt)` — it sends a call's recording to a model that "
+    "LISTENS to the audio and answers your prompt.\n"
+    "Use it ONLY for questions that genuinely require hearing the audio: tone, emotion, sentiment "
+    "from voice, raised/angry voices, pace or hesitation, background noise or music, audio quality "
+    "(clipping, echo, dropouts, distortion), and crosstalk/overlap perception.\n"
+    "NEVER use it for anything the tables already answer — transcripts, metrics, latencies, counts, "
+    "durations, disposition/sentiment already judged, cluster labels. Use execute_sql for those.\n"
+    "It is SLOW and COSTLY. First narrow with SQL to find the specific call(s) in question, then call "
+    "audio_native_llm on ONE call. Do not call it speculatively, and never on multiple calls at once."
+)
+
+
+def build_system_prompt(persona: str, *, audio_native: bool = False) -> str:
     """Assemble the agent's full system prompt: persona + the tables it may query + the SQL skill +
-    the pgvector skill (verbatim pg-aiguide, prefaced for our read-only view)."""
-    return f"{persona}\n\n{SCHEMA_DOC}\n\n{SQL_SKILL}\n\n{PGVECTOR_SKILL}"
+    the pgvector skill (verbatim pg-aiguide, prefaced for our read-only view). When `audio_native`,
+    append the audio-tool scope guard."""
+    prompt = f"{persona}\n\n{SCHEMA_DOC}\n\n{SQL_SKILL}\n\n{PGVECTOR_SKILL}"
+    if audio_native:
+        prompt += f"\n\n{AUDIO_NATIVE_SKILL}"
+    return prompt

@@ -97,9 +97,11 @@ def _run(call_ext_id: str, org_slug: str, user_id: str, text: str) -> Iterator[s
         db.add(ChatMessage(conversation_id=conv.id, seq=nxt, role="user", content=text))
         db.commit()
 
-        system = build_per_call_prompt(db, call, resolved.prompt)
+        audio_native = resolve_llm(LLMRole.AUDIO_NATIVE) is not None
+        system = build_per_call_prompt(db, call, resolved.prompt, audio_native=audio_native)
         content, steps = "", []
-        for event in chat.run(db, mem, resolved, history, text, system=system):
+        for event in chat.run(db, mem, resolved, history, text,
+                              system=system, call=call, audio_native=audio_native):
             if event["type"] == "done":
                 content, steps = event["content"], event["steps"]
             yield _sse(event)

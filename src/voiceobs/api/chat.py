@@ -121,8 +121,9 @@ def _run(cid: str, org_slug: str, user_id: str, text: str) -> Iterator[str]:
                            role="user", content=text))
         db.commit()
 
+        audio_native = resolve_llm(LLMRole.AUDIO_NATIVE) is not None
         content, steps = "", []
-        for event in chat.run(db, mem, resolved, history, text):
+        for event in chat.run(db, mem, resolved, history, text, audio_native=audio_native):
             if event["type"] == "done":
                 content, steps = event["content"], event["steps"]
             yield _sse(event)

@@ -27,7 +27,7 @@ def test_stream_emits_events_and_persists(client, login_as, db_sessionmaker, mon
     # mock the agent so no network: one tool round then a two-token answer
     import voiceobs.chat as chatpkg
 
-    def fake_run(db, mem, resolved, history, text):
+    def fake_run(db, mem, resolved, history, text, **kwargs):
         yield {"type": "tool_call", "name": "search_calls", "args": {"limit": 5}}
         yield {"type": "tool_result", "name": "search_calls", "summary": "3 calls"}
         yield {"type": "token", "text": "You have "}
