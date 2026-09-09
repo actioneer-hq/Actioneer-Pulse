@@ -34,6 +34,7 @@ dev = [
     "opentelemetry-sdk>=1.25",
     "opentelemetry-exporter-otlp-proto-common>=1.25",
     "fakeredis>=2.23",  # in-memory Redis for the rate-limiter tests
+    "jsonata-python>=0.7",  # runs tenant-defined OTLP mappings (frameworks/jsonata.py)
 ]
 # Auth abuse protection store.
 redis = [
@@ -51,6 +52,10 @@ storage = [
 # ingest→analysis transport (the raw-spans topic). Go ingest speaks the same contract later.
 kafka = [
     "confluent-kafka>=2.5",
+]
+# analysis-only: runs tenant-defined JSONata OTLP mappings (see frameworks/jsonata.py).
+analysis = [
+    "jsonata-python>=0.7",
 ]
 
 [build-system]

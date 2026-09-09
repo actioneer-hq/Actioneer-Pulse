@@ -62,6 +62,37 @@ def test_audio_config_requires_admin(client, login_as):
     assert client.put(f"/v1/agents/{aid}/audio-config", json={"enabled": True}).status_code == 403
 
 
+def test_otlp_mapping_set_get_and_version_bump(client, login_as):
+    login_as("default")
+    aid = client.post("/v1/agents", json={"name": "Bot"}).json()["id"]
+    assert client.get(f"/v1/agents/{aid}/otlp-mapping").status_code == 404  # none yet
+
+    r = client.put(f"/v1/agents/{aid}/otlp-mapping", json={"expression": "{'header': header}"})
+    assert r.status_code == 200 and r.json()["version"] == 1
+    got = client.get(f"/v1/agents/{aid}/otlp-mapping").json()
+    assert got["expression"] == "{'header': header}"
+
+    # re-PUT upserts and bumps the version
+    r2 = client.put(f"/v1/agents/{aid}/otlp-mapping", json={"expression": "{'header': $}"})
+    assert r2.json()["version"] == 2
+    assert client.get(f"/v1/agents/{aid}/otlp-mapping").json()["expression"] == "{'header': $}"
+
+
+def test_otlp_mapping_rejects_invalid_expression(client, login_as):
+    login_as("default")
+    aid = client.post("/v1/agents", json={"name": "Bot"}).json()["id"]
+    r = client.put(f"/v1/agents/{aid}/otlp-mapping", json={"expression": "this is ( not valid"})
+    assert r.status_code == 422
+
+
+def test_otlp_mapping_requires_admin(client, login_as):
+    login_as("default")
+    aid = client.post("/v1/agents", json={"name": "Bot"}).json()["id"]
+    login_as("default", role="viewer")
+    assert client.put(f"/v1/agents/{aid}/otlp-mapping",
+                      json={"expression": "{}"}).status_code == 403
+
+
 def test_ingest_token_mint_list_rotate_revoke(client, login_as):
     login_as("default")
     aid = client.post("/v1/agents", json={"name": "Bot"}).json()["id"]

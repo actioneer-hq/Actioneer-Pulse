@@ -91,6 +91,10 @@ class GuardrailsIn(BaseModel):
     text: str  # natural-language guardrails (one rule per line)
 
 
+class OtlpMappingIn(BaseModel):
+    expression: str  # a JSONata expression: producer OTLP payload -> canonical Trace JSON
+
+
 class ChatMessageIn(BaseModel):
     text: str
 

@@ -912,6 +912,15 @@ wheels = [
 ]
 
 [[package]]
+name = "jsonata-python"
+version = "0.7.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9d/6a/b756e10939f584b0629c301bb4aa0e79f94163ac3b0083c788b8ee78c708/jsonata_python-0.7.0.tar.gz", hash = "sha256:2cf788147a0d444cb9d7d81c58da9991607280d6a5d0f06bd2dd212a59fdcb16", size = 368727, upload-time = "2026-07-05T00:44:15.238Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/03/30/17eaf4576916556875fc961002cb67d0b404abc3345ab2bb13f1496654a2/jsonata_python-0.7.0-py3-none-any.whl", hash = "sha256:85b8dd2adf9c17a67494892ef04bc191ba2156598daae4465eec30ffd1559238", size = 87399, upload-time = "2026-07-05T00:44:13.885Z" },
+]
+
+[[package]]
 name = "llvmlite"
 version = "0.49.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1900,6 +1909,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+analysis = [
+    { name = "jsonata-python" },
+]
 analytics = [
     { name = "scikit-learn" },
     { name = "umap-learn" },
@@ -1908,6 +1920,7 @@ dev = [
     { name = "fakeredis" },
     { name = "httpx" },
     { name = "import-linter" },
+    { name = "jsonata-python" },
     { name = "opentelemetry-exporter-otlp-proto-common" },
     { name = "opentelemetry-sdk" },
     { name = "pytest" },
@@ -1942,6 +1955,8 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "import-linter", marker = "extra == 'dev'", specifier = ">=2.0" },
+    { name = "jsonata-python", marker = "extra == 'analysis'", specifier = ">=0.7" },
+    { name = "jsonata-python", marker = "extra == 'dev'", specifier = ">=0.7" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "opentelemetry-exporter-otlp-proto-common", marker = "extra == 'dev'", specifier = ">=1.25" },
     { name = "opentelemetry-proto", specifier = ">=1.25" },
@@ -1959,4 +1974,4 @@ requires-dist = [
     { name = "umap-learn", marker = "extra == 'analytics'", specifier = ">=0.5.12" },
     { name = "uvicorn", specifier = ">=0.30" },
 ]
-provides-extras = ["pg", "dev", "redis", "analytics", "storage", "kafka"]
+provides-extras = ["pg", "dev", "redis", "analytics", "storage", "kafka", "analysis"]
