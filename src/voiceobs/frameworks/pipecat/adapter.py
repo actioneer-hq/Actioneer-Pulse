@@ -40,8 +40,10 @@ class PipecatAdapter(OTLPAdapter):
         "turn.was_interrupted": "turn.interrupted",
         "language": "stt.language",
         "metrics.character_count": "tts.chars",
-        # already canonical, kept explicit: metrics.ttfb, gen_ai.request.model,
-        # gen_ai.usage.input_tokens, gen_ai.usage.output_tokens pass through unrenamed.
+        # Pipecat splits cached prompt tokens under cache_read; Pulse canonical is cached_tokens.
+        "gen_ai.usage.cache_read.input_tokens": "gen_ai.usage.cached_tokens",
+        # already canonical, pass through unrenamed: gen_ai.request.model,
+        # gen_ai.usage.input_tokens, gen_ai.usage.output_tokens, and metrics.ttfb on TTS.
     }
 
     # Pipecat carries conversation text as plain attributes (transcript on stt, text on tts),
@@ -50,6 +52,14 @@ class PipecatAdapter(OTLPAdapter):
         "transcript": "transcript",
         "text": "llm_spoken",
     }
+
+    def derive(self, attrs: dict, stage: Stage) -> dict:
+        """Pipecat names every service's first-response latency `metrics.ttfb`. On the LLM span that
+        value IS time-to-first-token, so promote it to `metrics.ttft` (Pulse keeps TTFT and TTFB
+        distinct). On TTS it already means TTFB and passes through unchanged."""
+        if stage is Stage.LLM and "metrics.ttfb" in attrs and "metrics.ttft" not in attrs:
+            attrs["metrics.ttft"] = attrs.pop("metrics.ttfb")
+        return attrs
 
     def matches(self, payload: dict) -> bool:
         return any(s.get("name") == "conversation" for _, s in iter_spans(payload))

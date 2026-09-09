@@ -23,7 +23,8 @@ def _call() -> dict:
               "language": "en", "is_final": True, "metrics.ttfb": 0.12}),
         span("s-llm", "t1", "llm", 1100, 1900,
              {"gen_ai.request.model": "gpt-4o", "gen_ai.usage.input_tokens": 50,
-              "gen_ai.usage.output_tokens": 20, "metrics.ttfb": 0.30}),
+              "gen_ai.usage.output_tokens": 20, "gen_ai.usage.cache_read.input_tokens": 8,
+              "metrics.ttfb": 0.30}),  # on the LLM span, ttfb == time-to-first-token
         span("s-tts", "t1", "tts", 1500, 2300,
              {"gen_ai.request.model": "sonic", "voice_id": "v1", "text": "hi, how can i help?",
               "metrics.character_count": 18, "metrics.ttfb": 0.20}),
@@ -63,6 +64,16 @@ def test_turn_grouping_attaches_children():
     assert by["stt"].turn_id == "t1"
     assert by["llm"].turn_id == "t1"
     assert by["tts"].turn_id == "t1"
+
+
+def test_llm_ttfb_becomes_ttft_and_cached_tokens_map():
+    """Pipecat records LLM first-token latency as metrics.ttfb; on the LLM span that is TTFT.
+    And cache_read tokens map to canonical cached_tokens."""
+    turn = join(PipecatAdapter().to_trace(_call()), None).turns[0]
+    assert turn.llm_ttft_ms == 300.0          # ttfb on the LLM span -> TTFT
+    assert turn.llm_ttft_reported_ms == 300.0
+    assert turn.tokens_cached == 8            # gen_ai.usage.cache_read.input_tokens
+    assert turn.tts_ttfb_ms == 200.0          # ttfb on the TTS span stays TTFB
 
 
 def test_join_runs_and_maps_tokens():
