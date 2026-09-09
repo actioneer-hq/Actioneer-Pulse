@@ -48,11 +48,11 @@ def _unknown() -> dict:
 
 
 def test_unknown_producer_is_not_auto_routed():
-    """Strict LiveKit-only routing: a producer Pulse doesn't ship a dialect for is NOT
-    silently reshaped — the registry returns nothing (a future BYO-OTLP path re-enables
-    the generic fallback explicitly)."""
+    """Strict routing: a producer Pulse ships no dialect for is NOT silently reshaped — the
+    registry returns nothing (the per-tenant JSONata mapping re-enables it explicitly). A
+    shipped dialect (Pipecat's `conversation`) does route."""
     assert adapter_for(_unknown()) is None
-    assert adapter_for(_pipecat()) is None
+    assert adapter_for(_pipecat()).name == "pipecat"
 
 
 def test_generic_base_still_parses_anything():

@@ -154,16 +154,16 @@ def test_unsupported_producer_is_not_retried_forever(client, db_sessionmaker, mo
 
 
 def test_foreign_producer_is_unsupported_under_strict_routing(client, db_sessionmaker, drain):
-    """Strict LiveKit-only: a producer with no `agent_session` matches no registered
-    framework, so the worker reports it unsupported rather than reshaping it blindly."""
+    """Strict routing: a producer matching no registered dialect (neither LiveKit's `agent_session`
+    nor Pipecat's `conversation`) is reported unsupported rather than reshaped blindly."""
     import pytest
 
     from voiceobs.frameworks import UnsupportedSchema
 
     foreign = {"resourceSpans": [{
-        "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "pipecat"}}]},
+        "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "mystery"}}]},
         "scopeSpans": [{"spans": [
-            {"traceId": "ff" * 16, "spanId": "01" * 8, "name": "conversation",
+            {"traceId": "ff" * 16, "spanId": "01" * 8, "name": "root_span",
              "startTimeUnixNano": "1700000000000000000",
              "endTimeUnixNano": "1700000003000000000", "attributes": []},
         ]}],
