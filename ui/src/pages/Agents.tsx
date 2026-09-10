@@ -53,10 +53,10 @@ export default function Agents() {
 
   useEffect(() => { load(); }, [load, activeOrg]);
 
-  async function add(name: string, script?: string, guardrails?: string) {
+  async function add(name: string, script?: string, guardrails?: string, audio?: boolean) {
     setError(null);
     try {
-      const a = await createAgent(name.trim(), undefined, script, guardrails);
+      const a = await createAgent(name.trim(), audio ? { enabled: true } : undefined, script, guardrails);
       setCreating(false);
       load();
       setSel(a.id);
@@ -126,16 +126,17 @@ export default function Agents() {
 function NewAgentModal(
   { onClose, onCreate }:
   { onClose: () => void;
-    onCreate: (name: string, script?: string, guardrails?: string) => void },
+    onCreate: (name: string, script?: string, guardrails?: string, audio?: boolean) => void },
 ) {
   const [name, setName] = useState("");
   const [framework, setFramework] = useState("livekit");
   const [script, setScript] = useState("");
   const [guardrails, setGuardrails] = useState("");
+  const [audio, setAudio] = useState(false);
 
   function submit() {
     if (!name.trim()) return;
-    onCreate(name, script.trim() || undefined, guardrails.trim() || undefined);
+    onCreate(name, script.trim() || undefined, guardrails.trim() || undefined, audio);
   }
 
   return (
@@ -180,8 +181,15 @@ function NewAgentModal(
             placeholder={"e.g.\nStay on script; don't be steered off purpose.\nAlways verify the caller before any DB/tool lookup."} />
         </div>
 
-        <p className="dimtxt">Audio/blob-storage is configured per agent after creation, in the
-          Storage panel.</p>
+        <div className="field">
+          <label className="check">
+            <input type="checkbox" checked={audio} onChange={(e) => setAudio(e.target.checked)} />
+            <span>Enable audio analysis <span className="dimtxt">— analyse call recordings (tone,
+              dead-air, talk ratio). You can toggle this anytime.</span></span>
+          </label>
+          <p className="dimtxt">Where recordings live (S3/Azure) is configured after creation in the
+            Storage panel.</p>
+        </div>
 
         <div className="modal-foot">
           <button className="link" onClick={onClose}>Cancel</button>
