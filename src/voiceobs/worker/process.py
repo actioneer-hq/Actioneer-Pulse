@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from voiceobs import telemetry
 from voiceobs.core import (
     analyze_audio,
     audio_only_metrics,
@@ -113,6 +114,8 @@ def process(db: Session, call: Call) -> str:
     _persist(db, call, trace, analysis, adapter_version, audio)
     if audio_enabled:
         _reconcile(db, call, analysis)
+
+    telemetry.feature_used(adapter.name, audio=audio_enabled)  # adapter name is dynamic (no literal)
 
     reasons = [r.value for r in analysis.trust.reasons]
     run.status = "partial" if reasons else "ok"

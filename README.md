@@ -88,6 +88,17 @@ The entrypoint migrates on every start. That is right for one container and wron
 several starting at once — run `alembic upgrade head` as a deploy step and set
 `VOICEOBS_SKIP_MIGRATE=1` when you scale past one replica.
 
+## Telemetry
+
+Pulse can send **anonymous usage telemetry** — aggregate product signals only (version, which producer
+adapter runs, which features are on, bucketed counts, anonymized error codes). It **never** sends
+tenant data: no org names, endpoints, tokens, call content, transcripts, metric values, or file paths.
+
+It is **inert until you configure an endpoint** (`VOICEOBS_TELEMETRY_ENDPOINT`). It is also disabled by
+`VOICEOBS_TELEMETRY_DISABLED=1`, the standard `DO_NOT_TRACK=1`, or `CI=true`. A random per-install id
+identifies the deployment anonymously; set `VOICEOBS_INSTALL_ID` (or mount a state dir) for stable
+counts across restarts. All sending is best-effort on a background thread and never affects analysis.
+
 ## Tests
 
 ```bash

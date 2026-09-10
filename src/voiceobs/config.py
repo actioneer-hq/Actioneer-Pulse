@@ -111,6 +111,13 @@ class Config(BaseSettings):
     refresh_ttl_days: int = 14
     invite_ttl_days: int = 7
 
+    # Anonymous usage telemetry (opt-out; sends only aggregate product signals, never tenant data).
+    # Inert until an endpoint is configured. Also disabled by DO_NOT_TRACK / CI (see telemetry/config).
+    telemetry_enabled: bool = True
+    telemetry_endpoint: str | None = None
+    telemetry_heartbeat_s: float = 3600.0
+    install_id: str | None = None  # override the auto-generated per-install id
+
     @property
     def is_dev_open(self) -> bool:
         """Dev conveniences on: the flag is set, or the DB is SQLite (a source checkout / test).
