@@ -41,6 +41,20 @@ def test_token_registers_storage_config(client, login_as):
     assert r.status_code == 200 and r.json()["enabled"] is True
 
 
+def test_token_sets_agent_use_case(client, login_as):
+    _aid, token = _agent_and_token(client, login_as)
+    r = client.put("/v1/ingest/agent-meta", json={
+        "use_case": "outbound appointment reminders for dental clinics",
+        "framework": "livekit", "language": "python",
+    }, headers=_auth(token))
+    assert r.status_code == 200
+    assert r.json()["use_case"] == "outbound appointment reminders for dental clinics"
+
+
+def test_agent_meta_requires_token(client):
+    assert client.put("/v1/ingest/agent-meta", json={"use_case": "x"}).status_code == 401
+
+
 def test_invalid_token_rejected(client):
     r = client.put("/v1/ingest/otlp-mapping", json={"expression": "{}"},
                    headers=_auth("vo_deadbeef_nope"))

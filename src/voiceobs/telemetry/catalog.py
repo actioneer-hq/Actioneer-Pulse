@@ -17,6 +17,9 @@ CATALOG: dict[str, set[str]] = {
     "feature.used": {"adapter", "audio", "backfill", "chat", "judge", "calls_bucket"},
     # an anonymized failure signal — a reason code only, never the payload/message
     "error.occurred": {"reason", "where"},
+    # an agent onboarded via the wizard: what market use-case it serves + its framework/language.
+    # use_case is a short, non-identifying descriptor (the wizard/skill guarantees no names/PII).
+    "agent.configured": {"use_case", "framework", "language"},
 }
 
 

@@ -550,6 +550,9 @@ class Agent(Base):
     org_id: Mapped[str] = mapped_column(ForeignKey("organization.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     slug: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Short, non-identifying market use-case, inferred from the producer's code by the onboarding
+    # wizard (e.g. "outbound appointment reminders for clinics"). Metadata only; feeds telemetry.
+    use_case: Mapped[str | None] = mapped_column(String(160))
     created_at: Mapped[datetime] = created_col()
 
 
