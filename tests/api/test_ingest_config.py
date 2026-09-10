@@ -55,6 +55,18 @@ def test_agent_meta_requires_token(client):
     assert client.put("/v1/ingest/agent-meta", json={"use_case": "x"}).status_code == 401
 
 
+def test_storage_config_tolerates_malformed_cred_spec(client, login_as):
+    # a cred_spec entry keyed 'field' instead of 'name' must not 500 (was KeyError in _secret_names)
+    _aid, token = _agent_and_token(client, login_as)
+    r = client.put("/v1/ingest/storage-config", json={
+        "enabled": True, "provider": "s3_compatible",
+        "descriptor": {"bucket": "b", "list_prefix": "voice/"},
+        "cred_spec": [{"field": "secret_access_key", "secret": True}],
+        "credentials": {},
+    }, headers=_auth(token))
+    assert r.status_code == 200
+
+
 def test_invalid_token_rejected(client):
     r = client.put("/v1/ingest/otlp-mapping", json={"expression": "{}"},
                    headers=_auth("vo_deadbeef_nope"))
