@@ -151,6 +151,20 @@ def signup(
             "org": {"id": org.id, "name": org.name}}
 
 
+def _ensure_dev_user(db: Session) -> None:
+    """Idempotently seed the dev owner in the default org (dev-open only). No-op if it exists."""
+    org = provision_org(db, DEFAULT_ORG, "Default")
+    email = normalize_email(DEV_EMAIL)
+    if db.scalar(select(AppUser).where(AppUser.email == email)):
+        return
+    user = AppUser(email=email, password_hash=hash_password(DEV_PASSWORD),
+                   name="Dev", is_active=True)
+    db.add(user)
+    db.flush()
+    db.add(Membership(org_id=org.id, user_id=user.id, role="owner"))
+    db.commit()
+
+
 @router.post("/login")
 def login(
     body: LoginIn, request: Request, response: Response, db: Session = Depends(session_dep),
@@ -163,6 +177,13 @@ def login(
     if ratelimit.fail_count(lock_key) >= c.login_lockout_max:
         raise HTTPException(429, "account temporarily locked after repeated failed logins")
     use_org_schema(db, org)  # authenticate within the org's schema
+    # Dev convenience: under dev-open, the login form prefills the seeded dev credentials. If that
+    # account doesn't exist yet (fresh DB, or the DB was bootstrapped with a different first user so
+    # `bootstrap`/signup no-op'd), create it on the fly so one-click sign-in always works. Never
+    # runs in a real deployment (dev_open() false), and only for the exact seeded dev credentials.
+    if dev_open() and org == DEFAULT_ORG and email == normalize_email(DEV_EMAIL) \
+            and body.password == DEV_PASSWORD:
+        _ensure_dev_user(db)
     user = provider_for("password").authenticate(
         db, {"email": body.email, "password": body.password}
     )
