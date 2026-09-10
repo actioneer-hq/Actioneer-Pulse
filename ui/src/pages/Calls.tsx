@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { listAgents, listCalls, type Agent, type Call } from "../api";
+import { listCalls, type Call } from "../api";
+import { useActiveAgent } from "../ActiveAgentProvider";
 import { useAuth } from "../auth";
 import { useBackfill } from "../BackfillProvider";
 import CallDetail from "../components/CallDetail";
@@ -20,9 +21,8 @@ const TABS: [string, string, (c: Call) => boolean][] = [
 export default function Calls() {
   const { activeOrg } = useAuth();
   const { analyzedCalls } = useBackfill();
+  const { activeAgent } = useActiveAgent();
   const [fetched, setFetched] = useState<Call[]>([]);
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [agentId, setAgentId] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -35,14 +35,10 @@ export default function Calls() {
   // matching X-Voiceobs-Org header so results stay scoped.
   useEffect(() => {
     setError(null);
-    listCalls(200, agentId || undefined)
+    listCalls(200, activeAgent || undefined)
       .then(setFetched)
       .catch((e: Error) => setError(e.message));
-  }, [activeOrg, agentId]);
-
-  useEffect(() => {
-    listAgents().then(setAgents).catch(() => setAgents([]));
-  }, [activeOrg]);
+  }, [activeOrg, activeAgent]);
 
   // Merge live backfill results: prepend the newest, and replace any fetched row with the
   // same id (so a call already listed is updated in place rather than duplicated).
@@ -115,13 +111,6 @@ export default function Calls() {
         </div>
         <div className="tools">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search id, source, label…" />
-          {agents.length > 0 && (
-            <select className="agent-filter" value={agentId}
-              onChange={(e) => setAgentId(e.target.value)}>
-              <option value="">All agents</option>
-              {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-            </select>
-          )}
           <span className="count">{error ?? `${rows.length} call${rows.length === 1 ? "" : "s"}`}</span>
         </div>
         <CallTable calls={rows} selected={selected} onSelect={setSelected} />

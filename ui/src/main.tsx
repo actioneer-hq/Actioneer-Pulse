@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
+import { ActiveAgentProvider } from "./ActiveAgentProvider";
 import App from "./App";
 import { AuthProvider } from "./auth";
 import { BackfillProvider } from "./BackfillProvider";
@@ -10,9 +11,11 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <BackfillProvider>
-          <App />
-        </BackfillProvider>
+        <ActiveAgentProvider>
+          <BackfillProvider>
+            <App />
+          </BackfillProvider>
+        </ActiveAgentProvider>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,

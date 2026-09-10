@@ -30,10 +30,19 @@ MAX_TOOL_ROUNDS = 5
 def run(
     db: Session, mem: Membership, resolved: ResolvedLLM, history: list[dict], user_text: str,
     *, system: str | None = None, call: Call | None = None, audio_native: bool = False,
+    agent_id: str | None = None,
 ) -> Iterator[dict]:
     # Global chat builds the full SQL/pgvector prompt; per-call chat passes its own (bounded) system.
     system = system if system is not None else build_system_prompt(
         resolved.prompt, audio_native=audio_native)
+    # Project scope: the UI can pin global chat to one agent. RBAC (visible_agent_ids) already hard-
+    # bounds reachable data; this narrows the SQL agent to the selected project.
+    if agent_id and call is None:
+        system += (
+            f"\n\nPROJECT SCOPE: You are viewing a single project. Every SQL query over calls MUST "
+            f"filter `WHERE agent_id = '{agent_id}'`. Never return, count, or aggregate calls from "
+            f"any other agent_id."
+        )
     tool_schemas = tools.schemas(audio_native=audio_native, bound_call=call is not None)
     messages: list[dict] = [{"role": "system", "content": system}, *history,
                             {"role": "user", "content": user_text}]

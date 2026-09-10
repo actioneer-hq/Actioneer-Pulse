@@ -8,7 +8,7 @@ import hashlib
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import now, session_dep
@@ -26,6 +26,7 @@ from voiceobs.auth import current_membership, mint_ingest_token, require_role, v
 from voiceobs.auth.crypto import decrypt, encrypt
 from voiceobs.db.models import (
     Agent,
+    AgentAccess,
     AgentAudioConfig,
     AgentGuardrail,
     AgentOtlpMapping,
@@ -111,6 +112,18 @@ def delete_agent(
     mem: Membership = Depends(require_role("owner", "admin")),
 ) -> dict:
     agent = _org_agent(db, mem, agent_id)
+    # Remove the agent's child rows first — they hold real FKs to agent.id with no ON DELETE, so a bare
+    # db.delete(agent) FK-errors on Postgres. Calls are intentionally left (Call.agent_id is not a FK;
+    # they stay in the DB, just no longer surfaced under a live agent).
+    for model in (
+        AgentScript,
+        AgentGuardrail,
+        AgentAccess,
+        IngestToken,
+        AgentAudioConfig,
+        AgentOtlpMapping,
+    ):
+        db.execute(delete(model).where(model.agent_id == agent_id))
     db.delete(agent)
     return {"status": "ok"}
 

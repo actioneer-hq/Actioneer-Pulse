@@ -62,6 +62,22 @@ def test_audio_config_requires_admin(client, login_as):
     assert client.put(f"/v1/agents/{aid}/audio-config", json={"enabled": True}).status_code == 403
 
 
+def test_delete_agent_removes_children(client, login_as):
+    """Deleting an agent with child rows (script/guardrails/token/audio-config/otlp-mapping) must
+    succeed and clean them up — a bare delete FK-errors on Postgres."""
+    login_as("default")
+    aid = client.post("/v1/agents", json={
+        "name": "Full", "script": "greet the caller", "guardrails": "be nice",
+    }).json()["id"]
+    client.post(f"/v1/agents/{aid}/ingest-tokens", json={"name": "prod"})
+    client.put(f"/v1/agents/{aid}/audio-config", json={"enabled": True})
+
+    assert client.delete(f"/v1/agents/{aid}").json()["status"] == "ok"
+    assert aid not in {a["id"] for a in client.get("/v1/agents").json()["items"]}
+    # a fresh agent with the same slug can be created (no lingering unique-constraint rows)
+    assert client.post("/v1/agents", json={"name": "Full"}).status_code == 200
+
+
 def test_otlp_mapping_set_get_and_version_bump(client, login_as):
     login_as("default")
     aid = client.post("/v1/agents", json={"name": "Bot"}).json()["id"]
