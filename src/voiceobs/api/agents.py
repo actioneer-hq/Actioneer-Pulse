@@ -433,10 +433,16 @@ def set_otlp_mapping(
     """Store this agent's JSONata OTLP mapping (upsert, bumps version). The expression is parse-checked
     here; the wizard is responsible for validating that its OUTPUT is a correct Trace."""
     _org_agent(db, mem, agent_id)
+    return apply_otlp_mapping(db, agent_id, body.expression)
+
+
+def apply_otlp_mapping(db: Session, agent_id: str, expression: str) -> dict:
+    """Parse-check + upsert an agent's JSONata OTLP mapping (schema assumed pinned, agent authorized).
+    Shared by the admin endpoint and the token-authenticated /v1/ingest sibling."""
     try:
         import jsonata
 
-        jsonata.Jsonata(body.expression)
+        jsonata.Jsonata(expression)
     except ImportError:
         pass  # engine only present on the analysis service; skip the parse check where unavailable
     except Exception as e:
@@ -444,10 +450,10 @@ def set_otlp_mapping(
 
     row = db.scalar(select(AgentOtlpMapping).where(AgentOtlpMapping.agent_id == agent_id))
     if row is None:
-        row = AgentOtlpMapping(agent_id=agent_id, expression=body.expression, version=1)
+        row = AgentOtlpMapping(agent_id=agent_id, expression=expression, version=1)
         db.add(row)
     else:
-        row.expression = body.expression
+        row.expression = expression
         row.version += 1
         row.updated_at = now()
     db.flush()
