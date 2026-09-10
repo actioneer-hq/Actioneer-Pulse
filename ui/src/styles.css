@@ -69,6 +69,8 @@ button.link.bad:hover{background:var(--bad-bg)}
 .auth-hd p{color:var(--dim);font-size:12.5px;margin-top:4px}
 .auth-body{padding:16px 24px;display:flex;flex-direction:column;gap:14px}
 .field{display:flex;flex-direction:column;gap:6px}
+.field label.check{flex-direction:row;align-items:flex-start;gap:8px;font-weight:500;cursor:pointer}
+.field label.check input{margin-top:2px}
 .field label{font-size:12px;color:var(--dim);font-weight:500}
 .field input{height:38px;border:1px solid var(--line);border-radius:var(--r-sm);padding:0 11px;background:var(--panel);color:var(--ink);font:inherit;font-size:14px;transition:border-color .12s,box-shadow .12s}
 .field input:focus{outline:none;border-color:var(--accent-line);box-shadow:0 0 0 3px rgb(47 125 90 /.20)}
