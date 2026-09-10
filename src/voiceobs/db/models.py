@@ -419,6 +419,8 @@ class Judgment(Base):
     hallucination: Mapped[bool | None] = mapped_column(Boolean)
     hallucination_detail: Mapped[str | None] = mapped_column(Text)
     suggested_fix: Mapped[str | None] = mapped_column(Text)
+    # per-turn corrected actions (training data) — only when model_fault is llm
+    llm_corrections: Mapped[list | None] = mapped_column(JSON)
     summary: Mapped[str | None] = mapped_column(Text)
     judged_at: Mapped[datetime] = created_col()
 

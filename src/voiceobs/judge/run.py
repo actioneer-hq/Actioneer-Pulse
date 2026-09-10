@@ -34,7 +34,7 @@ _JUDGE_FIELDS = (
 # The failure-analysis LLM's output columns (populated by a separate model).
 _FAILURE_FIELDS = (
     "is_failure", "root_cause", "model_fault", "model_fault_detail",
-    "hallucination", "hallucination_detail", "suggested_fix",
+    "hallucination", "hallucination_detail", "suggested_fix", "llm_corrections",
 )
 
 
@@ -91,7 +91,9 @@ def _failure(ctx) -> dict | None:
     try:
         out = analyze_failure(resolved, build_failure_messages(
             script, transcript, guardrails=guardrails, prompt=resolved.prompt))
-        return {f: getattr(out, f) for f in _FAILURE_FIELDS}
+        # llm_corrections is a list of pydantic models → plain dicts for the JSON column.
+        return {f: [c.model_dump(mode="json") for c in out.llm_corrections]
+                if f == "llm_corrections" else getattr(out, f) for f in _FAILURE_FIELDS}
     except Exception as e:  # noqa: BLE001 — failure analysis is best-effort
         log.warning("failure analysis failed for %s: %s", call_id, e)
         return None

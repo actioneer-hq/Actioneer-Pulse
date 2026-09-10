@@ -16,6 +16,27 @@ class ModelFault(StrEnum):
     OTHER = "other"
 
 
+class LLMFaultKind(StrEnum):
+    RESPONSE = "response"      # what it said to the caller (text)
+    EMOTION = "emotion"        # emotion/style tags handed to TTS
+    TOOL_CALL = "tool_call"    # wrong tool / args / timing / missing call
+    INTERPRET = "interpret"    # misread the caller's intent/state
+
+
+class LLMCorrection(BaseModel):
+    """One corrected agent turn — the raw material for SFT/DPO training data. Only emitted when
+    model_fault is LLM. `observed`/`corrected` are the LITERAL turn content (no narration) so the
+    pair is directly usable as (rejected, chosen); the reasoning lives in `rationale`."""
+
+    turn_id: str                          # the turn this applies to (from the transcript)
+    kind: LLMFaultKind
+    observed: str                         # what the agent actually emitted that turn
+    corrected: str                        # what it should have emitted — the SFT target
+    corrected_tool: str | None = None     # when kind is tool_call
+    corrected_args: dict | None = None    # when kind is tool_call
+    rationale: str | None = None          # why the correction is right
+
+
 class FailureAnalysis(BaseModel):
     """Root-cause analysis of one call. The block is only meaningful when is_failure."""
 
@@ -36,6 +57,8 @@ class FailureAnalysis(BaseModel):
     hallucination: bool = False  # agent asserted something not grounded in context/tools
     hallucination_detail: str | None = None
     suggested_fix: str | None = None  # a concrete remediation (prompt/script/guardrail/infra)
+    # Per-turn corrected actions — training data. Only meaningful when model_fault is LLM.
+    llm_corrections: list[LLMCorrection] = []
 
     @model_validator(mode="after")
     def _clean_conditionals(self):
@@ -48,4 +71,6 @@ class FailureAnalysis(BaseModel):
             self.model_fault_detail = None
         if not self.hallucination:
             self.hallucination_detail = None
+        if self.model_fault != ModelFault.LLM:  # corrections only apply to LLM faults
+            self.llm_corrections = []
         return self
