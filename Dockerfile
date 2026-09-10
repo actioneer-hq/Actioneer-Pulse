@@ -20,7 +20,7 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY src ./src
 COPY --from=ui /src/voiceobs/api/static ./src/voiceobs/api/static
-RUN pip install ".[pg,kafka,analysis]"
+RUN pip install ".[pg,kafka,analysis,redis]"
 
 # Migrations ship with the image — the schema and the code that assumes it must
 # never be able to drift apart across a deploy.

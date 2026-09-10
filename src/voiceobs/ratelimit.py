@@ -30,6 +30,8 @@ def client():
     global _client, _client_url
     if _override is not None:
         return _override
+    if dev_open():  # dev is fully fail-open — never import/require redis, even if redis_url is set
+        return None
     url = get_config().redis_url
     if not url:
         return None
