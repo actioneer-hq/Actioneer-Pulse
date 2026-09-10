@@ -178,7 +178,13 @@ def revoke_token(
 
 
 def _secret_names(spec: list | None) -> set[str]:
-    return {f["name"] for f in (spec or []) if f.get("secret")}
+    # Defensive: a cred_spec entry may lack "name" (e.g. a client sends a different key). Skip it
+    # rather than KeyError → 500.
+    return {
+        name
+        for f in (spec or [])
+        if isinstance(f, dict) and f.get("secret") and (name := f.get("name"))
+    }
 
 
 def _apply_audio_config(db: Session, agent_id: str, body: AudioConfigIn) -> AgentAudioConfig:
