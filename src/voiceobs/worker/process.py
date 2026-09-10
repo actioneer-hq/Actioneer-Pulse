@@ -10,7 +10,12 @@ from datetime import UTC, datetime
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from voiceobs.core import analyze_audio, audio_only_metrics, detect_layout
+from voiceobs.core import (
+    analyze_audio,
+    audio_only_metrics,
+    detect_layout,
+    identify_agent_channel,
+)
 from voiceobs.core.audio.decode import combine_stereo
 from voiceobs.core.config import METRIC_VERSION, price_call
 from voiceobs.core.model import Analysis, AudioAnalysis, AudioRef, CallHeader, Stage, Trace
@@ -174,13 +179,29 @@ def _load_audio(db: Session, call: Call) -> AudioAnalysis | None:
     wav, sr = _audio_bytes(kinds, creds)
     if wav is None:
         return None
+    # Two mono files already encode identity (caller→ch0, agent→ch1 via combine_stereo). A single
+    # stereo `audio` file does not, so when no explicit channel_map was given, infer which channel
+    # is the agent from its noise floor (TTS is digitally clean between utterances).
+    from_mono_pair = "audio" not in kinds and "audio_caller" in kinds and "audio_agent" in kinds
     ref = AudioRef(
         uri="", sha256="", channels=2, sample_rate=sr,
         duration_s=call.duration_s or 0.0,
-        channel_map={int(k): v for k, v in (call.channel_map or {"0": "caller", "1": "agent"}).items()},
+        channel_map=_resolve_channel_map(call, wav, from_mono_pair),
         t0_offset_s=call.audio_t0_offset_s,
     )
     return analyze_audio(wav, ref)
+
+
+def _resolve_channel_map(call: Call, wav: bytes, from_mono_pair: bool) -> dict[int, str]:
+    """caller/agent channel identity. Explicit config wins; else, for a single stereo file, infer the
+    agent channel by noise floor; else fall back to ch0=caller/ch1=agent."""
+    if call.channel_map:
+        return {int(k): v for k, v in call.channel_map.items()}
+    if not from_mono_pair:
+        agent_idx = identify_agent_channel(wav)
+        if agent_idx is not None:
+            return {agent_idx: "agent", 1 - agent_idx: "caller"}
+    return {0: "caller", 1: "agent"}
 
 
 def _audio_bytes(kinds: dict[str, Media], creds: dict | None) -> tuple[bytes | None, int]:

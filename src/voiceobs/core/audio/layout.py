@@ -19,10 +19,17 @@ import wave
 
 import numpy as np
 
+from voiceobs.core.audio.energy import SILENCE_FLOOR_DBFS
+from voiceobs.core.audio.vad import FRAME_MS, frame_rms_dbfs
+
 # Above this Pearson correlation the two channels are treated as the same signal (a downmix).
 _MIXED_CORR = 0.95
 # A channel whose RMS is below this fraction of the louder channel is treated as absent (→ mono).
 _SILENT_RATIO = 0.02
+# Channel-identity by noise floor: percentile of per-frame dBFS taken as the "between-speech" level,
+# and the minimum gap (dB) between the two channels' floors required to decide who is the agent.
+_FLOOR_PERCENTILE = 10.0
+_FLOOR_MARGIN_DBFS = 6.0
 
 
 def detect_layout(audio: bytes) -> str:
@@ -45,6 +52,39 @@ def detect_layout(audio: bytes) -> str:
         return "mono"  # one channel is effectively empty → single active track
 
     return "mixed" if _corr(a, b) >= _MIXED_CORR else "separated"
+
+
+def _noise_floor_dbfs(samples: np.ndarray, sample_rate: int) -> float:
+    """The channel's between-speech level: a low percentile of its per-frame dBFS. Pure-silence
+    frames (rms 0 → -inf) are floored to SILENCE_FLOOR_DBFS so the percentile stays finite."""
+    frame_len = max(1, int(sample_rate * FRAME_MS / 1000.0))
+    dbfs = frame_rms_dbfs(samples, frame_len)
+    if dbfs.size == 0:
+        return SILENCE_FLOOR_DBFS
+    dbfs = np.nan_to_num(dbfs, neginf=SILENCE_FLOOR_DBFS, posinf=0.0)
+    return float(np.percentile(dbfs, _FLOOR_PERCENTILE))
+
+
+def identify_agent_channel(audio: bytes) -> int | None:
+    """Which stereo channel is the agent, by noise floor.
+
+    A synthetic (TTS) agent channel is digitally clean between utterances — a near-silent floor —
+    while a human caller's channel carries ambient room/line noise. So the channel with the LOWER
+    noise floor is the agent. Returns that channel index (0 or 1), or None when it can't be told
+    apart confidently: mono, or the two floors are within ``_FLOOR_MARGIN_DBFS`` of each other (a
+    downmix, both-clean, or both-noisy recording). Never raises on shape beyond WAV parsing."""
+    with wave.open(io.BytesIO(audio), "rb") as w:
+        n_channels = w.getnchannels()
+        sample_rate = w.getframerate()
+        raw = w.readframes(w.getnframes())
+    if n_channels < 2:
+        return None
+    flat = np.frombuffer(raw, dtype="<i2").reshape(-1, n_channels).astype(np.float64)
+    floor0 = _noise_floor_dbfs(flat[:, 0], sample_rate)
+    floor1 = _noise_floor_dbfs(flat[:, 1], sample_rate)
+    if abs(floor0 - floor1) < _FLOOR_MARGIN_DBFS:
+        return None  # too close to call — leave identity to an explicit channel_map
+    return 0 if floor0 < floor1 else 1
 
 
 def _rms(x: np.ndarray) -> float:

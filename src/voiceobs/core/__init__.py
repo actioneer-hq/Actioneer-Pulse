@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from voiceobs.core.audio import analyze_audio
-from voiceobs.core.audio.layout import detect_layout
+from voiceobs.core.audio.layout import detect_layout, identify_agent_channel
 from voiceobs.core.calculator import Calculator, audio_only_metrics
 from voiceobs.core.config import (
     METRIC_DEFS,
@@ -52,5 +52,6 @@ __all__ = [
     "analyze_audio",
     "audio_only_metrics",
     "detect_layout",
+    "identify_agent_channel",
     "join",
 ]
