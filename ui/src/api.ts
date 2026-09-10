@@ -238,6 +238,11 @@ export type Member = {
 let activeOrg: string | null = null;
 export const setApiOrg = (org: string | null) => { activeOrg = org; };
 
+// The active agent (project) rides on X-Voiceobs-Agent. Scopes global chat to one project; other
+// endpoints take agent_id as a query param instead. Kept in sync by ActiveAgentProvider.
+let activeAgent: string | null = null;
+export const setApiAgent = (agent: string | null) => { activeAgent = agent; };
+
 // A 401 that even a refresh can't fix means the session is truly gone; bounce to /login.
 let onUnauthorized: (() => void) | null = null;
 export const setUnauthorizedHandler = (fn: () => void) => { onUnauthorized = fn; };
@@ -401,6 +406,7 @@ export const patchConversation = (id: string, body: { audio_native_enabled: bool
 async function _streamSSE(url: string, text: string, onEvent: (e: ChatEvent) => void): Promise<void> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (activeOrg) headers["X-Voiceobs-Org"] = activeOrg;
+  if (activeAgent) headers["X-Voiceobs-Agent"] = activeAgent; // scope global chat to the project
   const csrf = csrfToken();
   if (csrf) headers["X-CSRF-Token"] = csrf;
   const r = await fetch(url, {

@@ -8,7 +8,7 @@ import json
 import logging
 from collections.abc import Iterator
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -107,15 +107,16 @@ def delete_conversation(
 def stream_message(
     cid: str, body: ChatMessageIn,
     db: Session = Depends(session_dep), mem: Membership = Depends(current_membership),
+    x_agent: str | None = Header(None, alias="X-Voiceobs-Agent"),
     _: None = Depends(require_csrf),
 ) -> StreamingResponse:
     """Append the user message and stream the agent's reply as SSE. The generator runs after the
     request session closes, so it opens its own session and re-pins the org schema (slug captured
-    here from this schema's single org row)."""
+    here from this schema's single org row). `X-Voiceobs-Agent` scopes the SQL agent to one project."""
     _conv(db, cid, mem)  # authorize before streaming
     org_slug = db.scalar(select(Organization.slug))  # one org per schema
     user_id, text = mem.user_id, body.text
-    return StreamingResponse(_run(cid, org_slug, user_id, text),
+    return StreamingResponse(_run(cid, org_slug, user_id, text, x_agent),
                              media_type="text/event-stream")
 
 
@@ -123,7 +124,7 @@ def _sse(event: dict) -> str:
     return f"data: {json.dumps(event)}\n\n"
 
 
-def _run(cid: str, org_slug: str, user_id: str, text: str) -> Iterator[str]:
+def _run(cid: str, org_slug: str, user_id: str, text: str, agent_id: str | None = None) -> Iterator[str]:
     from voiceobs import chat  # local import: keeps api import-time light
 
     gen = get_session()
@@ -151,7 +152,8 @@ def _run(cid: str, org_slug: str, user_id: str, text: str) -> Iterator[str]:
         conv = db.get(Conversation, cid)
         audio_native = bool(conv and conv.audio_native_enabled) and audio_native_available()
         content, steps = "", []
-        for event in chat.run(db, mem, resolved, history, text, audio_native=audio_native):
+        for event in chat.run(db, mem, resolved, history, text,
+                              audio_native=audio_native, agent_id=agent_id):
             if event["type"] == "done":
                 content, steps = event["content"], event["steps"]
             yield _sse(event)

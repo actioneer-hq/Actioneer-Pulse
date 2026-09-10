@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  getBoardsSummary, listAgents, streamBoards,
-  type Agent, type BoardSnapshot,
+  getBoardsSummary, streamBoards,
+  type BoardSnapshot,
 } from "../api";
+import { useActiveAgent } from "../ActiveAgentProvider";
 import { useAuth } from "../auth";
 import { ms } from "../format";
 import { AreaCard, CHART_COLORS, DonutCard, LineCard } from "../components/boards/Charts";
@@ -27,26 +28,21 @@ const labeller = (range: string) => (iso: string) => {
 
 export default function Boards() {
   const { activeOrg } = useAuth();
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [agentId, setAgentId] = useState("");
+  const { activeAgent } = useActiveAgent();
   const [range, setRange] = useState("7d");
   const [snap, setSnap] = useState<BoardSnapshot | null>(null);
   const [live, setLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    listAgents().then(setAgents).catch(() => setAgents([]));
-  }, [activeOrg]);
-
   // Instant paint via REST, then hold a live SSE that pushes a fresh snapshot on every change.
   useEffect(() => {
     setError(null);
     setLive(false);
-    const filters = { agent_id: agentId || undefined, range };
+    const filters = { agent_id: activeAgent || undefined, range };
     getBoardsSummary(filters).then(setSnap).catch((e: Error) => setError(e.message));
     const stop = streamBoards(filters, (s) => { setSnap(s); setLive(true); }, () => setLive(false));
     return stop;
-  }, [activeOrg, agentId, range]);
+  }, [activeOrg, activeAgent, range]);
 
   const rows = useMemo(() => {
     if (!snap) return [];
@@ -100,10 +96,6 @@ export default function Boards() {
               <button key={k} className={range === k ? "on" : undefined} onClick={() => setRange(k)}>{l}</button>
             ))}
           </div>
-          <select className="agent-filter" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
-            <option value="">All agents</option>
-            {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
           <span className="count">{error ?? (snap ? `${snap.totals.calls} calls` : "loading…")}</span>
         </div>
 

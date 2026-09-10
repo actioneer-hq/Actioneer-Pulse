@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  CLUSTER_LEVERS, getArchetypes, getClusters, listAgents,
-  type Agent, type ArchetypeView, type ClusterView,
+  CLUSTER_LEVERS, getArchetypes, getClusters,
+  type ArchetypeView, type ClusterView,
 } from "../api";
+import { useActiveAgent } from "../ActiveAgentProvider";
 import { useAuth } from "../auth";
 import CallDetail from "../components/CallDetail";
 import { ScatterCard } from "../components/boards/Charts";
@@ -11,8 +12,7 @@ const RANGES: [string, string][] = [["7d", "7d"], ["30d", "30d"], ["90d", "90d"]
 
 export default function Clusters() {
   const { activeOrg } = useAuth();
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [agentId, setAgentId] = useState("");
+  const { activeAgent } = useActiveAgent();
   const [range, setRange] = useState("90d");
   const [views, setViews] = useState<Record<string, ClusterView>>({});
   const [arche, setArche] = useState<ArchetypeView | null>(null);
@@ -20,12 +20,8 @@ export default function Clusters() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    listAgents().then(setAgents).catch(() => setAgents([]));
-  }, [activeOrg]);
-
-  useEffect(() => {
     setError(null);
-    const filters = { agent_id: agentId || undefined, range: range || undefined };
+    const filters = { agent_id: activeAgent || undefined, range: range || undefined };
     for (const [lever] of CLUSTER_LEVERS) {
       getClusters(lever, filters)
         .then((v) => setViews((prev) => ({ ...prev, [lever]: v })))
@@ -36,7 +32,7 @@ export default function Clusters() {
         });
     }
     getArchetypes(filters).then(setArche).catch(() => setArche(null));
-  }, [activeOrg, agentId, range]);
+  }, [activeOrg, activeAgent, range]);
 
   const totalCalls = useMemo(
     () => Math.max(...Object.values(views).map((v) => v.points.length), 0),
@@ -57,10 +53,6 @@ export default function Clusters() {
               <button key={l} className={range === k ? "on" : undefined} onClick={() => setRange(k)}>{l}</button>
             ))}
           </div>
-          <select className="agent-filter" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
-            <option value="">All agents</option>
-            {agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
           <span className="count">{error ?? `${totalCalls} calls`}</span>
         </div>
 

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { NavLink, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { useActiveAgent } from "./ActiveAgentProvider";
 import { RequireAdmin, RequireAuth, useAuth, useAuthRedirect } from "./auth";
 import Agents from "./pages/Agents";
 import Boards from "./pages/Boards";
@@ -59,6 +60,7 @@ function Shell() {
           )}
         </nav>
         <div className="top-right">
+          <ProjectSelect />
           {memberships.length > 1 ? (
             <select className="org-select" value={activeOrg ?? ""}
               onChange={(e) => setActiveOrg(e.target.value)}>
@@ -89,6 +91,45 @@ function Shell() {
   );
 }
 
+// The global project (agent) switcher — everything in the main views scopes to it.
+function ProjectSelect() {
+  const { agents, activeAgent, setActiveAgent } = useActiveAgent();
+  if (agents.length === 0) {
+    return (
+      <NavLink to="/settings/agents" className="project-empty">
+        ＋ Create a project
+      </NavLink>
+    );
+  }
+  return (
+    <select
+      className="project-select"
+      value={activeAgent ?? ""}
+      onChange={(e) => setActiveAgent(e.target.value)}
+    >
+      {agents.map((a) => (
+        <option key={a.id} value={a.id}>{a.name}</option>
+      ))}
+    </select>
+  );
+}
+
+// Data views require a project. With none, prompt to create one (settings stays reachable).
+function RequireAgent({ children }: { children: ReactNode }) {
+  const { agents, loading } = useActiveAgent();
+  if (loading) return null;
+  if (agents.length === 0) {
+    return (
+      <div className="empty-state">
+        <h2>No projects yet</h2>
+        <p>A project is a voice agent. Create one to see its calls, metrics, and chat.</p>
+        <NavLink to="/settings/agents" className="btn">Create a project</NavLink>
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
 export default function App() {
   useAuthRedirect();
   return (
@@ -97,10 +138,10 @@ export default function App() {
       <Route path="/accept-invite" element={<Login />} />
       <Route element={<RequireAuth><Shell /></RequireAuth>}>
         <Route index element={<Navigate to="/calls" replace />} />
-        <Route path="/calls" element={<Calls />} />
-        <Route path="/chat" element={<Chat />} />
-        <Route path="/boards" element={<Boards />} />
-        <Route path="/clusters" element={<Clusters />} />
+        <Route path="/calls" element={<RequireAgent><Calls /></RequireAgent>} />
+        <Route path="/chat" element={<RequireAgent><Chat /></RequireAgent>} />
+        <Route path="/boards" element={<RequireAgent><Boards /></RequireAgent>} />
+        <Route path="/clusters" element={<RequireAgent><Clusters /></RequireAgent>} />
         <Route path="/settings/agents"
           element={<RequireAdmin><Agents /></RequireAdmin>} />
         <Route path="/settings/members"

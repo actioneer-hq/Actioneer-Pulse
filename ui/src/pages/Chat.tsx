@@ -12,6 +12,7 @@ import {
   type ChatStep,
   type Conversation,
 } from "../api";
+import { useActiveAgent } from "../ActiveAgentProvider";
 import { useAuth } from "../auth";
 import { Bubble, type LiveMsg } from "../components/chat/Bubble";
 import { AudioToggle } from "../components/chat/AudioToggle";
@@ -172,12 +173,15 @@ function Composer(
   { value, onChange, onSend, sending }:
   { value: string; onChange: (v: string) => void; onSend: () => void; sending: boolean },
 ) {
+  const { activeAgent } = useActiveAgent();
   const taRef = useRef<HTMLTextAreaElement>(null);
   const hlRef = useRef<HTMLDivElement>(null);
   const [callIds, setCallIds] = useState<string[]>([]);
   const [menu, setMenu] = useState<{ query: string; start: number; sel: number } | null>(null);
 
-  useEffect(() => { listCalls(200).then((cs) => setCallIds(cs.map((c) => c.id))).catch(() => {}); }, []);
+  useEffect(() => {
+    listCalls(200, activeAgent || undefined).then((cs) => setCallIds(cs.map((c) => c.id))).catch(() => {});
+  }, [activeAgent]);
 
   const suggestions = useMemo(() => {
     if (menu === null) return [];
