@@ -21,6 +21,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from voiceobs import telemetry
 from voiceobs.bus import Record, get_consumer, get_producer
 from voiceobs.config import get_config
 from voiceobs.core.config import METRIC_VERSION
@@ -54,6 +55,7 @@ def _analyse(db: Session, call: Call) -> bool:
     except UnsupportedSchema as e:  # permanent — no retry makes this payload parseable
         log.warning("unsupported %s: %s", call.external_call_id, e)
         call.status = "unsupported"
+        telemetry.error_occurred("unsupported_schema", "analysis")
         return False
 
 
@@ -120,7 +122,9 @@ def main() -> None:  # pragma: no cover — the long-running consumer loop
     c = get_config()
     consumer = get_consumer(c.kafka_consumer_group, [c.kafka_topic_raw])
     log.info("analysis consumer up (topic=%s group=%s)", c.kafka_topic_raw, c.kafka_consumer_group)
+    telemetry.heartbeat()  # startup signal
     last_flush = time.monotonic()
+    last_heartbeat = time.monotonic()
     try:
         while not stopping:
             record = consumer.poll(1.0)
@@ -132,8 +136,13 @@ def main() -> None:  # pragma: no cover — the long-running consumer loop
                         flush_due(db)
                 except Exception:
                     log.exception("grace flush failed")
+                    telemetry.error_occurred("grace_flush_failed", "worker_loop")
                 last_flush = time.monotonic()
+            if time.monotonic() - last_heartbeat >= c.telemetry_heartbeat_s:
+                telemetry.heartbeat()
+                last_heartbeat = time.monotonic()
     finally:
+        telemetry.flush()
         consumer.close()
     log.info("analysis consumer down")
 
@@ -152,6 +161,7 @@ def _consume_one(consumer, record: Record) -> bool:  # pragma: no cover
         except Exception:
             log.exception("handle_record failed (attempt %d)", attempt + 1)
             time.sleep(min(2 ** attempt, 30))
+    telemetry.error_occurred("record_to_dlq", "consume")
     _to_dlq(record)
     return True
 
