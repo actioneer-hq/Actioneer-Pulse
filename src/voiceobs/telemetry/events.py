@@ -41,3 +41,11 @@ def feature_used(
 def error_occurred(reason: str, where: str) -> None:
     """`reason`/`where` are short codes (e.g. 'unsupported_schema', 'analysis') — never messages."""
     emit("error.occurred", reason=reason, where=where)
+
+
+def agent_configured(
+    use_case: str | None = None, framework: str | None = None, language: str | None = None
+) -> None:
+    """A voice agent onboarded via the wizard. `use_case` is a short, non-identifying market
+    descriptor; framework/language are the producer stack. All optional — absent dims are dropped."""
+    emit("agent.configured", use_case=use_case, framework=framework, language=language)

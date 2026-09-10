@@ -8,12 +8,15 @@ JSONata OTLP mapping and the storage config. Same underlying upserts as the admi
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Header, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from voiceobs import telemetry
 from voiceobs.api.agents import _apply_audio_config, apply_otlp_mapping
 from voiceobs.api.deps import session_dep
-from voiceobs.api.schemas import AudioConfigIn, OtlpMappingIn
+from voiceobs.api.schemas import AgentMetaIn, AudioConfigIn, OtlpMappingIn
 from voiceobs.auth import resolve_ingest_token
+from voiceobs.db.models import Agent
 from voiceobs.db.session import use_org_schema
 
 router = APIRouter(prefix="/v1/ingest")
@@ -59,3 +62,21 @@ def put_storage_config(
     cfg = _apply_audio_config(db, agent_id, body)
     db.flush()
     return {"agent_id": agent_id, "enabled": cfg.enabled, "provider": cfg.provider}
+
+
+@router.put("/agent-meta")
+def put_agent_meta(
+    body: AgentMetaIn, ident: tuple[str, Session] = Depends(require_ingest_agent)
+) -> dict:
+    """Set the wizard-inferred market use-case on the agent, and emit the anonymized `agent.configured`
+    telemetry (framework/language are telemetry-only, not stored)."""
+    agent_id, db = ident
+    agent = db.scalar(select(Agent).where(Agent.id == agent_id))
+    if agent is None:
+        raise HTTPException(404, "agent not found")
+    if body.use_case is not None:
+        agent.use_case = body.use_case[:160]
+    telemetry.agent_configured(
+        use_case=agent.use_case, framework=body.framework, language=body.language
+    )
+    return {"agent_id": agent_id, "use_case": agent.use_case}

@@ -95,6 +95,12 @@ class OtlpMappingIn(BaseModel):
     expression: str  # a JSONata expression: producer OTLP payload -> canonical Trace JSON
 
 
+class AgentMetaIn(BaseModel):
+    use_case: str | None = None  # short, non-identifying market use-case (wizard-inferred)
+    framework: str | None = None  # producer framework, for telemetry only (not stored)
+    language: str | None = None  # producer language, for telemetry only (not stored)
+
+
 class ChatMessageIn(BaseModel):
     text: str
 
