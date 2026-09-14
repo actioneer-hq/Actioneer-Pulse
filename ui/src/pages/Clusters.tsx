@@ -19,11 +19,12 @@ export default function Clusters() {
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [dialect, setDialect] = useState<"trl" | "openai">("trl");
 
   async function runExport(format: "sft" | "dpo") {
     setExporting(true);
     try {
-      await downloadTraining(format, activeAgent || undefined, range || undefined);
+      await downloadTraining(format, dialect, activeAgent || undefined, range || undefined);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -68,6 +69,12 @@ export default function Clusters() {
           <span className="count">{error ?? `${totalCalls} calls`}</span>
           <div className="export-group" title="Download the LLM corrections as training data for the selected agent">
             <span className="export-label">Export training data</span>
+            <select className="agent-filter" value={dialect}
+              onChange={(e) => setDialect(e.target.value as "trl" | "openai")}
+              title="DPO row format (SFT is universal)">
+              <option value="trl">TRL / OSS</option>
+              <option value="openai">OpenAI</option>
+            </select>
             <button disabled={exporting} onClick={() => runExport("sft")}>SFT</button>
             <button disabled={exporting} onClick={() => runExport("dpo")}>DPO</button>
           </div>

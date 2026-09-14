@@ -33,38 +33,54 @@ def _seed(db_sessionmaker) -> None:
         db.commit()
 
 
-def test_sft_export(authed_client, db_sessionmaker) -> None:
+def test_sft_universal_and_clean(authed_client, db_sessionmaker) -> None:
     _seed(db_sessionmaker)
     r = authed_client.get("/v1/export/training", params={"format": "sft"})
     assert r.status_code == 200
     rows = [json.loads(x) for x in r.text.strip().splitlines()]
     assert len(rows) == 2
     row = rows[0]
+    # drop-in OpenAI/Fireworks/Baseten format: ONLY `messages`, no extra top-level keys
+    assert set(row.keys()) == {"messages"}
     roles = [m["role"] for m in row["messages"]]
-    # system + the conversation BEFORE the faulty agent turn (greeting + caller line), then target
     assert roles[0] == "system" and "SCRIPT" in row["messages"][0]["content"]
     assert {"role": "user", "content": "I'll pay tomorrow."} in row["messages"]
     target = row["messages"][-1]
     assert target["role"] == "assistant"
-    # tool correction → structured tool_calls; keyed off corrected_tool, not kind
-    assert target["tool_calls"][0]["function"]["name"] == "pay_shortly"
-    assert row["meta"]["gt_source"] == "judge_unverified"
-    assert row["meta"]["recoverable"] is True  # objective != yes + llm fault + correction
-    # the text correction is the second row → plain-text target
-    assert rows[1]["messages"][-1]["content"].startswith("Great")
+    assert target["tool_calls"][0]["function"]["name"] == "pay_shortly"  # keyed off corrected_tool
+    assert rows[1]["messages"][-1]["content"].startswith("Great")  # text correction
 
 
-def test_dpo_export(authed_client, db_sessionmaker) -> None:
+def test_sft_with_meta_optin(authed_client, db_sessionmaker) -> None:
     _seed(db_sessionmaker)
-    r = authed_client.get("/v1/export/training", params={"format": "dpo"})
-    assert r.status_code == 200
-    rows = [json.loads(x) for x in r.text.strip().splitlines()]
-    assert len(rows) == 2
-    row = rows[0]
-    assert row["prompt"]["messages"][0]["role"] == "system"
-    assert row["chosen"]["tool_calls"][0]["function"]["name"] == "pay_shortly"
-    assert row["rejected"] == {"role": "assistant", "content": "Please pay soon or fees apply."}
+    r = authed_client.get("/v1/export/training", params={"format": "sft", "meta": "true"})
+    row = json.loads(r.text.strip().splitlines()[0])
+    assert row["meta"]["gt_source"] == "judge_unverified"
+    assert row["meta"]["recoverable"] is True
 
 
-def test_bad_format_400(authed_client) -> None:
+def test_dpo_trl_default(authed_client, db_sessionmaker) -> None:
+    _seed(db_sessionmaker)
+    r = authed_client.get("/v1/export/training", params={"format": "dpo"})  # dialect defaults trl
+    row = json.loads(r.text.strip().splitlines()[0])
+    assert set(row.keys()) == {"prompt", "chosen", "rejected"}
+    assert row["prompt"][0]["role"] == "system"
+    assert row["chosen"][0]["tool_calls"][0]["function"]["name"] == "pay_shortly"
+    assert row["rejected"][0] == {"role": "assistant", "content": "Please pay soon or fees apply."}
+
+
+def test_dpo_openai_dialect(authed_client, db_sessionmaker) -> None:
+    _seed(db_sessionmaker)
+    r = authed_client.get("/v1/export/training",
+                          params={"format": "dpo", "dialect": "openai"})
+    row = json.loads(r.text.strip().splitlines()[0])
+    assert set(row.keys()) == {"input", "preferred_output", "non_preferred_output"}
+    assert row["input"]["messages"][0]["role"] == "system"
+    assert row["preferred_output"][0]["tool_calls"][0]["function"]["name"] == "pay_shortly"
+    assert row["non_preferred_output"][0]["content"] == "Please pay soon or fees apply."
+
+
+def test_bad_params_400(authed_client) -> None:
     assert authed_client.get("/v1/export/training", params={"format": "grpo"}).status_code == 400
+    assert authed_client.get("/v1/export/training",
+                             params={"format": "dpo", "dialect": "nope"}).status_code == 400

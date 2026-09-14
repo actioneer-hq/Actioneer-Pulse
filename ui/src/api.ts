@@ -538,10 +538,12 @@ export const getArchetypes = (f: ClusterFilters, minCount = 2) =>
 
 // ---- training-data export (SFT / DPO JSONL from llm_corrections) ----
 // Fetches the JSONL for the active org (X-Voiceobs-Org) + agent/range and saves it to disk.
+// `dialect` only affects DPO: "trl" (HF TRL / axolotl / Tinker / Together) or "openai" (OpenAI/Azure).
+// SFT is the universal {messages} format. Rows are provider-clean (no meta) so they drop straight in.
 export async function downloadTraining(
-  format: "sft" | "dpo", agentId?: string, range?: string,
+  format: "sft" | "dpo", dialect: "trl" | "openai", agentId?: string, range?: string,
 ): Promise<void> {
-  const qs = new URLSearchParams({ format });
+  const qs = new URLSearchParams({ format, dialect });
   if (agentId) qs.set("agent_id", agentId);
   if (range) qs.set("range", range);
   const headers: Record<string, string> = {};
@@ -551,7 +553,7 @@ export async function downloadTraining(
   const url = URL.createObjectURL(await r.blob());
   const a = document.createElement("a");
   a.href = url;
-  a.download = `pulse-${format}-${agentId || "all"}.jsonl`;
+  a.download = `pulse-${format}-${dialect}-${agentId || "all"}.jsonl`;
   document.body.appendChild(a);
   a.click();
   a.remove();
