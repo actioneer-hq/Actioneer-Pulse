@@ -30,6 +30,7 @@ router = APIRouter(prefix="/v1/export")
 _RANGES = {"24h": timedelta(hours=24), "7d": timedelta(days=7),
            "30d": timedelta(days=30), "90d": timedelta(days=90)}
 _FORMATS = ("sft", "dpo")
+_DIALECTS = ("trl", "openai")
 
 
 def _scope(stmt: Select, db: Session, mem: Membership, agent_id: str | None,
@@ -92,8 +93,26 @@ def _context(script: str | None, convo: list[dict], pos: int) -> list[dict]:
     return [{"role": "system", "content": script or ""}, *convo[:pos]]
 
 
-def _rows(db: Session, mem: Membership, fmt: str, agent_id: str | None,
-          range_key: str | None) -> Iterator[str]:
+def _sft_row(ctx: list[dict], c: dict, meta: dict | None) -> dict:
+    # Universal chat format — identical across OpenAI / Fireworks / Baseten / Together / Tinker.
+    row = {"messages": ctx + [_corrected_message(c)]}
+    return {**row, "meta": meta} if meta else row
+
+
+def _dpo_row(ctx: list[dict], c: dict, observed: str, dialect: str, meta: dict | None) -> dict:
+    chosen = _corrected_message(c)
+    rejected = {"role": "assistant", "content": observed}
+    if dialect == "openai":
+        # OpenAI/Azure preference format: preferred/non_preferred are the last-assistant arrays.
+        row = {"input": {"messages": ctx}, "preferred_output": [chosen],
+               "non_preferred_output": [rejected]}
+    else:  # trl — HF TRL / axolotl / Tinker cookbook / Together
+        row = {"prompt": ctx, "chosen": [chosen], "rejected": [rejected]}
+    return {**row, "meta": meta} if meta else row
+
+
+def _rows(db: Session, mem: Membership, fmt: str, dialect: str, include_meta: bool,
+          agent_id: str | None, range_key: str | None) -> Iterator[str]:
     stmt = _scope(
         select(Call, Judgment).join(Judgment, Judgment.call_id == Call.id)
         .where(Judgment.model_fault == "llm"),
@@ -109,24 +128,18 @@ def _rows(db: Session, mem: Membership, fmt: str, agent_id: str | None,
         convo = _conversation(turns)
         recoverable = j.objective_achieved != "yes"  # controllable failure with a produced fix
         for c in corrections:
+            if not (c.get("corrected") or c.get("corrected_tool")):
+                continue  # nothing to train toward
             ctx = _context(script, convo, _fault_pos(convo, c.get("observed")))
             meta = {
                 "call_id": call.external_call_id, "agent_id": call.agent_id,
                 "turn_id": c.get("turn_id"), "kind": c.get("kind"),
                 "fault_dim": j.model_fault, "recoverable": recoverable,
                 "gt_source": "judge_unverified",
-            }
-            if not (c.get("corrected") or c.get("corrected_tool")):
-                continue  # nothing to train toward
-            if fmt == "sft":
-                yield json.dumps({"messages": ctx + [_corrected_message(c)], "meta": meta})
-            else:  # dpo
-                yield json.dumps({
-                    "prompt": {"messages": ctx},
-                    "chosen": _corrected_message(c),
-                    "rejected": {"role": "assistant", "content": c.get("observed") or ""},
-                    "meta": meta,
-                })
+            } if include_meta else None
+            row = (_sft_row(ctx, c, meta) if fmt == "sft"
+                   else _dpo_row(ctx, c, c.get("observed") or "", dialect, meta))
+            yield json.dumps(row)
 
 
 @router.get("/training")
@@ -134,17 +147,23 @@ def export_training(
     mem: Membership = Depends(current_membership),
     db: Session = Depends(session_dep),
     format: str = Query("sft"),
+    dialect: str = Query("trl"),
+    meta: bool = Query(False),
     agent_id: str | None = None,
     range: str | None = None,
 ) -> StreamingResponse:
+    """`format`=sft|dpo, `dialect`=trl|openai (only DPO differs; SFT is universal). `meta` adds a
+    provenance block (off by default so rows are drop-in for OpenAI's strict validator)."""
     if format not in _FORMATS:
         raise HTTPException(400, f"format must be one of {_FORMATS}")
+    if dialect not in _DIALECTS:
+        raise HTTPException(400, f"dialect must be one of {_DIALECTS}")
 
     def stream() -> Iterator[str]:
-        for line in _rows(db, mem, format, agent_id, range):
+        for line in _rows(db, mem, format, dialect, meta, agent_id, range):
             yield line + "\n"
 
-    fname = f"pulse-{format}-{agent_id or 'all'}.jsonl"
+    fname = f"pulse-{format}-{dialect}-{agent_id or 'all'}.jsonl"
     return StreamingResponse(
         stream(), media_type="application/x-ndjson",
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},

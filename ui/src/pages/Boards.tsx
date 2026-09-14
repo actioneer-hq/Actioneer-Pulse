@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  getBoardsSummary, streamBoards,
+  downloadTraining, getBoardsSummary, streamBoards,
   type BoardSnapshot,
 } from "../api";
 import { useActiveAgent } from "../ActiveAgentProvider";
@@ -33,6 +33,19 @@ export default function Boards() {
   const [snap, setSnap] = useState<BoardSnapshot | null>(null);
   const [live, setLive] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [dialect, setDialect] = useState<"trl" | "openai">("trl");
+
+  async function runExport(format: "sft" | "dpo") {
+    setExporting(true);
+    try {
+      await downloadTraining(format, dialect, activeAgent || undefined, range || undefined);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   // Instant paint via REST, then hold a live SSE that pushes a fresh snapshot on every change.
   useEffect(() => {
@@ -97,6 +110,17 @@ export default function Boards() {
             ))}
           </div>
           <span className="count">{error ?? (snap ? `${snap.totals.calls} calls` : "loading…")}</span>
+          <div className="export-group" title="Download the LLM corrections as training data for the selected agent">
+            <span className="export-label">Export training data</span>
+            <select className="agent-filter" value={dialect}
+              onChange={(e) => setDialect(e.target.value as "trl" | "openai")}
+              title="DPO row format (SFT is universal)">
+              <option value="trl">TRL / OSS</option>
+              <option value="openai">OpenAI</option>
+            </select>
+            <button disabled={exporting} onClick={() => runExport("sft")}>SFT</button>
+            <button disabled={exporting} onClick={() => runExport("dpo")}>DPO</button>
+          </div>
         </div>
 
         <div className="scroll">
