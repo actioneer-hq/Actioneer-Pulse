@@ -64,7 +64,7 @@ export default function LlmAnalysis({ judgment }: { judgment: Judgment | null })
                   </ul>
                 </div>
               ) : null}
-              {judgment!.is_failure && <FailureBlock j={judgment!} />}
+              {hasRca(judgment!) && <FailureBlock j={judgment!} />}
               {judgment!.summary && <p className="fn">{judgment!.summary}</p>}
             </>
           )}
@@ -74,7 +74,15 @@ export default function LlmAnalysis({ judgment }: { judgment: Judgment | null })
   );
 }
 
-// Root-cause analysis, shown only when the judge flagged the call a failure.
+// Show the root-cause block whenever the judge produced any RCA content — not just when it set the
+// `is_failure` verdict. A guardrail breach or a model-fault attribution is worth surfacing even on a
+// call the judge didn't outright flag as a failure (the `failure` pill stays gated on is_failure).
+function hasRca(j: Judgment): boolean {
+  return !!(j.root_cause || (j.model_fault && j.model_fault !== "none") ||
+            j.hallucination || j.suggested_fix);
+}
+
+// Root-cause analysis (root cause, model at fault, hallucination, suggested fix).
 function FailureBlock({ j }: { j: Judgment }) {
   return (
     <div className="failure">
