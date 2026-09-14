@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  CLUSTER_LEVERS, getArchetypes, getClusters,
+  CLUSTER_LEVERS, downloadTraining, getArchetypes, getClusters,
   type ArchetypeView, type ClusterView,
 } from "../api";
 import { useActiveAgent } from "../ActiveAgentProvider";
@@ -18,6 +18,18 @@ export default function Clusters() {
   const [arche, setArche] = useState<ArchetypeView | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function runExport(format: "sft" | "dpo") {
+    setExporting(true);
+    try {
+      await downloadTraining(format, activeAgent || undefined, range || undefined);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     setError(null);
@@ -54,6 +66,11 @@ export default function Clusters() {
             ))}
           </div>
           <span className="count">{error ?? `${totalCalls} calls`}</span>
+          <div className="export-group" title="Download the LLM corrections as training data for the selected agent">
+            <span className="export-label">Export training data</span>
+            <button disabled={exporting} onClick={() => runExport("sft")}>SFT</button>
+            <button disabled={exporting} onClick={() => runExport("dpo")}>DPO</button>
+          </div>
         </div>
 
         <div className="scroll">

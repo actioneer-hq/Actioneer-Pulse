@@ -476,3 +476,13 @@ pre{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--sof
   border-bottom:1px solid var(--bad-line);color:var(--bad);display:flex;flex-direction:column;gap:3px;font-size:12.5px}
 .analysis-error-banner b{font-weight:600}
 .analysis-error-banner span{color:var(--ink)}
+
+/* Clusters — training-data export control */
+.export-group { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.export-group .export-label { color: var(--dim); font-size: 12px; }
+.export-group button {
+  font-size: 12px; padding: 3px 10px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--panel); cursor: pointer;
+}
+.export-group button:hover:not(:disabled) { background: var(--hover); }
+.export-group button:disabled { opacity: .5; cursor: default; }

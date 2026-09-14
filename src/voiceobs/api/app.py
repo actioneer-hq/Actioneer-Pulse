@@ -16,6 +16,7 @@ from voiceobs.api import (
     call_chat,
     chat,
     clusters,
+    export,
     ingest,
     ingest_config,
     judge,
@@ -35,6 +36,7 @@ app.include_router(call_chat.router)
 app.include_router(ingest.router)
 app.include_router(ingest_config.router)
 app.include_router(read.router)
+app.include_router(export.router)
 app.include_router(judge.router)
 app.include_router(settings.router)
 app.include_router(backfill.router)

@@ -536,6 +536,28 @@ export const getClusters = (lever: string, f: ClusterFilters) =>
 export const getArchetypes = (f: ClusterFilters, minCount = 2) =>
   get<ArchetypeView>(`/v1/clusters/archetypes?${clusterQuery(f)}&min_count=${minCount}`);
 
+// ---- training-data export (SFT / DPO JSONL from llm_corrections) ----
+// Fetches the JSONL for the active org (X-Voiceobs-Org) + agent/range and saves it to disk.
+export async function downloadTraining(
+  format: "sft" | "dpo", agentId?: string, range?: string,
+): Promise<void> {
+  const qs = new URLSearchParams({ format });
+  if (agentId) qs.set("agent_id", agentId);
+  if (range) qs.set("range", range);
+  const headers: Record<string, string> = {};
+  if (activeOrg) headers["X-Voiceobs-Org"] = activeOrg;
+  const r = await fetch(`/v1/export/training?${qs}`, { credentials: "include", headers });
+  if (!r.ok) throw new Error(`export failed (${r.status})`);
+  const url = URL.createObjectURL(await r.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `pulse-${format}-${agentId || "all"}.jsonl`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // ---- calls (now scoped server-side by the session + active org) ----
 export const listCalls = (limit = 200, agentId?: string) =>
   get<{ items: Call[] }>(
