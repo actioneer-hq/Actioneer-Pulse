@@ -135,6 +135,7 @@ export type Discrepancy = {
 export type Judgment = {
   disposition: string | null;
   status: string | null;
+  error: string | null;  // reason when status is skipped/failed (e.g. "no_params")
   model: string | null;
   sentiment: string | null;
   objective_achieved: string | null;
@@ -348,6 +349,24 @@ export const getAudioConfig = (agentId: string) =>
   req<AudioConfig>("GET", `/v1/agents/${agentId}/audio-config`);
 export const setAudioConfig = (agentId: string, cfg: AudioConfigIn) =>
   req<AudioConfig>("PUT", `/v1/agents/${agentId}/audio-config`, cfg);
+
+// ---- call parameters (per-call template values, keyed by call id) ----
+export type ParamsUpload = {
+  id: string; label: string | null; key_column: string;
+  row_count: number; matched_count: number; created_at: string;
+};
+export type CallParamsView = {
+  params_required: boolean; total_params: number; awaiting: number; uploads: ParamsUpload[];
+};
+export const getCallParams = (agentId: string) =>
+  req<CallParamsView>("GET", `/v1/agents/${agentId}/call-params`);
+export const setParamsRequired = (agentId: string, params_required: boolean) =>
+  req<{ params_required: boolean }>("PUT", `/v1/agents/${agentId}/params-required`, { params_required });
+export const uploadCallParams = (agentId: string, csv: string, keyColumn = "call_id", label?: string) =>
+  req<{ row_count: number; matched: number; upload_id: string }>(
+    "POST", `/v1/agents/${agentId}/call-params`, { csv, key_column: keyColumn, label });
+export const deleteCallParams = (agentId: string, uploadId: string) =>
+  req<{ status: string }>("DELETE", `/v1/agents/${agentId}/call-params/${uploadId}`);
 export const renameAgent = (id: string, name: string) =>
   req<Agent>("PATCH", `/v1/agents/${id}`, { name });
 export const deleteAgent = (id: string) => req("DELETE", `/v1/agents/${id}`);

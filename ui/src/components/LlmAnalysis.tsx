@@ -43,8 +43,10 @@ export default function LlmAnalysis({ judgment }: { judgment: Judgment | null })
         <div className="disclose">
           {!judged ? (
             <p className="dimtxt">
-              No LLM judgment for this call. It runs when the org has a post-call-analysis model
-              configured and the call connected.
+              {judgment?.error === "no_params"
+                ? "No prompt parameters provided for this call."
+                : "No LLM judgment for this call. It runs when the org has a post-call-analysis " +
+                  "model configured and the call connected."}
             </p>
           ) : (
             <>
