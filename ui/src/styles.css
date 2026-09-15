@@ -507,3 +507,7 @@ pre{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--sof
 
 /* ADS avatar trigger in the top bar — reset the wrapping button */
 .avatar-btn{background:none;border:none;padding:0;cursor:pointer;display:inline-flex;border-radius:999px}
+
+/* Call-params file picker — styled label wrapping a hidden native file input */
+.file-btn{display:inline-flex;align-items:center;height:34px;padding:0 12px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel);color:var(--ink);font-size:13px;cursor:pointer;white-space:nowrap}
+.file-btn:hover{background:var(--soft)}
