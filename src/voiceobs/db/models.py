@@ -555,6 +555,9 @@ class Agent(Base):
     # Short, non-identifying market use-case, inferred from the producer's code by the onboarding
     # wizard (e.g. "outbound appointment reminders for clinics"). Metadata only; feeds telemetry.
     use_case: Mapped[str | None] = mapped_column(String(160))
+    # When true, the post-call LLM analysis is gated on per-call parameters (CallParams) being present
+    # — for agents whose system prompt is a template filled per call. Off by default.
+    params_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = created_col()
 
 
@@ -747,6 +750,40 @@ class AgentOtlpMapping(Base):
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)  # bumped on each write
     created_at: Mapped[datetime] = created_col()
     updated_at: Mapped[datetime] = created_col()
+
+
+class AgentParamsUpload(Base):
+    """One uploaded/pasted CSV of per-call template parameters. The UI lists these per agent; the rows
+    themselves live in CallParams (linked by upload_id). We keep metadata + parsed rows, never the raw
+    CSV blob (it holds PII — names, amounts, phone numbers)."""
+
+    __tablename__ = "agent_params_upload"
+    __table_args__ = (Index("ix_agent_params_upload_agent", "agent_id"),)
+
+    id: Mapped[str] = pk()
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agent.id"), nullable=False)
+    label: Mapped[str | None] = mapped_column(String(160))  # filename or a user note
+    key_column: Mapped[str] = mapped_column(String(64), nullable=False)  # CSV column holding the call id
+    row_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    matched_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # rows joined to a call
+    created_at: Mapped[datetime] = created_col()
+
+
+class CallParams(Base):
+    """Per-call template parameters (the values a parameterized system prompt is rendered with at
+    dispatch), keyed by the call id the mapper resolves to Call.external_call_id. Ingested from a CSV
+    upload; the post-call judge is gated on these existing and injects them into its context so it
+    judges against the real values, not the template's example defaults."""
+
+    __tablename__ = "call_params"
+    __table_args__ = (UniqueConstraint("agent_id", "call_key", name="uq_call_params_agent_key"),)
+
+    id: Mapped[str] = pk()
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agent.id"), nullable=False)
+    call_key: Mapped[str] = mapped_column(String(128), nullable=False)  # == Call.external_call_id
+    params: Mapped[dict] = mapped_column(JSON, nullable=False)  # {column: value} for this call
+    upload_id: Mapped[str | None] = mapped_column(ForeignKey("agent_params_upload.id"))
+    created_at: Mapped[datetime] = created_col()
 
 
 class RefreshToken(Base):

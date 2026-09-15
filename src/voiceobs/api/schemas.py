@@ -95,6 +95,16 @@ class OtlpMappingIn(BaseModel):
     expression: str  # a JSONata expression: producer OTLP payload -> canonical Trace JSON
 
 
+class CallParamsIn(BaseModel):
+    csv: str                       # raw CSV text (pasted, or a file read to text in the browser)
+    key_column: str = "call_id"    # the CSV column holding the call id (== Call.external_call_id)
+    label: str | None = None       # filename / note, shown in the uploads list
+
+
+class ParamsRequiredIn(BaseModel):
+    params_required: bool           # the per-agent gating toggle
+
+
 class AgentMetaIn(BaseModel):
     use_case: str | None = None  # short, non-identifying market use-case (wizard-inferred)
     framework: str | None = None  # producer framework, for telemetry only (not stored)

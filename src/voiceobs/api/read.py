@@ -267,7 +267,7 @@ def _judgment(db: Session, call: Call) -> dict | None:
     j = db.scalar(select(Judgment).where(Judgment.call_id == call.id))
     if j is None:
         return None
-    return {"disposition": j.disposition, "status": j.status, "model": j.model,
+    return {"disposition": j.disposition, "status": j.status, "error": j.error, "model": j.model,
             **{f: getattr(j, f) for f in _JUDGE_FIELDS}}
 
 

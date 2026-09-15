@@ -16,12 +16,12 @@ DATA_TABLES = {
     "prompt", "call", "raw_fragment", "event", "utterance", "turn", "metric",
     "metric_def", "media", "ingest_run", "annotation", "label", "tombstone",
     "transcript", "judgment", "call_embedding", "tenant_settings", "audio_discrepancy",
-    "conversation", "chat_message", "cluster", "call_cluster", "backfill_job",
+    "conversation", "chat_message", "cluster", "call_cluster", "backfill_job", "call_params",
 }
 IDENTITY_TABLES = {
     "organization", "app_user", "membership", "agent", "agent_access", "ingest_token",
     "refresh_token", "agent_audio_config", "agent_otlp_mapping", "agent_script",
-    "agent_guardrail",
+    "agent_guardrail", "agent_params_upload",
 }
 EXPECTED_TABLES = DATA_TABLES | IDENTITY_TABLES
 

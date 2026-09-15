@@ -486,3 +486,15 @@ pre{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:var(--sof
 }
 .export-group button:hover:not(:disabled) { background: var(--hover); }
 .export-group button:disabled { opacity: .5; cursor: default; }
+
+/* Agents — call parameters panel */
+.toggle-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 8px 0; }
+.params-upload { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.params-upload .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.params-key { width: 130px; }
+.params-csv { width: 100%; font-family: ui-monospace, monospace; font-size: 12px; }
+.params-stats { margin: 6px 0; }
+.params-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+.params-table th, .params-table td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.params-table th { color: var(--dim); font-weight: 600; }
+.link-danger { background: none; border: none; color: var(--bad); cursor: pointer; padding: 0; font-size: 13px; }

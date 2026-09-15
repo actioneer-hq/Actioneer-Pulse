@@ -3,9 +3,11 @@ import {
   backfillPreview,
   createAgent,
   deleteAgent,
+  deleteCallParams,
   getAgentGuardrails,
   getAgentScript,
   getAudioConfig,
+  getCallParams,
   listAgentGuardrails,
   listAgents,
   listAgentScripts,
@@ -18,10 +20,13 @@ import {
   setAgentGuardrails,
   setAgentScript,
   setAudioConfig,
+  setParamsRequired,
+  uploadCallParams,
   type Agent,
   type AgentGuardrails,
   type AgentScript,
   type AudioConfig,
+  type CallParamsView,
   type CredField,
   type IngestTokenRow,
   type BackfillPreview,
@@ -201,6 +206,116 @@ function NewAgentModal(
   );
 }
 
+// Per-call parameters: upload/paste a CSV of the values a parameterized prompt is rendered with,
+// keyed by call id. When "requires call parameters" is on, LLM analysis waits until a call's params
+// are present. Reconciliation (re-judging matched calls) happens server-side on upload.
+function CallParamsPanel({ agent }: { agent: Agent }) {
+  const [view, setView] = useState<CallParamsView | null>(null);
+  const [csv, setCsv] = useState("");
+  const [keyColumn, setKeyColumn] = useState("call_id");
+  const [label, setLabel] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    getCallParams(agent.id).then(setView).catch(() => setView(null));
+  }, [agent.id]);
+  useEffect(() => { load(); }, [load]);
+
+  async function toggle(v: boolean) {
+    await setParamsRequired(agent.id, v);
+    load();
+  }
+
+  function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!label) setLabel(f.name);
+    f.text().then(setCsv);  // read file → text in the browser; sent as {csv} (no multipart)
+  }
+
+  async function upload() {
+    if (!csv.trim()) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await uploadCallParams(agent.id, csv, keyColumn.trim() || "call_id", label.trim() || undefined);
+      setMsg(`${r.row_count} rows · ${r.matched} matched to existing calls (re-analysing those).`);
+      setCsv(""); setLabel("");
+      load();
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(uploadId: string) {
+    if (!confirm("Delete this parameter set? Calls relying on it lose their params.")) return;
+    await deleteCallParams(agent.id, uploadId);
+    load();
+  }
+
+  return (
+    <div className="panel-card">
+      <h3>Call parameters · {agent.name}</h3>
+      <p className="dimtxt">
+        For agents whose system prompt is a template filled per call (e.g. <code>$(CustomerName)</code>),
+        upload the per-call values so the LLM analysis judges against the real values. Keyed by the
+        call id your exporter emits.
+      </p>
+      <label className="toggle-row">
+        <input type="checkbox" checked={!!view?.params_required}
+          onChange={(e) => toggle(e.target.checked)} />
+        Requires call parameters (gate LLM analysis until params are uploaded)
+      </label>
+
+      <div className="params-upload">
+        <div className="row">
+          <input className="params-key" value={keyColumn} onChange={(e) => setKeyColumn(e.target.value)}
+            placeholder="call id column" title="CSV column holding the call id" />
+          <input value={label} onChange={(e) => setLabel(e.target.value)}
+            placeholder="label (optional)" />
+          <input type="file" accept=".csv,text/csv" onChange={pickFile} />
+        </div>
+        <textarea className="params-csv" rows={5} value={csv} onChange={(e) => setCsv(e.target.value)}
+          placeholder={"Paste CSV here (or choose a file above)…\ncall_id,CustomerName,EmiAmount\nvo_abc,Suyog,21226"} />
+        <div className="row">
+          <button className="btn-primary" disabled={busy || !csv.trim()} onClick={upload}>
+            {busy ? "Uploading…" : "Upload parameters"}
+          </button>
+          {msg && <span className="dimtxt">{msg}</span>}
+        </div>
+      </div>
+
+      {view && (
+        <div className="params-stats dimtxt">
+          {view.total_params.toLocaleString()} params stored · {view.awaiting.toLocaleString()} calls
+          awaiting parameters
+        </div>
+      )}
+      {view && view.uploads.length > 0 && (
+        <table className="params-table">
+          <thead><tr><th>Label</th><th>Key</th><th>Rows</th><th>Matched</th><th>Uploaded</th><th /></tr></thead>
+          <tbody>
+            {view.uploads.map((u) => (
+              <tr key={u.id}>
+                <td>{u.label || "—"}</td>
+                <td className="mono">{u.key_column}</td>
+                <td>{u.row_count.toLocaleString()}</td>
+                <td>{u.matched_count.toLocaleString()}</td>
+                <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                <td><button className="link-danger" onClick={() => remove(u.id)}>Delete</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+
 function AgentDetail({ agent }: { agent: Agent }) {
   const [tokens, setTokens] = useState<IngestTokenRow[]>([]);
   // The last plaintext token from this session's mint/rotate — the only time we ever see it.
@@ -232,6 +347,7 @@ function AgentDetail({ agent }: { agent: Agent }) {
       <ScriptPanel agent={agent} />
       <GuardrailsPanel agent={agent} />
       <StoragePanel agent={agent} />
+      <CallParamsPanel agent={agent} />
       <ConnectPanel agent={agent} token={minted?.token ?? null} onMint={mint} />
       <div className="panel-card">
         <h3>Ingest tokens · {agent.name}</h3>

@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from voiceobs.config import resolve_llm
-from voiceobs.db.models import AgentGuardrail, Call, Judgment, Prompt
+from voiceobs.db.models import Agent, AgentGuardrail, Call, CallParams, Judgment, Prompt
 from voiceobs.judge.client import call_model
 from voiceobs.judge.disposition import is_connected, programmatic_disposition
 from voiceobs.judge.failure import analyze_failure
@@ -49,9 +49,19 @@ def judge_call(db: Session, call: Call) -> Judgment:
         j.status, j.model = "skipped", None
         return j
 
+    # Params gate: an agent with a parameterized prompt (params_required) must have this call's
+    # per-call values before we judge — else the judge compares spoken values against the template's
+    # example defaults and mislabels correct behaviour. Skip with a reason the UI can surface; a
+    # later CSV upload re-enqueues the judge (see api/call_params.py).
+    params = resolve_params(db, call)
+    if _params_required(db, call) and params is None:
+        _clear(j, _JUDGE_FIELDS + _FAILURE_FIELDS)
+        j.status, j.model, j.error = "skipped", None, "no_params"
+        return j
+
     # DB reads happen here on the main thread; the LLM passes below get plain args.
     script, guardrails = _script(db, call), _guardrails(db, call)
-    ctx = (script, guardrails, transcript, call.external_call_id)
+    ctx = (script, guardrails, transcript, call.external_call_id, params)
 
     # Both models are network-bound and independent → run them at the same time.
     with ThreadPoolExecutor(max_workers=2) as ex:
@@ -67,13 +77,13 @@ def judge_call(db: Session, call: Call) -> Judgment:
 
 def _judge(ctx) -> dict:
     """Run the post-call judge (in a worker thread). Pure: returns results, never touches the DB."""
-    script, guardrails, transcript, call_id = ctx
+    script, guardrails, transcript, call_id, params = ctx
     resolved = resolve_llm(LLMRole.POST_CALL_ANALYSIS)
     if resolved is None:  # role not configured (no API key)
         return {"status": "skipped", "model": None, "fields": None, "error": None}
     try:
         out = call_model(resolved, build_messages(
-            script, transcript, guardrails=guardrails, prompt=resolved.prompt))
+            script, transcript, guardrails=guardrails, prompt=resolved.prompt, params=params))
         return {"status": "ok", "model": resolved.model,
                 "fields": {f: getattr(out, f) for f in _JUDGE_FIELDS}, "error": None}
     except Exception as e:  # noqa: BLE001 — record, never raise into the caller
@@ -84,13 +94,13 @@ def _judge(ctx) -> dict:
 def _failure(ctx) -> dict | None:
     """Run the failure-analysis LLM (in a worker thread). Returns its fields, or None if the role
     is unconfigured or it errored — best-effort, never raises."""
-    script, guardrails, transcript, call_id = ctx
+    script, guardrails, transcript, call_id, params = ctx
     resolved = resolve_llm(LLMRole.FAILURE_ANALYSIS)
     if resolved is None:
         return None
     try:
         out = analyze_failure(resolved, build_failure_messages(
-            script, transcript, guardrails=guardrails, prompt=resolved.prompt))
+            script, transcript, guardrails=guardrails, prompt=resolved.prompt, params=params))
         # llm_corrections is a list of pydantic models → plain dicts for the JSON column.
         return {f: [c.model_dump(mode="json") for c in out.llm_corrections]
                 if f == "llm_corrections" else getattr(out, f) for f in _FAILURE_FIELDS}
@@ -127,6 +137,24 @@ def _row(db: Session, call: Call) -> Judgment:
 def _clear(j: Judgment, fields: tuple[str, ...]) -> None:
     for f in fields:
         setattr(j, f, None)
+
+
+def _params_required(db: Session, call: Call) -> bool:
+    """Whether this call's agent gates LLM analysis on per-call params (the manual toggle)."""
+    if call.agent_id is None:
+        return False
+    agent = db.get(Agent, call.agent_id)
+    return bool(agent and agent.params_required)
+
+
+def resolve_params(db: Session, call: Call) -> dict | None:
+    """The per-call template parameters for this call, or None. Keyed by the call id the mapper
+    resolved to Call.external_call_id (== CallParams.call_key)."""
+    if call.agent_id is None:
+        return None
+    row = db.scalar(select(CallParams).where(
+        CallParams.agent_id == call.agent_id, CallParams.call_key == call.external_call_id))
+    return row.params if row else None
 
 
 def _script(db: Session, call: Call) -> str | None:

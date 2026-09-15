@@ -4,11 +4,13 @@ create/modify and token management require admin. The plaintext token is shown o
 
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from voiceobs.api.deps import now, session_dep
@@ -17,24 +19,33 @@ from voiceobs.api.schemas import (
     AgentIn,
     AgentPatchIn,
     AudioConfigIn,
+    CallParamsIn,
     GuardrailsIn,
     IngestTokenIn,
     OtlpMappingIn,
+    ParamsRequiredIn,
     ScriptIn,
 )
 from voiceobs.auth import current_membership, mint_ingest_token, require_role, visible_agent_ids
 from voiceobs.auth.crypto import decrypt, encrypt
+from voiceobs.bus import get_producer
 from voiceobs.db.models import (
     Agent,
     AgentAccess,
     AgentAudioConfig,
     AgentGuardrail,
     AgentOtlpMapping,
+    AgentParamsUpload,
     AgentScript,
+    Call,
+    CallParams,
     IngestToken,
+    Judgment,
     Membership,
+    Organization,
     Prompt,
 )
+from voiceobs.judge.queue import enqueue_judge
 
 router = APIRouter(prefix="/v1/agents")
 
@@ -122,6 +133,8 @@ def delete_agent(
         IngestToken,
         AgentAudioConfig,
         AgentOtlpMapping,
+        CallParams,          # before AgentParamsUpload — CallParams.upload_id FKs to it
+        AgentParamsUpload,
     ):
         db.execute(delete(model).where(model.agent_id == agent_id))
     db.delete(agent)
@@ -428,6 +441,123 @@ def set_audio_config(
     cfg = _apply_audio_config(db, agent_id, body)
     db.flush()
     return _audio_config_dict(cfg)
+
+
+@router.put("/{agent_id}/params-required")
+def set_params_required(
+    agent_id: str, body: ParamsRequiredIn,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(require_role("owner", "admin")),
+) -> dict:
+    """Toggle whether this agent's post-call LLM analysis is gated on per-call parameters."""
+    agent = _org_agent(db, mem, agent_id)
+    agent.params_required = body.params_required
+    db.flush()
+    return {"params_required": agent.params_required}
+
+
+@router.get("/{agent_id}/call-params")
+def get_call_params(
+    agent_id: str,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(require_role("owner", "admin")),
+) -> dict:
+    """The agent's gating flag, uploaded-CSV list, and coverage stats."""
+    agent = _org_agent(db, mem, agent_id)
+    uploads = db.scalars(select(AgentParamsUpload).where(AgentParamsUpload.agent_id == agent_id)
+                         .order_by(AgentParamsUpload.created_at.desc())).all()
+    total_params = db.scalar(select(func.count()).select_from(CallParams)
+                             .where(CallParams.agent_id == agent_id)) or 0
+    # calls for this agent still waiting on params (connected, judged skipped with no_params)
+    awaiting = db.scalar(
+        select(func.count()).select_from(Call).join(Judgment, Judgment.call_id == Call.id)
+        .where(Call.agent_id == agent_id, Judgment.status == "skipped",
+               Judgment.error == "no_params")) or 0
+    return {
+        "params_required": agent.params_required,
+        "total_params": total_params,
+        "awaiting": awaiting,
+        "uploads": [
+            {"id": u.id, "label": u.label, "key_column": u.key_column,
+             "row_count": u.row_count, "matched_count": u.matched_count,
+             "created_at": u.created_at}
+            for u in uploads
+        ],
+    }
+
+
+@router.post("/{agent_id}/call-params")
+def upload_call_params(
+    agent_id: str, body: CallParamsIn,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(require_role("owner", "admin")),
+) -> dict:
+    """Parse a CSV of per-call parameters, upsert rows keyed by call id, and re-enqueue the judge for
+    any already-ingested calls this unblocks (reconciliation). Order-independent: rows whose call
+    hasn't arrived yet simply wait."""
+    _org_agent(db, mem, agent_id)
+    rows = _parse_csv(body.csv, body.key_column)
+    if not rows:
+        raise HTTPException(400, f"no rows parsed (need a header with a '{body.key_column}' column)")
+
+    upload = AgentParamsUpload(agent_id=agent_id, label=body.label, key_column=body.key_column,
+                              row_count=len(rows))
+    db.add(upload)
+    db.flush()
+
+    keys = [r[body.key_column] for r in rows]
+    for r in rows:
+        key = r[body.key_column]
+        existing = db.scalar(select(CallParams).where(
+            CallParams.agent_id == agent_id, CallParams.call_key == key))
+        if existing is None:
+            db.add(CallParams(agent_id=agent_id, call_key=key, params=r, upload_id=upload.id))
+        else:
+            existing.params, existing.upload_id = r, upload.id
+
+    # Reconcile: which of these keys are already-ingested calls? Enqueue the judge for them.
+    matched = db.scalars(select(Call.external_call_id).where(
+        Call.agent_id == agent_id, Call.external_call_id.in_(keys))).all()
+    upload.matched_count = len(matched)
+    org_slug = db.scalar(select(Organization.slug))
+    for cid in matched:
+        enqueue_judge(get_producer(), org_slug or "default", cid, backfill=True)
+
+    db.flush()
+    return {"row_count": len(rows), "matched": len(matched), "upload_id": upload.id}
+
+
+@router.delete("/{agent_id}/call-params/{upload_id}")
+def delete_call_params(
+    agent_id: str, upload_id: str,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(require_role("owner", "admin")),
+) -> dict:
+    """Remove an upload and the CallParams rows it created."""
+    _org_agent(db, mem, agent_id)
+    db.execute(delete(CallParams).where(
+        CallParams.agent_id == agent_id, CallParams.upload_id == upload_id))
+    db.execute(delete(AgentParamsUpload).where(
+        AgentParamsUpload.id == upload_id, AgentParamsUpload.agent_id == agent_id))
+    return {"status": "ok"}
+
+
+def _parse_csv(text: str, key_column: str) -> list[dict]:
+    """CSV text → list of row dicts. Requires a header row containing `key_column`; rows with a blank
+    key are skipped. Values kept as strings (they're injected verbatim into the judge context)."""
+    reader = csv.DictReader(io.StringIO(text))
+    if not reader.fieldnames or key_column not in reader.fieldnames:
+        return []
+    out: list[dict] = []
+    for row in reader:
+        key = (row.get(key_column) or "").strip()
+        if not key:
+            continue
+        clean = {k: (v.strip() if isinstance(v, str) else v)
+                 for k, v in row.items() if k is not None}
+        clean[key_column] = key
+        out.append(clean)
+    return out
 
 
 @router.get("/{agent_id}/otlp-mapping")
