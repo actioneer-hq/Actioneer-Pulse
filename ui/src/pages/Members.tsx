@@ -1,3 +1,7 @@
+import {
+  Alert, Button, Checkbox, InputField, Modal, ModalBody, ModalFooter, ModalHeader, ModalTitle,
+  Select, Table, TableBody, TableCell, TableColumn, TableHeader, TableRow,
+} from "@actioneer/ads";
 import { useCallback, useEffect, useState } from "react";
 import {
   addMember,
@@ -13,6 +17,7 @@ import {
 import { useAuth } from "../auth";
 
 const ROLES: Role[] = ["owner", "admin", "member", "viewer"];
+const ROLE_ITEMS = ROLES.map((r) => ({ label: r, value: r }));
 
 export default function Members() {
   const { activeOrg } = useAuth();
@@ -37,7 +42,6 @@ export default function Members() {
     try {
       const r = await addMember(activeOrg, email.trim(), role);
       setEmail("");
-      // A brand-new person comes back with an invite token → build the accept link.
       setInvite(r.invite_token
         ? `${location.origin}/accept-invite?token=${r.invite_token}`
         : null);
@@ -63,48 +67,49 @@ export default function Members() {
         <div className="sub">Coarse role plus granular per-agent grants. A member/viewer with no
           grants sees all agents; adding a grant restricts them to it.</div>
       </div>
-      {error && <div className="auth-error">{error}</div>}
+      {error && <Alert variant="danger">{error}</Alert>}
       <div className="add-row wide">
-        <input value={email} onChange={(e) => setEmail(e.target.value)}
+        <InputField value={email} onChange={(e) => setEmail(e.target.value)}
           placeholder="person@company.com" />
-        <select value={role} onChange={(e) => setNewRole(e.target.value as Role)}>
-          {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
-        <button className="btn-primary" onClick={inviteMember}>Invite</button>
+        <Select value={role} onChange={(v) => setNewRole(v as Role)} items={ROLE_ITEMS} />
+        <Button onClick={inviteMember}>Invite</Button>
       </div>
       {invite && (
         <div className="minted">
           <div className="minted-hd">Send this invite link — it sets their password.</div>
           <code className="mono">{invite}</code>
-          <button className="link" onClick={() => navigator.clipboard?.writeText(invite)}>Copy</button>
+          <Button variant="link" size="sm" onClick={() => navigator.clipboard?.writeText(invite)}>Copy</Button>
         </div>
       )}
-      <table>
-        <thead>
-          <tr><th>Email</th><th>Role</th><th>Agent access</th><th></th></tr>
-        </thead>
-        <tbody>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableColumn>Email</TableColumn><TableColumn>Role</TableColumn>
+            <TableColumn>Agent access</TableColumn><TableColumn />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {members.map((m) => (
-            <tr key={m.membership_id}>
-              <td>{m.email ?? <span className="dimtxt">{m.user_id}</span>}</td>
-              <td>
-                <select value={m.role} onChange={(e) => changeRole(m, e.target.value as Role)}>
-                  {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </td>
-              <td>
+            <TableRow key={m.membership_id}>
+              <TableCell>{m.email ?? <span className="dimtxt">{m.user_id}</span>}</TableCell>
+              <TableCell>
+                <Select value={m.role} onChange={(v) => changeRole(m, v as Role)} items={ROLE_ITEMS} size="sm" />
+              </TableCell>
+              <TableCell>
                 {m.role === "owner" || m.role === "admin"
                   ? <span className="dimtxt">all (admin)</span>
-                  : <button className="link" onClick={() => setGrantFor(m)}>Edit grants</button>}
-              </td>
-              <td className="r">
-                <button className="link bad" onClick={() => kick(m)}>Remove</button>
-              </td>
-            </tr>
+                  : <Button variant="link" size="sm" onClick={() => setGrantFor(m)}>Edit grants</Button>}
+              </TableCell>
+              <TableCell className="r">
+                <Button variant="link" size="sm" onClick={() => kick(m)}>Remove</Button>
+              </TableCell>
+            </TableRow>
           ))}
-          {members.length === 0 && <tr><td colSpan={4} className="dimtxt">No members.</td></tr>}
-        </tbody>
-      </table>
+          {members.length === 0 && (
+            <TableRow><TableCell colSpan={4} className="dimtxt">No members.</TableCell></TableRow>
+          )}
+        </TableBody>
+      </Table>
       {grantFor && activeOrg && (
         <GrantEditor orgId={activeOrg} member={grantFor} agents={agents}
           onClose={() => setGrantFor(null)} onSaved={() => { setGrantFor(null); load(); }} />
@@ -117,8 +122,6 @@ function GrantEditor(
   { orgId, member, agents, onClose, onSaved }:
   { orgId: string; member: Member; agents: Agent[]; onClose: () => void; onSaved: () => void },
 ) {
-  // The API replaces the whole grant set; we can't read the current set back, so this
-  // starts empty and the admin picks the agents to restrict to (empty = coarse default).
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
 
@@ -133,25 +136,25 @@ function GrantEditor(
   }
 
   return (
-    <div className="modal-scrim" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Agent access · {member.email ?? member.user_id}</h3>
+    <Modal open onOpenChange={(o) => !o && onClose()}>
+      <ModalHeader><ModalTitle>Agent access · {member.email ?? member.user_id}</ModalTitle></ModalHeader>
+      <ModalBody>
         <p className="sub">Select the agents this member may see. Leave all unchecked to give
           access to every agent in the org.</p>
         <div className="grant-list">
           {agents.map((a) => (
             <label key={a.id} className="grant-item">
-              <input type="checkbox" checked={picked.has(a.id)} onChange={() => toggle(a.id)} />
+              <Checkbox checked={picked.has(a.id)} onChange={() => toggle(a.id)} />
               <span>{a.name}</span>
             </label>
           ))}
           {agents.length === 0 && <div className="dimtxt">No agents in this org yet.</div>}
         </div>
-        <div className="modal-foot">
-          <button className="link" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={save} disabled={busy}>Save grants</button>
-        </div>
-      </div>
-    </div>
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button onClick={save} disabled={busy} isLoading={busy}>Save grants</Button>
+      </ModalFooter>
+    </Modal>
   );
 }
