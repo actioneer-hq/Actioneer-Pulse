@@ -1,4 +1,8 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  Avatar, Button, Dropdown, DropdownContent, DropdownItem, DropdownLabel, DropdownSeparator,
+  DropdownTrigger, EmptyState, Select,
+} from "@actioneer/ads";
+import { type ReactNode } from "react";
 import { NavLink, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { useActiveAgent } from "./ActiveAgentProvider";
 import { RequireAdmin, RequireAuth, useAuth, useAuthRedirect } from "./auth";
@@ -14,16 +18,6 @@ import BackfillToast from "./components/BackfillToast";
 // The chrome around every signed-in page: brand, primary nav, org selector, user menu.
 function Shell() {
   const { user, isAdmin, memberships, activeOrg, setActiveOrg, logout } = useAuth();
-  const [menu, setMenu] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenu(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, []);
 
   return (
     <>
@@ -62,27 +56,24 @@ function Shell() {
         <div className="top-right">
           <ProjectSelect />
           {memberships.length > 1 ? (
-            <select className="org-select" value={activeOrg ?? ""}
-              onChange={(e) => setActiveOrg(e.target.value)}>
-              {memberships.map((m) => (
-                <option key={m.org_id} value={m.org_id}>{m.org_name ?? m.org_id}</option>
-              ))}
-            </select>
+            <Select value={activeOrg ?? ""} onChange={setActiveOrg} size="sm"
+              items={memberships.map((m) => ({ value: m.org_id, label: m.org_name ?? m.org_id }))} />
           ) : (
             <span className="org-name">{memberships[0]?.org_name}</span>
           )}
-          <div className="usermenu" ref={menuRef}>
-            <button className="avatar" onClick={() => setMenu((v) => !v)} title={user?.email}>
-              {(user?.email ?? "?").slice(0, 1).toUpperCase()}
-            </button>
-            {menu && (
-              <div className="menu">
-                <div className="menu-hd">{user?.email}</div>
-                <button onClick={() => void logout()}>Sign out</button>
-                <button onClick={() => void logout(true)}>Sign out everywhere</button>
-              </div>
-            )}
-          </div>
+          <Dropdown>
+            <DropdownTrigger>
+              <button className="avatar-btn" title={user?.email} aria-label="Account menu">
+                <Avatar name={user?.email ?? "?"} size="sm" />
+              </button>
+            </DropdownTrigger>
+            <DropdownContent align="end">
+              <DropdownLabel>{user?.email}</DropdownLabel>
+              <DropdownSeparator />
+              <DropdownItem onClick={() => void logout()}>Sign out</DropdownItem>
+              <DropdownItem onClick={() => void logout(true)}>Sign out everywhere</DropdownItem>
+            </DropdownContent>
+          </Dropdown>
         </div>
       </div>
       <BackfillToast />
@@ -102,15 +93,8 @@ function ProjectSelect() {
     );
   }
   return (
-    <select
-      className="project-select"
-      value={activeAgent ?? ""}
-      onChange={(e) => setActiveAgent(e.target.value)}
-    >
-      {agents.map((a) => (
-        <option key={a.id} value={a.id}>{a.name}</option>
-      ))}
-    </select>
+    <Select value={activeAgent ?? ""} onChange={setActiveAgent} size="sm"
+      items={agents.map((a) => ({ value: a.id, label: a.name }))} />
   );
 }
 
@@ -121,9 +105,11 @@ function RequireAgent({ children }: { children: ReactNode }) {
   if (agents.length === 0) {
     return (
       <div className="empty-state">
-        <h2>No projects yet</h2>
-        <p>A project is a voice agent. Create one to see its calls, metrics, and chat.</p>
-        <NavLink to="/settings/agents" className="btn">Create a project</NavLink>
+        <EmptyState
+          title="No projects yet"
+          description="A project is a voice agent. Create one to see its calls, metrics, and chat."
+          action={<NavLink to="/settings/agents"><Button>Create a project</Button></NavLink>}
+        />
       </div>
     );
   }

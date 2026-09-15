@@ -1,3 +1,4 @@
+import { Tab, TabList, Tabs } from "@actioneer/ads";
 import { useEffect, useMemo, useState } from "react";
 import {
   CLUSTER_LEVERS, getArchetypes, getClusters,
@@ -48,11 +49,11 @@ export default function Clusters() {
             cross-lever archetypes that co-occur.</div>
         </div>
         <div className="tools">
-          <div className="seg">
-            {RANGES.map(([k, l]) => (
-              <button key={l} className={range === k ? "on" : undefined} onClick={() => setRange(k)}>{l}</button>
-            ))}
-          </div>
+          <Tabs value={range} onValueChange={setRange}>
+            <TabList>
+              {RANGES.map(([k, l]) => <Tab key={l} value={k}>{l}</Tab>)}
+            </TabList>
+          </Tabs>
           <span className="count">{error ?? `${totalCalls} calls`}</span>
         </div>
 

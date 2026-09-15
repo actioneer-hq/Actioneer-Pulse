@@ -9,12 +9,16 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
+    "@actioneer/ads": "^1.0.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "motion": "^13.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^9.0.0",
     "react-router-dom": "^7.1.0",
     "recharts": "^2.15.4",
-    "remark-gfm": "^4.0.0"
+    "remark-gfm": "^4.0.0",
+    "wavesurfer.js": "^7.12.12"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

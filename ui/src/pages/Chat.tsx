@@ -1,3 +1,4 @@
+import { Button } from "@actioneer/ads";
 import {
   useCallback, useEffect, useMemo, useRef, useState,
   type KeyboardEvent, type ReactNode,
@@ -126,7 +127,7 @@ export default function Chat() {
   return (
     <div className="chat">
       <aside className="chat-side">
-        <button className="btn-primary chat-new" onClick={newChat}>+ New chat</button>
+        <Button className="chat-new" fullWidth onClick={newChat}>+ New chat</Button>
         <div className="chat-list">
           {convos.map((c) => (
             <div key={c.id} className={`chat-item ${c.id === active ? "on" : ""}`}

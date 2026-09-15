@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Button, Select, Tab, TabList, Tabs } from "@actioneer/ads";
 import {
   downloadTraining, getBoardsSummary, streamBoards,
   type BoardSnapshot,
@@ -104,22 +105,19 @@ export default function Boards() {
           ))}
         </div>
         <div className="tools">
-          <div className="seg">
-            {RANGES.map(([k, l]) => (
-              <button key={k} className={range === k ? "on" : undefined} onClick={() => setRange(k)}>{l}</button>
-            ))}
-          </div>
+          <Tabs value={range} onValueChange={setRange}>
+            <TabList>
+              {RANGES.map(([k, l]) => <Tab key={k} value={k}>{l}</Tab>)}
+            </TabList>
+          </Tabs>
           <span className="count">{error ?? (snap ? `${snap.totals.calls} calls` : "loading…")}</span>
           <div className="export-group" title="Download the LLM corrections as training data for the selected agent">
             <span className="export-label">Export training data</span>
-            <select className="agent-filter" value={dialect}
-              onChange={(e) => setDialect(e.target.value as "trl" | "openai")}
-              title="DPO row format (SFT is universal)">
-              <option value="trl">TRL / OSS</option>
-              <option value="openai">OpenAI</option>
-            </select>
-            <button disabled={exporting} onClick={() => runExport("sft")}>SFT</button>
-            <button disabled={exporting} onClick={() => runExport("dpo")}>DPO</button>
+            <Select value={dialect} onChange={(v) => setDialect(v as "trl" | "openai")}
+              items={[{ label: "TRL / OSS", value: "trl" }, { label: "OpenAI", value: "openai" }]}
+              size="sm" />
+            <Button variant="secondary" size="sm" disabled={exporting} onClick={() => runExport("sft")}>SFT</Button>
+            <Button variant="secondary" size="sm" disabled={exporting} onClick={() => runExport("dpo")}>DPO</Button>
           </div>
         </div>
 

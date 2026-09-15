@@ -1,3 +1,4 @@
+import { InputField, Tab, TabList, Tabs } from "@actioneer/ads";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { listCalls, type Call } from "../api";
@@ -102,15 +103,16 @@ export default function Calls() {
             <div className="tile" key={l}><span>{l}</span><b>{v}</b>{s && <small>{s}</small>}</div>
           ))}
         </div>
-        <div className="tabs">
-          {TABS.map(([k, l]) => (
-            <button key={k} className={tab === k ? "on" : undefined} onClick={() => setTab(k)}>
-              {l}<em>{byTab[k]?.length ?? 0}</em>
-            </button>
-          ))}
-        </div>
+        <Tabs value={tab} onValueChange={setTab}>
+          <TabList>
+            {TABS.map(([k, l]) => (
+              <Tab key={k} value={k} count={byTab[k]?.length ?? 0}>{l}</Tab>
+            ))}
+          </TabList>
+        </Tabs>
         <div className="tools">
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search id, source, label…" />
+          <InputField value={q} onChange={(e) => setQ(e.target.value)}
+            placeholder="Search id, source, label…" />
           <span className="count">{error ?? `${rows.length} call${rows.length === 1 ? "" : "s"}`}</span>
         </div>
         <CallTable calls={rows} selected={selected} onSelect={setSelected} />
