@@ -1,3 +1,7 @@
+import {
+  Button, Checkbox, InputField, Modal, ModalBody, ModalFooter, ModalHeader, ModalTitle,
+  Textarea,
+} from "@actioneer/ads";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   backfillPreview,
@@ -92,7 +96,7 @@ export default function Agents() {
       <div className="settings-cols">
         <div className="col">
           <div className="add-row">
-            <button className="btn-primary" onClick={() => setCreating(true)}>+ New agent</button>
+            <Button onClick={() => setCreating(true)}>+ New agent</Button>
           </div>
           <table>
             <tbody>
@@ -104,10 +108,10 @@ export default function Agents() {
                     <div className="mono dimtxt">{a.slug}</div>
                   </td>
                   <td className="r">
-                    <button className="link" onClick={(e) => { e.stopPropagation(); rename(a); }}>
-                      Rename</button>
-                    <button className="link bad" onClick={(e) => { e.stopPropagation(); remove(a); }}>
-                      Delete</button>
+                    <Button variant="link" onClick={(e) => { e.stopPropagation(); rename(a); }}>
+                      Rename</Button>
+                    <Button variant="link" onClick={(e) => { e.stopPropagation(); remove(a); }}>
+                      Delete</Button>
                   </td>
                 </tr>
               ))}
@@ -145,14 +149,13 @@ function NewAgentModal(
   }
 
   return (
-    <div className="modal-scrim" onClick={onClose}>
-      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
-        <h3>New agent</h3>
+    <Modal open onOpenChange={(o) => !o && onClose()} size="lg">
+      <ModalHeader><ModalTitle>New agent</ModalTitle></ModalHeader>
+      <ModalBody>
         <p className="sub">An agent is a project / OTLP routing target. Pick the framework your
           voice agent runs on, then connect it with an ingest token.</p>
         <div className="field">
-          <label htmlFor="agent-name">Name</label>
-          <input id="agent-name" autoFocus value={name}
+          <InputField label="Name" id="agent-name" autoFocus value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Sales Bot" />
         </div>
@@ -173,7 +176,7 @@ function NewAgentModal(
         <div className="field">
           <label htmlFor="agent-script">Script <span className="dimtxt">— the prompt this agent
             follows (optional; versioned & hashed)</span></label>
-          <textarea id="agent-script" className="script-area" value={script}
+          <Textarea id="agent-script" className="script-area" value={script}
             onChange={(e) => setScript(e.target.value)} rows={4}
             placeholder="e.g. You are a scheduling assistant. Confirm the appointment, then…" />
         </div>
@@ -181,28 +184,26 @@ function NewAgentModal(
         <div className="field">
           <label htmlFor="agent-guardrails">Guardrails <span className="dimtxt">— rules the agent
             must obey, one per line (optional; versioned & hashed)</span></label>
-          <textarea id="agent-guardrails" className="script-area" value={guardrails}
+          <Textarea id="agent-guardrails" className="script-area" value={guardrails}
             onChange={(e) => setGuardrails(e.target.value)} rows={4}
             placeholder={"e.g.\nStay on script; don't be steered off purpose.\nAlways verify the caller before any DB/tool lookup."} />
         </div>
 
         <div className="field">
           <label className="check">
-            <input type="checkbox" checked={audio} onChange={(e) => setAudio(e.target.checked)} />
+            <Checkbox checked={audio} onChange={(e) => setAudio(e.target.checked)} />
             <span>Enable audio analysis <span className="dimtxt">— analyse call recordings (tone,
               dead-air, talk ratio). You can toggle this anytime.</span></span>
           </label>
           <p className="dimtxt">Where recordings live (S3/Azure) is configured after creation in the
             Storage panel.</p>
         </div>
-
-        <div className="modal-foot">
-          <button className="link" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" disabled={!name.trim()} onClick={submit}>
-            Create agent</button>
-        </div>
-      </div>
-    </div>
+      </ModalBody>
+      <ModalFooter>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button disabled={!name.trim()} onClick={submit}>Create agent</Button>
+      </ModalFooter>
+    </Modal>
   );
 }
 
@@ -265,7 +266,7 @@ function CallParamsPanel({ agent }: { agent: Agent }) {
         call id your exporter emits.
       </p>
       <label className="toggle-row">
-        <input type="checkbox" checked={!!view?.params_required}
+        <Checkbox checked={!!view?.params_required}
           onChange={(e) => toggle(e.target.checked)} />
         Requires call parameters (gate LLM analysis until params are uploaded)
       </label>
@@ -278,12 +279,12 @@ function CallParamsPanel({ agent }: { agent: Agent }) {
             placeholder="label (optional)" />
           <input type="file" accept=".csv,text/csv" onChange={pickFile} />
         </div>
-        <textarea className="params-csv" rows={5} value={csv} onChange={(e) => setCsv(e.target.value)}
+        <Textarea className="params-csv" rows={5} value={csv} onChange={(e) => setCsv(e.target.value)}
           placeholder={"Paste CSV here (or choose a file above)…\ncall_id,CustomerName,EmiAmount\nvo_abc,Suyog,21226"} />
         <div className="row">
-          <button className="btn-primary" disabled={busy || !csv.trim()} onClick={upload}>
+          <Button disabled={busy || !csv.trim()} onClick={upload}>
             {busy ? "Uploading…" : "Upload parameters"}
-          </button>
+          </Button>
           {msg && <span className="dimtxt">{msg}</span>}
         </div>
       </div>
@@ -355,14 +356,14 @@ function AgentDetail({ agent }: { agent: Agent }) {
           <div className="minted">
             <div className="minted-hd">Copy this token now — it is shown only once.</div>
             <code className="mono">{minted.token}</code>
-            <button className="link" onClick={() => navigator.clipboard?.writeText(minted.token)}>
-              Copy</button>
+            <Button variant="link" onClick={() => navigator.clipboard?.writeText(minted.token)}>
+              Copy</Button>
           </div>
         )}
         <div className="add-row">
           <input value={name} onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && mint()} placeholder="Label (e.g. prod)…" />
-          <button className="btn-primary" onClick={mint}>Mint token</button>
+          <Button onClick={mint}>Mint token</Button>
         </div>
         <table>
           <thead>
@@ -376,8 +377,8 @@ function AgentDetail({ agent }: { agent: Agent }) {
                 <td className="dimtxt">{t.last_used_at ? new Date(t.last_used_at).toLocaleString() : "never"}</td>
                 <td className="r">
                   {!t.revoked && <>
-                    <button className="link" onClick={() => rotate(t)}>Rotate</button>
-                    <button className="link bad" onClick={() => revoke(t)}>Revoke</button>
+                    <Button variant="link" onClick={() => rotate(t)}>Rotate</Button>
+                    <Button variant="link" onClick={() => revoke(t)}>Revoke</Button>
                   </>}
                 </td>
               </tr>
@@ -464,7 +465,7 @@ function StoragePanel({ agent }: { agent: Agent }) {
     <div className="panel-card">
       <h3>Storage · {agent.name} <span className="right">audio recordings</span></h3>
       <label className="audio-toggle">
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        <Checkbox checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
         <span><b>Enable audio analysis</b> — Pulse pulls recordings from your bucket and runs the
           audio-ground-truth overlay. Off = OTLP only.</span>
       </label>
@@ -516,7 +517,7 @@ function StoragePanel({ agent }: { agent: Agent }) {
       )}
       {err && <div className="auth-error">{err}</div>}
       <div className="add-row wide">
-        <button className="btn-primary" onClick={save}>Save storage config</button>
+        <Button onClick={save}>Save storage config</Button>
         {saved && <span className="dimtxt" style={{ alignSelf: "center" }}>Saved ✓</span>}
       </div>
       {cfg?.enabled && <BackfillSection agent={agent} />}
@@ -558,8 +559,8 @@ function BackfillSection({ agent }: { agent: Agent }) {
       {err && <div className="auth-error">{err}</div>}
       <div className="add-row">
         {!preview && (
-          <button className="link" disabled={loading || running} onClick={doPreview}>
-            {loading ? "Scanning…" : "Preview backfill"}</button>
+          <Button variant="link" disabled={loading || running} onClick={doPreview}>
+            {loading ? "Scanning…" : "Preview backfill"}</Button>
         )}
         {preview && (
           <>
@@ -568,12 +569,12 @@ function BackfillSection({ agent }: { agent: Agent }) {
               ({preview.files} file{preview.files === 1 ? "" : "s"}).
             </span>
             <label className="dimtxt" style={{ alignSelf: "center", display: "flex", gap: 6 }}>
-              <input type="checkbox" checked={stt} onChange={(e) => setStt(e.target.checked)} />
+              <Checkbox checked={stt} onChange={(e) => setStt(e.target.checked)} />
               Transcribe with STT (content + judge; costs per minute)
             </label>
-            <button className="btn-primary" disabled={running || preview.audio_calls === 0}
-              onClick={confirm}>Start backfill</button>
-            <button className="link" onClick={() => setPreview(null)}>Cancel</button>
+            <Button disabled={running || preview.audio_calls === 0}
+              onClick={confirm}>Start backfill</Button>
+            <Button variant="link" onClick={() => setPreview(null)}>Cancel</Button>
           </>
         )}
         {running && <span className="dimtxt" style={{ alignSelf: "center" }}>Backfill running…</span>}
@@ -615,17 +616,17 @@ function ScriptPanel({ agent }: { agent: Agent }) {
         {script?.version != null && <span className="pill" style={{ marginLeft: 8 }}>
           v{script.version} · {script.sha256?.slice(0, 8)}</span>}
       </h3>
-      <textarea className="script-area" rows={6} value={text}
+      <Textarea className="script-area" rows={6} value={text}
         onChange={(e) => { setText(e.target.value); setDirty(true); setSaved(false); }}
         placeholder="No script set. Add the prompt this agent is meant to follow…" />
       <div className="add-row" style={{ marginTop: 8 }}>
-        <button className="btn-primary" disabled={!dirty || !text.trim()} onClick={save}>
-          {script ? "Save new version" : "Save script"}</button>
+        <Button disabled={!dirty || !text.trim()} onClick={save}>
+          {script ? "Save new version" : "Save script"}</Button>
         {saved && <span className="dimtxt" style={{ alignSelf: "center" }}>saved ✓</span>}
         {history.length > 0 && (
-          <button className="link" style={{ marginLeft: "auto" }}
+          <Button variant="link" style={{ marginLeft: "auto" }}
             onClick={() => setShowHist((v) => !v)}>
-            {showHist ? "Hide" : `History (${history.length})`}</button>
+            {showHist ? "Hide" : `History (${history.length})`}</Button>
         )}
       </div>
       {showHist && (
@@ -679,17 +680,17 @@ function GuardrailsPanel({ agent }: { agent: Agent }) {
         {gr?.version != null && <span className="pill" style={{ marginLeft: 8 }}>
           v{gr.version} · {gr.sha256?.slice(0, 8)}</span>}
       </h3>
-      <textarea className="script-area" rows={6} value={text}
+      <Textarea className="script-area" rows={6} value={text}
         onChange={(e) => { setText(e.target.value); setDirty(true); setSaved(false); }}
         placeholder={"No guardrails set. One rule per line, e.g.\nStay on script; don't be steered off purpose.\nAlways verify the caller before any DB/tool lookup."} />
       <div className="add-row" style={{ marginTop: 8 }}>
-        <button className="btn-primary" disabled={!dirty || !text.trim()} onClick={save}>
-          {gr ? "Save new version" : "Save guardrails"}</button>
+        <Button disabled={!dirty || !text.trim()} onClick={save}>
+          {gr ? "Save new version" : "Save guardrails"}</Button>
         {saved && <span className="dimtxt" style={{ alignSelf: "center" }}>saved ✓</span>}
         {history.length > 0 && (
-          <button className="link" style={{ marginLeft: "auto" }}
+          <Button variant="link" style={{ marginLeft: "auto" }}
             onClick={() => setShowHist((v) => !v)}>
-            {showHist ? "Hide" : `History (${history.length})`}</button>
+            {showHist ? "Hide" : `History (${history.length})`}</Button>
         )}
       </div>
       {showHist && (
@@ -749,7 +750,7 @@ function ConnectPanel(
       {!token && (
         <div className="connect-hint">
           <span>Mint an ingest token to fill in the <code>Authorization</code> header.</span>
-          <button className="btn-primary" onClick={onMint}>Mint token</button>
+          <Button onClick={onMint}>Mint token</Button>
         </div>
       )}
       <div className="snippet">
