@@ -57,6 +57,7 @@ def test_sft_with_meta_optin(authed_client, db_sessionmaker) -> None:
     row = json.loads(r.text.strip().splitlines()[0])
     assert row["meta"]["gt_source"] == "judge_unverified"
     assert row["meta"]["recoverable"] is True
+    assert row["meta"]["outcome"] == "failed"  # seed judgment has objective_achieved="no"
 
 
 def test_dpo_trl_default(authed_client, db_sessionmaker) -> None:

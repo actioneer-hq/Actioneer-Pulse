@@ -46,6 +46,12 @@ def _scope(stmt: Select, db: Session, mem: Membership, agent_id: str | None,
     return stmt
 
 
+def _outcome(objective_achieved: str | None) -> str:
+    """Terminal-objective label: the call's final outcome, for downstream filtering/weighting.
+    `yes` → achieved (good), `no` → failed (bad), anything else → uncertain."""
+    return {"yes": "achieved", "no": "failed"}.get(objective_achieved or "", "uncertain")
+
+
 def _corrected_message(c: dict) -> dict:
     """The corrected assistant turn as an OpenAI-style message. A structured tool target whenever the
     correction carries `corrected_tool` (the judge tags `kind` loosely, so key off the tool, not the
@@ -127,6 +133,7 @@ def _rows(db: Session, mem: Membership, fmt: str, dialect: str, include_meta: bo
             select(Turn).where(Turn.call_id == call.id).order_by(Turn.turn_index)))
         convo = _conversation(turns)
         recoverable = j.objective_achieved != "yes"  # controllable failure with a produced fix
+        outcome = _outcome(j.objective_achieved)  # terminal label for filtering/weighting downstream
         for c in corrections:
             if not (c.get("corrected") or c.get("corrected_tool")):
                 continue  # nothing to train toward
@@ -135,7 +142,7 @@ def _rows(db: Session, mem: Membership, fmt: str, dialect: str, include_meta: bo
                 "call_id": call.external_call_id, "agent_id": call.agent_id,
                 "turn_id": c.get("turn_id"), "kind": c.get("kind"),
                 "fault_dim": j.model_fault, "recoverable": recoverable,
-                "gt_source": "judge_unverified",
+                "outcome": outcome, "gt_source": "judge_unverified",
             } if include_meta else None
             row = (_sft_row(ctx, c, meta) if fmt == "sft"
                    else _dpo_row(ctx, c, c.get("observed") or "", dialect, meta))
