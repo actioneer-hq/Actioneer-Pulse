@@ -273,11 +273,15 @@ function CallParamsPanel({ agent }: { agent: Agent }) {
 
       <div className="params-upload">
         <div className="row">
-          <input className="params-key" value={keyColumn} onChange={(e) => setKeyColumn(e.target.value)}
+          <InputField className="params-key" value={keyColumn}
+            onChange={(e) => setKeyColumn(e.target.value)}
             placeholder="call id column" title="CSV column holding the call id" />
-          <input value={label} onChange={(e) => setLabel(e.target.value)}
+          <InputField value={label} onChange={(e) => setLabel(e.target.value)}
             placeholder="label (optional)" />
-          <input type="file" accept=".csv,text/csv" onChange={pickFile} />
+          <label className="file-btn">
+            <input type="file" accept=".csv,text/csv" onChange={pickFile} hidden />
+            Choose CSV…
+          </label>
         </div>
         <Textarea className="params-csv" rows={5} value={csv} onChange={(e) => setCsv(e.target.value)}
           placeholder={"Paste CSV here (or choose a file above)…\ncall_id,CustomerName,EmiAmount\nvo_abc,Suyog,21226"} />
