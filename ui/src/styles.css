@@ -1,3 +1,9 @@
+/* Actioneer Design System (@actioneer/ads) — Tailwind v4 graph first, then ADS tokens/fonts.
+   Order is load-bearing: tailwind must be imported before the ADS stylesheet so ADS's @theme
+   tokens, @font-face, and @source all emit into the same Tailwind graph. */
+@import "tailwindcss";
+@import "@actioneer/ads/styles.css";
+
 /* Aribau Grotesk — the Actioneer Design System UI typeface (self-hosted from ADS). */
 @font-face{font-family:"Aribau Grotesk";src:url("/fonts/aribau-grotesk-regular.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap}
 @font-face{font-family:"Aribau Grotesk";src:url("/fonts/aribau-grotesk-medium.woff2") format("woff2");font-weight:500 700;font-style:normal;font-display:swap}
