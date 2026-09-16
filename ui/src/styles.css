@@ -288,10 +288,10 @@ tbody tr.on{background:var(--sel);box-shadow:inset 2px 0 0 var(--accent)}
 .sec:last-child{border-bottom:0}
 .sec h3{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:10px;display:flex;align-items:center;gap:8px}
 .sec h3 .right{margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none;font-size:12px}
-.sec h3.collapse{cursor:pointer;user-select:none;transition:color .15s;margin:-4px 0;padding:4px 0}
-.sec h3.collapse:hover{color:var(--ink)}
+.sec h3.sec-toggle{cursor:pointer;user-select:none;transition:color .15s;margin:-4px 0;padding:4px 0}
+.sec h3.sec-toggle:hover{color:var(--ink)}
 .chev{flex:none;color:var(--dim);transition:transform .2s ease-out}
-.sec h3.collapse:hover .chev{color:var(--ink)}
+.sec h3.sec-toggle:hover .chev{color:var(--ink)}
 .chev.open{transform:rotate(90deg)}
 /* disabled section header (e.g. discrepancies when audio analysis is off) */
 .sec h3.disabled{display:flex;align-items:center;gap:8px;color:var(--dim);opacity:.5;cursor:not-allowed}

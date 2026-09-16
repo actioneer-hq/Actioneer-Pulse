@@ -47,7 +47,7 @@ export default function AudioAnalysis({ data }: { data: CallDetail }) {
 
   return (
     <section className="sec">
-      <h3 className="collapse" role="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <h3 className="sec-toggle" role="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <svg className={`chev${open ? " open" : ""}`} width="12" height="12" viewBox="0 0 24 24"
              fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
              strokeLinejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18" /></svg>

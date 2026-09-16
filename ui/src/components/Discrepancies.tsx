@@ -31,7 +31,7 @@ export default function Discrepancies(
   const n = discrepancies.length;
   return (
     <section className="sec">
-      <h3 className="collapse" role="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <h3 className="sec-toggle" role="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <Chev open={open} />
         Ground truth vs reported
         <span className={`right ${n ? "bad" : ""}`}>{n ? `${n} flagged` : "audio agrees"}</span>

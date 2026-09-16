@@ -27,13 +27,14 @@ function rowsFor(j: Judgment): [keyof Judgment, string, string][] {
 }
 
 export default function LlmAnalysis({ judgment }: { judgment: Judgment | null }) {
-  const [open, setOpen] = useState(false);
   // A judgment row exists but status "skipped" = connected-but-no-model, or not connected.
   const judged = judgment && judgment.status === "ok";
+  // Open by default when there's a real judgment — it's the headline of the call, not a footnote.
+  const [open, setOpen] = useState(!!judged);
 
   return (
     <section className="sec">
-      <h3 className="collapse" role="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+      <h3 className="sec-toggle" role="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <Chev open={open} />
         LLM analysis
         {judged && judgment!.is_failure && <span className="pill bad" style={{ marginLeft: 8 }}>failure</span>}
