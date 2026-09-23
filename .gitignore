@@ -35,3 +35,6 @@ tests/e2e/.venv/
 
 baby-sentinel/
 *.bak
+
+# Client-specific, uncommitted backfill code + data
+clients/

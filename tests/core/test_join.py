@@ -118,6 +118,79 @@ def test_audio_missing_degrades_to_events_only():
     assert len(analysis.turns) == 1
 
 
+def test_untimed_spans_flag_timing_missing_but_text_flows():
+    """A bare-transcript producer: dialogue mapped to spans with no clock at all.
+    Text still lands in turns (ordered by sequence); latency math reads absent, and
+    the gap is named TIMING_MISSING — never silently zeroed, never invented."""
+    turn1 = Span(span_id="t1", parent_span_id=None, name="voice.turn", stage=Stage.TURN,
+                 sequence=0, turn_id="c1:0")
+    stt1 = Span(span_id="s1", parent_span_id="t1", name="line", stage=Stage.STT,
+                sequence=1, turn_id="c1:0", content={"transcript": "hello"})
+    turn2 = Span(span_id="t2", parent_span_id=None, name="voice.turn", stage=Stage.TURN,
+                 sequence=2, turn_id="c1:1")
+    stt2 = Span(span_id="s2", parent_span_id="t2", name="line", stage=Stage.STT,
+                sequence=3, turn_id="c1:1", content={"transcript": "who is this?"})
+    trace = Trace(header=_header(), spans=[turn2, stt2, turn1, stt1])  # shuffled on purpose
+
+    analysis = join(trace, None)
+
+    assert TrustReason.TIMING_MISSING in analysis.trust.reasons
+    assert "events" in analysis.trust.layers_run
+    assert [t.transcript for t in analysis.turns] == ["hello", "who is this?"]  # sequence order
+    assert all(t.response_latency_ms is None for t in analysis.turns)  # absent, not zero
+
+
+def test_timed_trace_has_no_timing_missing():
+    analysis = join(_cascade_trace(), None)
+    assert TrustReason.TIMING_MISSING not in analysis.trust.reasons
+
+
+def test_turns_derived_from_event_sequence_when_no_turn_spans():
+    """A file-based producer's timeline: one call span carrying instant events, zero TURN
+    spans. Turn structure is inferred from the stt.final/tts.first_audio alternation —
+    latencies computed from real event times, and the inference named in trust."""
+    ev = lambda name, t, detail="": SpanEvent(name=name, t=t, content={"detail": detail})
+    call = _span("call", None, "cascade", Stage.CALL, 0.0, None, None, events=[
+        ev("stt.final", 0.42, "Yes, who is this?"),
+        ev("turn.committed", 0.55),
+        ev("llm.spoken", 1.90, "This is a call from Acme Finance."),
+        ev("tts.first_audio", 2.10),
+        ev("stt.final", 5.87, "I already paid it."),
+        ev("turn.committed", 6.02),
+        ev("llm.spoken", 6.71, "Thank you, let me verify."),
+        ev("tts.first_audio", 6.90),
+        ev("bargein", 7.45, "caller spoke during playback"),
+    ])
+    analysis = join(Trace(header=_header(), spans=[call]), None)
+
+    assert TrustReason.TURNS_DERIVED in analysis.trust.reasons
+    assert len(analysis.turns) == 2
+    t1, t2 = analysis.turns
+    assert t1.transcript == "Yes, who is this?"
+    assert t1.response_latency_ms == 1680.0  # 2.10 - 0.42, from events
+    assert t1.llm_spoken == "This is a call from Acme Finance."
+    assert t2.response_latency_ms == 1030.0  # 6.90 - 5.87
+    assert t2.interrupted is True  # the bargein landed in its window
+    # derived turns also feed the aggregate metrics
+    assert any(m.name for m in analysis.metrics)
+
+
+def test_timed_events_on_untimed_spans_are_a_clock():
+    """The wizard's file-mapper shape: an untimed container span whose EVENTS carry the
+    clock. Latencies derive from those events, so timing_missing must not fire — the trust
+    report would contradict its own numbers."""
+    call = Span(span_id="c", parent_span_id=None, name="pipeline", stage=Stage.CALL,
+                sequence=0, events=[
+                    SpanEvent(name="stt.final", t=0.42, content={"detail": "hi"}),
+                    SpanEvent(name="tts.first_audio", t=2.10),
+                ])
+    analysis = join(Trace(header=_header(), spans=[call]), None)
+    assert TrustReason.TIMING_MISSING not in analysis.trust.reasons
+    assert analysis.turns[0].response_latency_ms == 1680.0
+    analysis = join(_cascade_trace(), None)
+    assert TrustReason.TURNS_DERIVED not in analysis.trust.reasons
+
+
 def test_cascade_without_spans_is_trace_missing():
     trace = Trace(header=_header(engine="cascade"), spans=[])
     analysis = join(trace, _audio(0.0), t0_offset_s=0.0)

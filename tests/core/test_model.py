@@ -106,6 +106,32 @@ def test_minimal_analysis_constructs():
     assert analysis.turns[0].audio_start_s is None
 
 
+def test_evidence_is_nullable_identity_is_not():
+    """The boundary principle: identity is synthesizable, evidence is nullable.
+    A bare-transcript producer maps dialogue to spans with no clock at all."""
+    s = Span(
+        span_id="f3ab-0",  # mapper-minted — identity is bookkeeping, not evidence
+        parent_span_id=None, name="line", stage=Stage.STT,
+        sequence=0, content={"transcript": "hello"},
+    )
+    assert s.t_start is None and s.t_end is None  # producer never had a clock
+    assert s.sequence == 0  # source order still known
+    assert s.content["transcript"] == "hello"
+
+    header = CallHeader(call_id="c", source="storage", environment="prod")
+    assert header.started_at is None  # no wall clock logged — null, never invented
+    trace = Trace(header=header, spans=[s])
+    assert trace.spans[0].stage is Stage.STT
+
+    with pytest.raises(ValidationError):  # identity can never be null
+        Span(span_id=None, parent_span_id=None, name="x", stage=Stage.STT)  # type: ignore[arg-type]
+
+
+def test_untimed_span_event_carries_content():
+    e = SpanEvent(name="stt.segment", content={"overheard": "wait, that's not me"})
+    assert e.t is None  # instant marker without a clock still carries its evidence
+
+
 def test_utterance_has_speaker():
     u = Utterance(channel="caller", t_start=0.0, t_end=1.2)
     assert u.channel == "caller"

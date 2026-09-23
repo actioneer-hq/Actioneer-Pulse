@@ -116,6 +116,7 @@ export type Trust = {
   capture_coverage: Record<string, number> | number[] | Record<string, never>;
   span_dropped_events: number | null;
   unattributed_spans: number | null;
+  reasons: string[]; // calculator TrustReason tokens from the latest analysis run
 };
 
 // One consolidated payload — header, turns, metrics, trust, the span tree, waveform

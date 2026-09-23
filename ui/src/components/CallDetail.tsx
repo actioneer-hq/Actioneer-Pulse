@@ -73,10 +73,36 @@ function Header({ data }: { data: Detail }) {
         {h.status !== "unsupported" && h.metric_version == null && <span className="pill warn">not analysed yet</span>}
         {!data.trust.media_ready && <span className="pill warn">no audio</span>}
         {!data.trust.spans_complete && <span className="pill bad">spans incomplete</span>}
+        {(data.trust.reasons ?? []).map((r) => {
+          const t = TRUST_REASONS[r];
+          if (!t) return null; // audio_missing/trace_missing etc. already covered by the pills above
+          return <span key={r} className={`pill ${t.cls}`} title={t.tip}>{t.label}</span>;
+        })}
       </div>
     </>
   );
 }
+
+// Calculator trust reasons worth their own pill — the ones the booleans above don't cover.
+// label = what happened; tip = what it means for the numbers.
+const TRUST_REASONS: Record<string, { label: string; cls: string; tip: string }> = {
+  turns_derived_from_events: {
+    label: "turns derived", cls: "",
+    tip: "No turn spans in the telemetry — turn structure and latencies were inferred from the event timeline (stt.final → tts.first_audio).",
+  },
+  timing_missing: {
+    label: "no timing", cls: "warn",
+    tip: "The source carried no clock at all — dialogue and analysis work, latency metrics are absent (not zero).",
+  },
+  telemetry_truncated: {
+    label: "telemetry truncated", cls: "warn",
+    tip: "The producer dropped span events mid-call; some evidence never arrived.",
+  },
+  gate_timeout: {
+    label: "computed partial", cls: "warn",
+    tip: "Analysis ran before all evidence arrived (gate timed out); a late piece will trigger re-analysis.",
+  },
+};
 
 function Sections({ data }: { data: Detail }) {
   const h = data.call;

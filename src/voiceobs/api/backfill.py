@@ -66,6 +66,16 @@ def preview(
             found_otlp = discover_otlp(st)
             return {"agent_id": agent_id, "source": "otlp", "audio_calls": len(found_otlp),
                     "files": len(found_otlp), "sample_call_ids": sorted(found_otlp)[:5]}
+        if source == "manifest":
+            from voiceobs.integration import discover_manifest, resolve_manifest
+
+            resolved_mf = resolve_manifest(db, agent_id)
+            if resolved_mf is None:
+                raise HTTPException(400, "no integration manifest registered for this agent")
+            found_mf = discover_manifest(st, resolved_mf[0])
+            return {"agent_id": agent_id, "source": "manifest", "audio_calls": len(found_mf),
+                    "files": sum(len(v) for v in found_mf.values()),
+                    "sample_call_ids": sorted(found_mf)[:5]}
         found = discover(st)
     except Exception as e:
         raise HTTPException(400, f"could not list storage: {e}") from e
@@ -85,8 +95,8 @@ def create(
     mem: Membership = Depends(require_role("owner", "admin")),
 ) -> dict:
     """Enqueue a backfill job. The backfill worker (a sidecar) claims and runs it."""
-    if body.source not in ("audio", "otlp"):
-        raise HTTPException(400, "source must be 'audio' or 'otlp'")
+    if body.source not in ("audio", "otlp", "manifest"):
+        raise HTTPException(400, "source must be 'audio', 'otlp' or 'manifest'")
     if resolve_storage(db, body.agent_id) is None:
         raise HTTPException(400, "storage not configured/enabled for this agent")
     job = BackfillJob(

@@ -18,6 +18,7 @@ from voiceobs.core import (
     identify_agent_channel,
 )
 from voiceobs.core.audio.decode import combine_stereo
+from voiceobs.core.calculator import order_key
 from voiceobs.core.config import METRIC_VERSION, price_call
 from voiceobs.core.model import Analysis, AudioAnalysis, AudioRef, CallHeader, Stage, Trace
 from voiceobs.db.models import (
@@ -116,6 +117,38 @@ def process(db: Session, call: Call) -> str:
         _reconcile(db, call, analysis)
 
     telemetry.feature_used(adapter.name, audio=audio_enabled)  # adapter name is dynamic (no literal)
+
+    reasons = [r.value for r in analysis.trust.reasons]
+    run.status = "partial" if reasons else "ok"
+    run.error = ", ".join(reasons) or None
+    run.finished_at = _now()
+    return run.status
+
+
+def process_trace(db: Session, call: Call, trace, adapter_version: int = 0) -> str:
+    """Analyse a READY canonical Trace and persist — the manifest runtime's entry point.
+
+    Same tail as `process()` but the trace arrives already canonical (built by executing a
+    wizard integration manifest's mappers over stored artifacts), so no RawFragment assembly
+    and no adapter run. adapter_version records the manifest version for provenance. Caller
+    owns the transaction, exactly like `process()`."""
+    from voiceobs.core.calculator import Calculator
+
+    run = IngestRun(
+        call_id=call.id, app_version=APP_VERSION,
+        metric_version=METRIC_VERSION, status="running", started_at=_now(),
+    )
+    db.add(run)
+
+    audio_enabled = _audio_enabled(db, call)
+    audio = _load_audio(db, call) if audio_enabled else None
+    analysis = Calculator().analyze(
+        trace, audio, t0_offset_s=call.audio_t0_offset_s, audio_enabled=audio_enabled
+    )
+    _persist(db, call, trace, analysis, adapter_version, audio)
+    if audio_enabled:
+        _reconcile(db, call, analysis)
+    telemetry.feature_used("manifest", audio=audio_enabled)
 
     reasons = [r.value for r in analysis.trust.reasons]
     run.status = "partial" if reasons else "ok"
@@ -360,26 +393,37 @@ def _metric_row(m, call: Call, metric_version: int) -> Metric:
 
 
 def _event_rows(trace: Trace, call: Call):
-    """One row per span, plus one per span event — the timeline the viewer scrubs."""
-    for s in trace.spans:
+    """One row per span, plus one per span event — the timeline the viewer scrubs.
+
+    Rows are emitted in canonical call order (core.calculator.order_key: clock when
+    known, source `sequence` when not) and stamped with a dense `position` — THE sort
+    key at read time, so ordering survives spans that carry no clock at all."""
+    position = 0
+    for s in sorted(trace.spans, key=order_key):
         kind = next((k for k in _PRIMARY_CONTENT if s.content.get(k)), None)
         yield Event(
             call_id=call.id, span_id=s.span_id,
             parent_span_id=s.parent_span_id, turn_id=s.turn_id, t_offset_s=s.t_start,
+            position=position,
             kind="span", type=s.stage.value, name=s.name, attrs=s.attrs,
-            duration_s=None if s.t_end is None else round(s.t_end - s.t_start, 6),
+            duration_s=None if s.t_end is None or s.t_start is None
+            else round(s.t_end - s.t_start, 6),
             error=s.error or None,
             content_text=s.content.get(kind) if kind else None, content_kind=kind,
         )
-        for e in s.events:
+        position += 1
+        events = sorted(s.events, key=lambda e: e.t if e.t is not None else float("inf"))
+        for e in events:
             ekind = next(iter(e.content), None)
             yield Event(
                 call_id=call.id, span_id=s.span_id,
                 parent_span_id=s.parent_span_id, turn_id=s.turn_id, t_offset_s=e.t,
+                position=position,
                 kind="event", type=e.name[:48], name=e.name, attrs=e.attrs,
                 content_text=_text(e.content.get(ekind)) if ekind else None,
                 content_kind=ekind,
             )
+            position += 1
 
 
 def _text(v) -> str | None:

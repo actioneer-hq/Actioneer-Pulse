@@ -128,8 +128,24 @@ def run_job(db: Session, job: BackfillJob) -> None:
     db.commit()
 
     otlp = job.source == "otlp"
+    manifest_mode = job.source == "manifest"
+    manifest: dict = {}
+    manifest_version = 0
+    if manifest_mode:
+        from voiceobs.integration import resolve_manifest
+
+        resolved_mf = resolve_manifest(db, job.agent_id)
+        if resolved_mf is None:
+            _finish(db, job, status="failed", error="no integration manifest registered")
+            return
+        manifest, manifest_version = resolved_mf
     try:
-        found = discover_otlp(st) if otlp else discover(st)
+        if manifest_mode:
+            from voiceobs.integration import discover_manifest
+
+            found = discover_manifest(st, manifest)
+        else:
+            found = discover_otlp(st) if otlp else discover(st)
     except Exception as e:
         log.exception("backfill discover failed for job %s", job.id)
         _finish(db, job, status="failed", error=f"discover failed: {e}")
@@ -153,7 +169,17 @@ def run_job(db: Session, job: BackfillJob) -> None:
             return
         judge_cid = None
         try:
-            if otlp:
+            if manifest_mode:
+                from voiceobs.integration import process_manifest_call
+
+                status = process_manifest_call(
+                    db, job.agent_id, call_id, found[call_id], st.creds,
+                    manifest, manifest_version,
+                )
+                if status in ("ok", "partial"):
+                    judge_cid = call_id  # transcript-bearing manifest calls are judgeable
+                    status = "ok"
+            elif otlp:
                 status = _process_otlp_call(db, job.agent_id, call_id, found[call_id], st.creds)
                 if status == "ok":
                     judge_cid = call_id  # full-fidelity OTLP call → judge

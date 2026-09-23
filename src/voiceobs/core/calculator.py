@@ -76,16 +76,20 @@ class Calculator:
             self.build_turn(ts, trace.spans, utterances, offset, position)
             for position, ts in enumerate(turn_spans)
         ]
+        turns_derived = False
+        if not turns:  # no TURN spans — infer turn structure from the event sequence
+            turns = _turns_from_events(trace)
+            turns_derived = bool(turns)
 
         agent_iv = _agent_intervals(trace, offset)  # agent-side truth: spans, not VAD
 
         metrics: list[MetricValue] = []
         if audio is not None:
             metrics.extend(_audio_metrics(audio, agent_iv, cfg))
-        if has_spans and turn_spans:
+        if has_spans and turns:
             metrics.extend(_layer2_metrics(turns))
 
-        trust = _trust_report(trace, audio, turns, offset, cfg, audio_enabled)
+        trust = _trust_report(trace, audio, turns, offset, cfg, audio_enabled, turns_derived)
 
         return Analysis(
             turns=turns,
@@ -130,7 +134,10 @@ class Calculator:
     def tts_request_start(self, tts: list[Span], offset: float) -> float | None:
         """When the actual TTS provider request fired — the TTS span carrying the synthesis
         metrics (characters count), which opens a little after the pipeline node."""
-        starts = [s.t_start for s in tts if s.attrs.get("tts.chars") is not None]
+        starts = [
+            s.t_start for s in tts
+            if s.attrs.get("tts.chars") is not None and s.t_start is not None
+        ]
         return _to_audio(min(starts), offset) if starts else None
 
     def first_audio(
@@ -169,7 +176,7 @@ class Calculator:
         llm_first_token = _to_audio(_first_event_t(spans, "llm.first_token", tid), offset)
         # TTS "start" = the earliest TTS span opening (~first token). The provider *request*
         # (tts_request_start) fires a little later; the gap between them is the dispatch.
-        tts_starts = [s.t_start for s in tts]
+        tts_starts = [s.t_start for s in tts if s.t_start is not None]
         tts_start = _to_audio(min(tts_starts), offset) if tts_starts else None
         tts_req_start = self.tts_request_start(tts, offset)
         tts_first_audio = _to_audio(_first_event_t(spans, "tts.first_audio", tid), offset)
@@ -277,6 +284,91 @@ class Calculator:
         )
 
 
+def order_key(s: Span) -> tuple[float, float]:
+    """THE canonical call order (CONTRACTS.md §5): ordering is the universal concept and
+    time is merely its best source — clock when the span has one, source `sequence` as the
+    fallback. Null-timed spans sort after timed ones (evidence without a clock has no place
+    on the timeline; it still renders, in source order). Persist stamps this order as a
+    dense `position` so reads never sort by time again."""
+    if s.t_start is not None:
+        return (0.0, s.t_start)
+    return (1.0, float(s.sequence) if s.sequence is not None else float("inf"))
+
+
+_order_key = order_key  # internal alias
+
+
+_EV_AGENT_SIDE = {"llm.first_token", "llm.raw", "llm.spoken", "tts.first_audio"}
+
+
+def _turns_from_events(trace: Trace) -> list[Turn]:
+    """Fallback turn derivation when a producer sent no TURN spans but its events tell the
+    story anyway (file-based producers whose timeline rows are instants). A turn window opens
+    at each `stt.final` once the agent has responded to the previous one; anchors come only
+    from events that exist — computed from real evidence, never invented, and the trust
+    report names the inference (TURNS_DERIVED)."""
+    events = sorted(
+        (e for s in trace.spans for e in s.events if e.t is not None), key=lambda e: e.t
+    )
+    if not events:
+        return []
+    turns: list[Turn] = []
+    cur: dict | None = None
+
+    def close(group: dict | None) -> None:
+        if group is None or not (group.keys() & {"stt_final", "llm_spoken", "tts_first"}):
+            return
+        turns.append(
+            Turn(
+                turn_index=len(turns),
+                turn_id=f"ev:{len(turns)}",
+                trigger="endpoint",
+                stt_final_at=group.get("stt_final"),
+                committed_at=group.get("committed"),
+                llm_first_token_at=group.get("llm_first"),
+                tts_first_audio_at=group.get("tts_first"),
+                response_latency_ms=_ms(group.get("stt_final"), group.get("tts_first")),
+                llm_ttft_ms=_ms(group.get("committed"), group.get("llm_first")),
+                transcript=group.get("transcript"),
+                llm_raw=group.get("llm_raw"),
+                llm_spoken=group.get("llm_spoken"),
+                interrupted=group.get("interrupted", False),
+            )
+        )
+
+    for e in events:
+        text = next(
+            (str(v) for v in e.content.values() if isinstance(v, str) and v.strip()), None
+        )
+        if e.name == "stt.final" and cur is not None and cur.get("agent_seen"):
+            close(cur)
+            cur = None
+        if cur is None:
+            cur = {}
+        if e.name == "stt.final":
+            cur.setdefault("stt_final", e.t)
+            if text:
+                cur["transcript"] = (cur.get("transcript") or "") + (" " if cur.get("transcript") else "") + text
+        elif e.name == "turn.committed":
+            cur.setdefault("committed", e.t)
+        elif e.name == "llm.first_token":
+            cur.setdefault("llm_first", e.t)
+        elif e.name == "llm.raw":
+            if text:
+                cur.setdefault("llm_raw", text)
+        elif e.name == "llm.spoken":
+            if text:
+                cur.setdefault("llm_spoken", text)
+        elif e.name == "tts.first_audio":
+            cur.setdefault("tts_first", e.t)
+        elif e.name == "bargein":
+            cur["interrupted"] = True
+        if e.name in _EV_AGENT_SIDE:
+            cur["agent_seen"] = True
+    close(cur)
+    return turns
+
+
 def _turn_spans(spans: list[Span]) -> list[Span]:
     """One turn span per exchange. A producer may emit several TURN-stage spans for the
     same exchange (LiveKit's user_turn + agent_turn); they share a turn_id once paired.
@@ -293,10 +385,10 @@ def _turn_spans(spans: list[Span]) -> list[Span]:
         if (
             cur is None
             or (primary and cur.span_id not in caller_side)
-            or (primary == (cur.span_id in caller_side) and s.t_start < cur.t_start)
+            or (primary == (cur.span_id in caller_side) and _order_key(s) < _order_key(cur))
         ):
             best[key] = s
-    return sorted(best.values(), key=lambda s: (_turn_index(s), s.t_start))
+    return sorted(best.values(), key=lambda s: (_turn_index(s), _order_key(s)))
 
 
 def _turn_index(span: Span, default: int = 10**9) -> int:
@@ -322,6 +414,7 @@ def _first_event_t(spans: list[Span], name: str, turn_id: str | None) -> float |
         for s in spans
         for e in s.events
         if e.name == name
+        and e.t is not None
         and (s.turn_id == turn_id or e.attrs.get("turn.id") == turn_id)
     ]
     return min(ts) if ts else None
@@ -485,9 +578,12 @@ def _trust_report(
     offset: float,
     cfg: MetricConfig,
     audio_enabled: bool = True,
+    turns_derived: bool = False,
 ) -> TrustReport:
     reasons: list[TrustReason] = []
     layers_run: list[str] = []
+    if turns_derived:
+        reasons.append(TrustReason.TURNS_DERIVED)
 
     if audio is not None:
         layers_run.append("audio")
@@ -500,6 +596,14 @@ def _trust_report(
     engine = (trace.header.engine or "").lower()
     if has_spans:
         layers_run.append("events")
+        if all(s.t_start is None for s in trace.spans) and all(
+            e.t is None for s in trace.spans for e in s.events
+        ):
+            # evidence without a clock ANYWHERE — neither spans nor their events (e.g. a
+            # bare transcript mapped to spans): text/attrs flow, latency math cannot —
+            # named, never silently zeroed. Timed events on untimed container spans are
+            # a clock, so they do not trip this.
+            reasons.append(TrustReason.TIMING_MISSING)
     elif engine == "s2s":
         reasons.append(TrustReason.TRACE_NOT_APPLICABLE)  # not an outage
     else:

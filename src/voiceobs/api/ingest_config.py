@@ -64,6 +64,47 @@ def put_storage_config(
     return {"agent_id": agent_id, "enabled": cfg.enabled, "provider": cfg.provider}
 
 
+@router.put("/integration-manifest")
+def put_integration_manifest(
+    body: dict, ident: tuple[str, Session] = Depends(require_ingest_agent)
+) -> dict:
+    """Register the wizard's integration manifest (schema pulse.integration) for this agent.
+    Stored as data; executed by the manifest runtime during a `source=manifest` backfill.
+    Upsert — a re-register replaces the manifest and bumps `version` for provenance."""
+    agent_id, db = ident
+    if body.get("schema") != "pulse.integration":
+        raise HTTPException(422, "manifest schema must be pulse.integration")
+    if not isinstance(body.get("mappers"), dict) or not isinstance(body.get("artifacts"), list):
+        raise HTTPException(422, "manifest requires mappers and artifacts")
+    from voiceobs.db.models import AgentIntegrationManifest
+
+    row = db.scalar(
+        select(AgentIntegrationManifest).where(AgentIntegrationManifest.agent_id == agent_id)
+    )
+    if row is None:
+        row = AgentIntegrationManifest(agent_id=agent_id, manifest=body, version=1)
+        db.add(row)
+    else:
+        row.manifest = body
+        row.version += 1
+    db.flush()
+    return {"agent_id": agent_id, "version": row.version,
+            "mappers": len(body["mappers"]), "artifacts": len(body["artifacts"])}
+
+
+@router.get("/integration-manifest")
+def get_integration_manifest(ident: tuple[str, Session] = Depends(require_ingest_agent)) -> dict:
+    agent_id, db = ident
+    from voiceobs.db.models import AgentIntegrationManifest
+
+    row = db.scalar(
+        select(AgentIntegrationManifest).where(AgentIntegrationManifest.agent_id == agent_id)
+    )
+    if row is None:
+        raise HTTPException(404, "no integration manifest registered")
+    return {"agent_id": agent_id, "version": row.version, "manifest": row.manifest}
+
+
 @router.put("/agent-meta")
 def put_agent_meta(
     body: AgentMetaIn, ident: tuple[str, Session] = Depends(require_ingest_agent)

@@ -28,7 +28,8 @@ calls(
 -- The span/event trace (STT, LLM, TTS stages + errors). Large — always filter by call_id and/or type.
 events(
   call_id, span_id, parent_span_id, turn_id,
-  t_offset_s,                              -- seconds from call start
+  t_offset_s,                              -- seconds from call start (may be NULL: source had no clock)
+  position,                                -- canonical order within the call — ORDER BY this, not t_offset_s
   kind,                                    -- 'span' | 'event'
   type,                                    -- normalized stage/event, e.g. 'stt','llm','tts'
   name, duration_s, error,                 -- error = span failed (boolean)

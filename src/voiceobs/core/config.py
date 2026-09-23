@@ -5,7 +5,10 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
-METRIC_VERSION = 1
+# v2 (2026-09-23): nullable evidence + sequence ordering; event.position stamped at persist;
+# turns derived from event sequences when TURN spans are absent; timing_missing counts event
+# clocks. Bumping re-analyzes every stored call, filling positions and derived turns.
+METRIC_VERSION = 2
 
 # higher_is_better sentinels for the METRICS table below
 UP, DOWN, FLAT = True, False, None

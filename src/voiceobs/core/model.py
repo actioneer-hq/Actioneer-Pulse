@@ -36,11 +36,15 @@ class TrustReason(StrEnum):
     AUDIO_PARTIAL = "audio_partial"
     PRODUCER_SCHEMA_UNSUPPORTED = "producer_schema_unsupported"
     GATE_TIMEOUT = "gate_timeout"
+    TIMING_MISSING = "timing_missing"  # spans carry text/attrs but no clock — no latency math
+    # No TURN spans, so turn structure was inferred from the event sequence (stt.final /
+    # tts.first_audio alternation). Derived from real evidence, but inferred — named, not hidden.
+    TURNS_DERIVED = "turns_derived_from_events"
 
 
 class SpanEvent(Frozen):
     name: str
-    t: float  # seconds from call t0
+    t: float | None = None  # seconds from call t0; None = producer never had a clock
     attrs: dict = Field(default_factory=dict)
     # Words the producer heard but no turn claimed — overheard, dropped, carried.
     # The discard signal; dropping it hides what STT got wrong.
@@ -48,13 +52,18 @@ class SpanEvent(Frozen):
 
 
 class Span(Frozen):
+    """The atomic unit of call evidence. Identity is synthesizable (a mapper may mint
+    span_id when the producer has none); evidence is nullable (None = the producer never
+    had that fact — nothing is ever invented). A span must assert at least one fact."""
+
     span_id: str
     parent_span_id: str | None
     name: str
     stage: Stage
-    t_start: float
-    t_end: float | None  # None = never closed (crash mid-turn)
-    turn_id: str | None  # nullable by design — the null is discard_rate
+    t_start: float | None = None  # None = source had text/facts but no clock
+    t_end: float | None = None  # None = never closed (crash mid-turn) or no clock
+    sequence: int | None = None  # source order when there is no clock to sort by
+    turn_id: str | None = None  # nullable by design — the null is discard_rate
     error: bool = False  # OTel span status ERROR / error.type attr / exception event
     attrs: dict = Field(default_factory=dict)  # shape only
     content: dict[str, Any] = Field(default_factory=dict)  # voice.content.* suffix -> text or list
@@ -62,10 +71,10 @@ class Span(Frozen):
 
 
 class CallHeader(Frozen):
-    call_id: str
+    call_id: str  # identity — never null; a mapper mints one when the producer has none
     source: str
     environment: str
-    started_at: datetime
+    started_at: datetime | None = None  # None = producer never logged a wall clock
     engine: str | None = None
     carrier: str | None = None
     stt_provider: str | None = None
@@ -85,12 +94,12 @@ class Trace(Frozen):
 
 
 class AudioRef(Frozen):
-    uri: str
-    sha256: str
-    channels: int
-    sample_rate: int
-    duration_s: float
-    channel_map: dict[int, str]  # carried, never assumed
+    uri: str  # identity — the reference IS the artifact; never null
+    sha256: str | None = None  # Pulse computes from the file when absent
+    channels: int | None = None  # ditto — decoded from the file itself
+    sample_rate: int | None = None
+    duration_s: float | None = None
+    channel_map: dict[int, str] | None = None  # carried when known; else detected + trust-noted
     t0_offset_s: float | None = None  # audio clock - call clock; may be negative
 
 

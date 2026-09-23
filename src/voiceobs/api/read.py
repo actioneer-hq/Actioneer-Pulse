@@ -19,6 +19,7 @@ from voiceobs.db.models import (
     AudioDiscrepancy,
     Call,
     Event,
+    IngestRun,
     Judgment,
     Media,
     Membership,
@@ -103,13 +104,16 @@ def get_call(
     metrics = db.scalars(select(Metric).where(Metric.call_id == call.id)).all()
     media = db.scalars(select(Media).where(Media.call_id == call.id)).all()
     events = db.scalars(
-        select(Event).where(Event.call_id == call.id).order_by(Event.t_offset_s)
+        # position = the canonical order (time-or-sequence, stamped at persist);
+        # t_offset_s tail only orders pre-0012 rows whose position is null
+        select(Event).where(Event.call_id == call.id)
+        .order_by(Event.position.asc().nulls_last(), Event.t_offset_s)
     ).all()
     return {
         "call": _header(call),
         "turns": [_turn(t) for t in turns],
         "metrics": [_metric(m) for m in metrics],
-        "trust": _trust(call, metrics),
+        "trust": _trust(call, metrics, db),
         "spans": _span_tree(events),
         "peaks": _peaks(media),
         "energy": _energy(media),
@@ -189,8 +193,16 @@ def _metric(m: Metric) -> dict:
     }
 
 
-def _trust(call: Call, metrics: list[Metric]) -> dict:
+def _trust(call: Call, metrics: list[Metric], db: Session) -> dict:
     cov = next((m for m in metrics if m.name == "capture_coverage"), None)
+    # The calculator's TrustReasons ride the latest IngestRun (comma-joined enum tokens in
+    # `error` when status=partial) — surface them so the UI can name WHY a number is thin.
+    run = db.scalars(
+        select(IngestRun).where(IngestRun.call_id == call.id)
+        .order_by(IngestRun.started_at.desc().nulls_last()).limit(1)
+    ).first()
+    reasons = [r.strip() for r in (run.error or "").split(",") if r.strip()] \
+        if run and run.status == "partial" else []
     return {
         "spans_complete": call.spans_complete,
         "media_ready": call.media_ready,
@@ -198,6 +210,7 @@ def _trust(call: Call, metrics: list[Metric]) -> dict:
         "capture_coverage": cov.samples if cov and cov.samples else {},
         "span_dropped_events": call.span_dropped_events,
         "unattributed_spans": call.unattributed_spans,
+        "reasons": reasons,
     }
 
 

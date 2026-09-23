@@ -175,7 +175,11 @@ class Event(Base):
     span_id: Mapped[str | None] = mapped_column(String(64))
     parent_span_id: Mapped[str | None] = mapped_column(String(64))  # null = root
     turn_id: Mapped[str | None] = mapped_column(String(160))  # NULLABLE BY DESIGN
-    t_offset_s: Mapped[float | None] = mapped_column(Float)  # seconds from call t0
+    t_offset_s: Mapped[float | None] = mapped_column(Float)  # seconds from call t0 — timing FACT, not the sort key
+    # THE ordering key: dense per-call position stamped at persist from core.calculator.order_key
+    # (time when known, source sequence when not). Null only on rows written pre-0012; those
+    # fall back to t_offset_s ordering and heal on the next metric_version re-analysis.
+    position: Mapped[int | None] = mapped_column(Integer)
     kind: Mapped[str] = mapped_column(String(8), nullable=False)  # span | event
     type: Mapped[str] = mapped_column(String(48), nullable=False)  # normalized stage or event name
     name: Mapped[str | None] = mapped_column(String(64))  # the producer's own span/event name
@@ -747,6 +751,26 @@ class AgentOtlpMapping(Base):
     id: Mapped[str] = pk()
     agent_id: Mapped[str] = mapped_column(ForeignKey("agent.id"), nullable=False)
     expression: Mapped[str] = mapped_column(Text, nullable=False)  # a JSONata expression
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)  # bumped on each write
+    created_at: Mapped[datetime] = created_col()
+    updated_at: Mapped[datetime] = created_col()
+
+
+class AgentIntegrationManifest(Base):
+    """The Pulse-wizard integration manifest, as DATA. One JSON document per agent describing
+    where a file-based producer's artifacts live (storage connections + path selectors), how to
+    decode them, and the JSONata mappers that turn each artifact into canonical fragments
+    (call | trace | transcript) plus audio emit rules. Authored by the wizard agent
+    (`register-integration` PUTs it here); executed by the manifest runtime
+    (`integration/runtime.py`) during a `source=manifest` backfill. `version` bumps on each
+    write so provenance records which manifest produced a call."""
+
+    __tablename__ = "agent_integration_manifest"
+    __table_args__ = (UniqueConstraint("agent_id", name="uq_agent_integration_manifest_agent"),)
+
+    id: Mapped[str] = pk()
+    agent_id: Mapped[str] = mapped_column(ForeignKey("agent.id"), nullable=False)
+    manifest: Mapped[dict] = mapped_column(JSON, nullable=False)  # schema pulse.integration
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)  # bumped on each write
     created_at: Mapped[datetime] = created_col()
     updated_at: Mapped[datetime] = created_col()

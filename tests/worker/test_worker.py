@@ -83,8 +83,15 @@ def test_worker_writes_turns_metrics_and_events(client, db_sessionmaker, drain):
         assert turns[0].llm_spoken == "haan ji, boliye"  # LiveKit reports spoken text, not raw
         assert db.scalars(select(Metric)).all() == [] or db.scalars(select(Metric)).all()
         # every span and every span event lands on the timeline
-        kinds = {e.kind for e in db.scalars(select(Event))}
+        rows = db.scalars(select(Event)).all()
+        kinds = {e.kind for e in rows}
         assert kinds == {"span", "event"}
+        # canonical order is STAMPED, dense from 0, and agrees with time where time exists
+        positions = sorted(e.position for e in rows)
+        assert positions == list(range(len(rows)))
+        timed = [e for e in sorted(rows, key=lambda e: e.position) if e.t_offset_s is not None]
+        spans_only = [e for e in timed if e.kind == "span"]
+        assert [e.t_offset_s for e in spans_only] == sorted(e.t_offset_s for e in spans_only)
 
 
 def test_header_fields_are_filled_in(client, db_sessionmaker, drain):
