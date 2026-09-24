@@ -772,6 +772,16 @@ class AgentIntegrationManifest(Base):
     agent_id: Mapped[str] = mapped_column(ForeignKey("agent.id"), nullable=False)
     manifest: Mapped[dict] = mapped_column(JSON, nullable=False)  # schema pulse.integration
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)  # bumped on each write
+    # how this agent's telemetry arrives: telemetry_ingest_event (OTLP push) | storage_polling
+    # (the poller sidecar sweeps its store) | not_applicable_no_logs (nothing to ingest).
+    ingest_method: Mapped[str] = mapped_column(
+        String(32), default="storage_polling", server_default="storage_polling", nullable=False
+    )
+    # poll watermark: newest object mtime discovered so far, so a sweep re-lists but only
+    # reprocesses calls whose artifacts advanced past it. NULL = never polled.
+    last_polled_modified: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = created_col()
     updated_at: Mapped[datetime] = created_col()
 

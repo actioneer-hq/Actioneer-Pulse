@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -46,15 +47,12 @@ def resolve_manifest(db: Session, agent_id: str | None) -> tuple[dict, int] | No
     return (row.manifest, row.version) if row else None
 
 
-def discover_manifest(st: ResolvedStorage, manifest: dict) -> dict[str, list[tuple[dict, str]]]:
-    """List the store and group objects by call_id → [(artifact_rule, uri), ...].
+def _manifest_rules(manifest: dict) -> list[tuple[dict, re.Pattern, int]]:
+    """Compile each artifact's path selector → (rule, regex, call_id capture group).
 
-    Selectors are bucket-relative regexes from the manifest; call_id comes from the rule's
-    `path_capture` correlation group. (Mapper-derived multi-call correlation is not yet
-    executed — such artifacts are skipped with a log line, never silently dropped.)"""
-    objects = st.driver.list(st.descriptor, st.creds)
-    base = f"{st.driver.scheme}://{st.descriptor['bucket']}/"
-    rules = []
+    Only `path_capture` correlation is executable today; mapper-derived multi-call correlation
+    is logged and skipped, never silently dropped."""
+    rules: list[tuple[dict, re.Pattern, int]] = []
     for rule in manifest.get("artifacts", []):
         pattern = (rule.get("selector") or {}).get("object_path_regex")
         corr = (rule.get("correlation") or {}).get("call_id") or {}
@@ -65,6 +63,17 @@ def discover_manifest(st: ResolvedStorage, manifest: dict) -> dict[str, list[tup
                      rule.get("id"), corr.get("from"))
             continue
         rules.append((rule, re.compile(pattern), int(corr.get("group", 1))))
+    return rules
+
+
+def discover_manifest(st: ResolvedStorage, manifest: dict) -> dict[str, list[tuple[dict, str]]]:
+    """List the store and group objects by call_id → [(artifact_rule, uri), ...].
+
+    Selectors are bucket-relative regexes from the manifest; call_id comes from the rule's
+    `path_capture` correlation group."""
+    objects = st.driver.list(st.descriptor, st.creds)
+    base = f"{st.driver.scheme}://{st.descriptor['bucket']}/"
+    rules = _manifest_rules(manifest)
     out: dict[str, list[tuple[dict, str]]] = {}
     for uri, _modified in objects:
         rel = uri.removeprefix(base)
@@ -77,6 +86,44 @@ def discover_manifest(st: ResolvedStorage, manifest: dict) -> dict[str, list[tup
                 out.setdefault(call_id, []).append((rule, uri))
             break  # first matching rule wins, like the validator's path cases
     return out
+
+
+def _aware(dt: datetime) -> datetime:
+    return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+
+
+def discover_manifest_windowed(
+    st: ResolvedStorage, manifest: dict, since: datetime | None, cutoff: datetime
+) -> dict[str, tuple[list[tuple[dict, str]], datetime]]:
+    """Poll variant of `discover_manifest` that keeps object modified-times.
+
+    Groups ALL of a call's objects together (the mappers need every artifact of a call at once)
+    and returns only calls whose newest object is settled and new since the watermark:
+    `since < max_mtime <= cutoff`. Each value is `(items, max_mtime)`, so the caller can advance
+    its watermark to the highest processed mtime."""
+    objects = st.driver.list(st.descriptor, st.creds)
+    base = f"{st.driver.scheme}://{st.descriptor['bucket']}/"
+    rules = _manifest_rules(manifest)
+    since = _aware(since) if since is not None else None  # DB round-trips can drop tzinfo
+    grouped: dict[str, tuple[list[tuple[dict, str]], datetime]] = {}
+    for uri, modified in objects:
+        rel = uri.removeprefix(base)
+        for rule, pattern, group in rules:
+            m = pattern.search(rel)
+            if not m:
+                continue
+            call_id = m.group(group)
+            if call_id:
+                mt = _aware(modified)
+                items, prev = grouped.get(call_id, ([], mt))
+                items.append((rule, uri))
+                grouped[call_id] = (items, max(prev, mt))
+            break
+    return {
+        cid: (items, mx)
+        for cid, (items, mx) in grouped.items()
+        if mx <= cutoff and (since is None or mx > since)
+    }
 
 
 def decode_artifact(rule: dict, raw: bytes) -> object:
@@ -166,8 +213,6 @@ def assemble_trace(call_id: str, fragments: list[dict[str, object]]) -> Trace:
                     attrs=attrs, content={key: t["text"]},
                 ))
                 span_seq += 1
-
-    from datetime import datetime
 
     def _dt(v):
         try:

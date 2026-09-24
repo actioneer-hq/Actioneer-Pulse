@@ -23,6 +23,9 @@ router = APIRouter(prefix="/v1/ingest")
 
 _ORG_HEADER = "X-Voiceobs-Org"
 
+# how an agent's telemetry reaches Pulse: OTLP push, storage polling (the poller sidecar), or none.
+_INGEST_METHODS = {"telemetry_ingest_event", "storage_polling", "not_applicable_no_logs"}
+
 
 def require_ingest_agent(
     db: Session = Depends(session_dep),
@@ -74,22 +77,31 @@ def put_integration_manifest(
     agent_id, db = ident
     if body.get("schema") != "pulse.integration":
         raise HTTPException(422, "manifest schema must be pulse.integration")
-    if not isinstance(body.get("mappers"), dict) or not isinstance(body.get("artifacts"), list):
-        raise HTTPException(422, "manifest requires mappers and artifacts")
+    method = body.get("ingest_method", "storage_polling")  # default for back-compat
+    if method not in _INGEST_METHODS:
+        raise HTTPException(422, f"ingest_method must be one of {sorted(_INGEST_METHODS)}")
+    # only the pull path carries mappers + artifacts; the other methods route elsewhere
+    if method == "storage_polling" and (
+        not isinstance(body.get("mappers"), dict) or not isinstance(body.get("artifacts"), list)
+    ):
+        raise HTTPException(422, "storage_polling manifest requires mappers and artifacts")
     from voiceobs.db.models import AgentIntegrationManifest
 
     row = db.scalar(
         select(AgentIntegrationManifest).where(AgentIntegrationManifest.agent_id == agent_id)
     )
     if row is None:
-        row = AgentIntegrationManifest(agent_id=agent_id, manifest=body, version=1)
+        row = AgentIntegrationManifest(
+            agent_id=agent_id, manifest=body, version=1, ingest_method=method
+        )
         db.add(row)
     else:
         row.manifest = body
         row.version += 1
+        row.ingest_method = method
     db.flush()
-    return {"agent_id": agent_id, "version": row.version,
-            "mappers": len(body["mappers"]), "artifacts": len(body["artifacts"])}
+    return {"agent_id": agent_id, "version": row.version, "ingest_method": method,
+            "mappers": len(body.get("mappers") or {}), "artifacts": len(body.get("artifacts") or [])}
 
 
 @router.get("/integration-manifest")
@@ -102,7 +114,8 @@ def get_integration_manifest(ident: tuple[str, Session] = Depends(require_ingest
     )
     if row is None:
         raise HTTPException(404, "no integration manifest registered")
-    return {"agent_id": agent_id, "version": row.version, "manifest": row.manifest}
+    return {"agent_id": agent_id, "version": row.version,
+            "ingest_method": row.ingest_method, "manifest": row.manifest}
 
 
 @router.put("/agent-meta")

@@ -124,6 +124,24 @@ services:
       redpanda:
         condition: service_healthy
 
+  # poller worker — pull-path ingest for file-based producers with no OTLP exporter. Sweeps each
+  # storage_polling agent's store on an interval, discovers settled artifacts via its integration
+  # manifest, and analyses new calls. Produces judge-requests, so it needs the broker.
+  poller:
+    build: .
+    command: ["python", "-m", "voiceobs.worker.poller"]
+    env_file: [.env]
+    environment:
+      VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
+      VOICEOBS_KAFKA_BROKERS: redpanda:9092
+      VOICEOBS_POLLER_INTERVAL_S: "30"
+      VOICEOBS_SKIP_MIGRATE: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+
   # judge worker — drains the judge queue and runs the LLM judge at a bounded rate. Scale it
   # (`--scale judge=N`) to raise throughput; realtime is drained before backfill. Needs the per-role
   # LLM API keys in the environment (VOICEOBS_POST_CALL_API_KEY, VOICEOBS_FAILURE_ANALYSIS_API_KEY).

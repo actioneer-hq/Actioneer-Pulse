@@ -101,6 +101,30 @@ def test_register_rejects_wrong_schema(client, login_as):
     assert r.status_code == 422
 
 
+def test_ingest_method_defaults_and_echoes(client, login_as):
+    _aid, token = _agent_and_token(client, login_as)
+    r = client.put("/v1/ingest/integration-manifest", json=MANIFEST, headers=_auth(token))
+    assert r.json()["ingest_method"] == "storage_polling"  # default when absent
+    got = client.get("/v1/ingest/integration-manifest", headers=_auth(token)).json()
+    assert got["ingest_method"] == "storage_polling"
+
+
+def test_ingest_method_rejects_unknown_value(client, login_as):
+    _aid, token = _agent_and_token(client, login_as)
+    r = client.put("/v1/ingest/integration-manifest",
+                   json={**MANIFEST, "ingest_method": "carrier_pigeon"}, headers=_auth(token))
+    assert r.status_code == 422
+
+
+def test_non_polling_method_needs_no_artifacts(client, login_as):
+    """telemetry_ingest_event routes to OTLP push — it carries no mappers/artifacts."""
+    _aid, token = _agent_and_token(client, login_as)
+    r = client.put("/v1/ingest/integration-manifest",
+                   json={"schema": "pulse.integration", "ingest_method": "telemetry_ingest_event"},
+                   headers=_auth(token))
+    assert r.status_code == 200 and r.json()["ingest_method"] == "telemetry_ingest_event"
+
+
 def test_runtime_executes_manifest_end_to_end(client, login_as, db_sessionmaker, monkeypatch):
     """discover → decode → map → assemble → analyse, against a fake store. The transcript
     becomes untimed STT/TTS spans (sequence order), events derive turns/latency, gates
