@@ -38,6 +38,12 @@ def test_all_tables_created():
     assert set(insp.get_table_names()) == EXPECTED_TABLES
 
 
+def test_integration_manifest_has_ingest_routing_columns():
+    insp = _inspector()
+    cols = {c["name"] for c in insp.get_columns("agent_integration_manifest")}
+    assert {"ingest_method", "last_polled_modified"} <= cols
+
+
 def test_no_tenant_id_on_any_data_table():
     insp = _inspector()
     for table in DATA_TABLES:

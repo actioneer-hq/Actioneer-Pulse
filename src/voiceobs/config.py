@@ -101,6 +101,8 @@ class Config(BaseSettings):
     worker_grace_s: float = 60.0
     reconcile_grace_s: float = 600.0
     reconcile_interval_s: float | None = None
+    poller_grace_s: float = 600.0            # settle window before a storage-polled call is ingested
+    poller_interval_s: float | None = None   # None = one-shot; set (seconds) to run as a sidecar loop
     cluster_interval_s: float | None = None  # None = one-shot; set (seconds) to run as a sidecar loop
     backfill_interval_s: float | None = 5.0  # poll interval for the backfill worker claiming jobs
     cluster_window_days: int = 90            # rolling window of calls to (re)cluster
