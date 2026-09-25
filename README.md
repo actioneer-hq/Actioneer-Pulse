@@ -214,4 +214,4 @@ Found a bug or have an idea? Open an
 
 ## License
 
-License TBD — see repository settings.
+[Apache License 2.0](LICENSE).

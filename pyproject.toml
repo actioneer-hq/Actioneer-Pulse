@@ -3,6 +3,7 @@ name = "voiceobs"
 version = "0.0.1"
 description = "Voice-AI agent observability — OTLP in, one call, one screen."
 requires-python = ">=3.12"
+license = "Apache-2.0"
 dependencies = [
     "numpy>=1.26",
     "pydantic>=2.7",
