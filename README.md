@@ -2,9 +2,9 @@
 
 # Pulse
 
-**Open-source, self-hosted observability & evals for voice AI agents.**
+**Open-source, self-hosted observability for voice AI agents.**
 
-*OTLP in — one call, one screen. Then compare any two versions of your agent across the checks that matter, before you ship.*
+*OTLP in — one call, one screen. Root-cause your failures, chat with your traces, and turn your real calls into training data (SFT + RL).*
 
 </div>
 
@@ -23,18 +23,28 @@ Pulse is built for the STT → LLM → TTS pipeline behind a voice agent.
   one call as one screen — Waterfall timeline, per-turn latency (TTFT, v2v, endpointing),
   interruptions, token/cost rollups, and a **Trust report** that names exactly what evidence was
   missing rather than guessing.
-- **Eval-based version comparison.** Turn your real calls into repeatable checks, then see how any
-  two versions of your agent performed side by side. Pulse renders the scorecard; your team decides
-  whether to ship. No automatic verdict.
+- **Root-cause analysis.** Go from a bad call to *why* it went bad — where the pipeline broke, which
+  turn derailed, what the agent did or decided at that moment.
+- **Training-data export.** Turn your real calls into fine-tuning datasets — **SFT and RL** — so the
+  data you already have becomes the fuel for a better agent.
+- **Chat with your traces.** Ask questions across your calls in natural language instead of hunting
+  through dashboards.
 - **Self-hosted.** Your calls, transcripts, and audio never leave your infrastructure.
 
 Pulse is the center of truth around **spans**. Turns, metrics, p50/p95, and rollups are *computed by
 Pulse*, never trusted from the producer — see [`CONTRACTS.md`](CONTRACTS.md) for the canonical model.
 
+### Roadmap — coming soon
+
+- **Automated evals.** Turn recurring failures into repeatable checks and score any version of your
+  agent against them.
+- **Recursive self-improvement.** Close the loop — observe, diagnose, and let the agent improve
+  itself from its own production calls.
+
 ## Quickstart
 
 ```bash
-git clone https://github.com/Glitchcraft-Inc/Actioneer-Pulse.git
+git clone https://github.com/actioneer-hq/Actioneer-Pulse.git
 cd Actioneer-Pulse
 cp .env.example .env        # set VOICEOBS_SECRET_KEY + VOICEOBS_BOOTSTRAP_PASSWORD
 docker compose up --build
@@ -69,10 +79,10 @@ VOICE_OTEL_EXPORTER_PROTOCOL=http/protobuf
 
 The SDK appends `/v1/traces` itself. **LiveKit** and **Pipecat** work out of the box.
 
-### 2. Batch / stored artifacts — via the [Pulse Wizard](https://github.com/Glitchcraft-Inc/Pulse-Wizard)
+### 2. Batch / stored artifacts — via the [Pulse Wizard](https://github.com/actioneer-hq/Pulse-Wizard)
 
 If your telemetry already lives in blob storage, a database, or log files — in *your own* format —
-point the **[Pulse Wizard](https://github.com/Glitchcraft-Inc/Pulse-Wizard)** at your repo. It's an
+point the **[Pulse Wizard](https://github.com/actioneer-hq/Pulse-Wizard)** at your repo. It's an
 agent-driven CLI that reads how you actually write telemetry and generates a declarative **integration
 manifest**: storage selectors, decoders, and mappers that turn your artifacts into Pulse's canonical
 model. Pulse then executes that manifest against your storage — no code changes to your agent.
@@ -83,7 +93,7 @@ npx @actioneer/pulse-wizard@latest init
 ```
 
 The manifest is registered with Pulse (`PUT /v1/ingest/integration-manifest`) and run as a backfill
-job. See the [Pulse Wizard README](https://github.com/Glitchcraft-Inc/Pulse-Wizard) for the full flow.
+job. See the [Pulse Wizard README](https://github.com/actioneer-hq/Pulse-Wizard) for the full flow.
 
 ## Integrating your own voice framework (native OTLP)
 
@@ -205,11 +215,11 @@ Contributions are welcome. To get started:
    frameworks and Wizard mappers for new storage layouts are especially welcome.
 
 Found a bug or have an idea? Open an
-[issue](https://github.com/Glitchcraft-Inc/Actioneer-Pulse/issues).
+[issue](https://github.com/actioneer-hq/Actioneer-Pulse/issues).
 
 ## Related projects
 
-- **[Pulse Wizard](https://github.com/Glitchcraft-Inc/Pulse-Wizard)** — agent-driven CLI that maps
+- **[Pulse Wizard](https://github.com/actioneer-hq/Pulse-Wizard)** — agent-driven CLI that maps
   your existing telemetry storage into Pulse's canonical model.
 
 ## License
