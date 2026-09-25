@@ -108,6 +108,11 @@ class Config(BaseSettings):
     cluster_window_days: int = 90            # rolling window of calls to (re)cluster
     cluster_min_size: int = 8                # HDBSCAN min_cluster_size — smallest pattern to surface
 
+    # ingest safety limits (defend against oversized bodies / gzip bombs)
+    max_ingest_bytes: int = 32 * 1024 * 1024      # reject a compressed/raw ingest body larger than this
+    max_decoded_bytes: int = 256 * 1024 * 1024    # cap gunzip output — stop a decompression bomb early
+    block_internal_fetch: bool = True             # block tenant storage endpoints on internal/loopback IPs
+
     # auth token lifetimes
     access_ttl_min: int = 15
     refresh_ttl_days: int = 14

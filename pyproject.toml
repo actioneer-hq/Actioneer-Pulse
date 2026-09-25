@@ -20,6 +20,7 @@ dependencies = [
     "pydantic-settings>=2",
     "any-llm-sdk[anthropic,openai]>=1.27.1",
     "pgvector>=0.5.0",
+    "regex>=2024.5",
 ]
 
 [project.optional-dependencies]

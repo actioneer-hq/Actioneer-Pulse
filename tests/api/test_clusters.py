@@ -9,14 +9,17 @@ from voiceobs.db.models import Call, CallCluster, Cluster, Judgment
 _ids = iter(range(10000))
 
 
+_AGENT = "a1"
+
+
 def _call(db, org, *, root_key=0, fix_key=0, model_fault="llm", objective="not_achieved"):
-    c = Call(external_call_id=f"c{next(_ids)}", source="livekit",
+    c = Call(external_call_id=f"c{next(_ids)}", source="livekit", agent_id=_AGENT,
              environment="prod", status="ingested", started_at=datetime.now(UTC))
     db.add(c)
     db.flush()
-    db.add(CallCluster(call_id=c.id, lever="root_cause",
+    db.add(CallCluster(call_id=c.id, agent_id=_AGENT, lever="root_cause",
                        cluster_key=root_key, x=1.0, y=2.0))
-    db.add(CallCluster(call_id=c.id, lever="suggested_fix",
+    db.add(CallCluster(call_id=c.id, agent_id=_AGENT, lever="suggested_fix",
                        cluster_key=fix_key, x=0.0, y=0.0))
     db.add(Judgment(call_id=c.id, status="ok",
                     model_fault=model_fault, objective_achieved=objective))
@@ -24,8 +27,10 @@ def _call(db, org, *, root_key=0, fix_key=0, model_fault="llm", objective="not_a
 
 
 def _clusters(db, org):
-    db.add(Cluster(lever="root_cause", cluster_key=0, label="Skipped verification", size=3))
-    db.add(Cluster(lever="suggested_fix", cluster_key=0, label="Add verification step", size=3))
+    db.add(Cluster(agent_id=_AGENT, lever="root_cause", cluster_key=0,
+                   label="Skipped verification", size=3))
+    db.add(Cluster(agent_id=_AGENT, lever="suggested_fix", cluster_key=0,
+                   label="Add verification step", size=3))
 
 
 def test_points_endpoint(client, login_as, db_sessionmaker):

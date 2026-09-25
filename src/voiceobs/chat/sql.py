@@ -14,7 +14,7 @@ import logging
 
 from sqlalchemy import text
 
-from voiceobs.db.session import agent_session, use_agent_schema
+from voiceobs.db.session import agent_session, set_agent_scope, use_agent_schema
 
 log = logging.getLogger(__name__)
 
@@ -32,17 +32,30 @@ def _jsonable(v):
     return str(v)
 
 
-def run_agent_sql(org_slug: str, query: str, *, max_rows: int = _MAX_ROWS) -> dict:
-    """Run one read-only query over the org's curated views. Returns
+def run_agent_sql(org_slug: str, query: str, *, visible_agents: list[str] | None = None,
+                  call_id: str | None = None, max_rows: int = _MAX_ROWS) -> dict:
+    """Run one read-only query over the org's curated views, scoped to `visible_agents` (None = all,
+    for owner/admin) and optionally bound to a single `call_id` (per-call chat). The scope is enforced
+    by the view predicates via a per-request setting — NOT by the prompt. Returns
     {columns, rows, row_count, truncated} or {error}. Never raises."""
     session = agent_session()
     is_pg = session.get_bind().dialect.name == "postgresql"
+    agents_val = "*" if visible_agents is None else ",".join(visible_agents)
+    call_val = call_id or ""
     try:
         if is_pg:
+            # Defense-in-depth on top of the pulse_agent_ro role: even a misconfigured role
+            # cannot write inside a read-only transaction.
+            session.execute(text("SET TRANSACTION READ ONLY"))
             session.execute(text(f"SET LOCAL statement_timeout = '{_TIMEOUT_MS}ms'"))
             use_agent_schema(session, org_slug)  # search_path -> ag_<slug>
+            # per-transaction scope the view predicates read (parameterized — never injectable)
+            session.execute(text("SELECT set_config('pulse.visible_agents', :a, true)"),
+                            {"a": agents_val})
+            session.execute(text("SELECT set_config('pulse.call_id', :c, true)"), {"c": call_val})
         else:
             session.execute(text("PRAGMA query_only = ON"))  # dev best-effort read-only
+            set_agent_scope(agents_val, call_val)  # SQLite: the current_setting UDF reads this
         result = session.execute(text(query))
         if result.returns_rows:
             cols = list(result.keys())

@@ -84,13 +84,26 @@ func (s *server) handleTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if s.cfg.MaxIngestBytes > 0 { // <=0 = no limit (defensive: never deny-all on an unset config)
+		r.Body = http.MaxBytesReader(w, r.Body, s.cfg.MaxIngestBytes)
+	}
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"detail": "ingest body too large"})
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, map[string]string{"detail": "unreadable body"})
 		return
 	}
-	payload, err := decodePayload(body, r.Header.Get("Content-Type"), r.Header.Get("Content-Encoding"))
+	payload, err := decodePayload(body, r.Header.Get("Content-Type"), r.Header.Get("Content-Encoding"), s.cfg.MaxDecodedBytes)
 	if err != nil {
+		var big errTooLarge
+		if errors.As(err, &big) {
+			writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"detail": big.Error()})
+			return
+		}
 		var bad errBadBody
 		if errors.As(err, &bad) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"detail": bad.Error()})

@@ -8,11 +8,11 @@ The store is the source of truth; the artifact POST is just a latency optimizati
 from __future__ import annotations
 
 import logging
-import re
 import time
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 
+import regex
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,7 @@ from voiceobs.config import get_config
 from voiceobs.db.models import AgentAudioConfig, Call, Media, Tombstone
 from voiceobs.db.session import get_session, org_schema_keys, use_org_schema
 from voiceobs.storage import ResolvedStorage, resolve_storage
+from voiceobs.util import safe_search
 
 session_scope = contextmanager(get_session)
 log = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ def _reconcile_agent(db: Session, agent_id: str, st: ResolvedStorage, cutoff: da
     except Exception as e:  # noqa: BLE001 — one agent's bad bucket must not stall the rest
         log.warning("reconcile: list failed for agent %s: %s", agent_id, e)
         return 0
-    key_re = re.compile(st.descriptor["key_regex"])
+    key_re = regex.compile(st.descriptor["key_regex"])
     id_group = st.descriptor.get("id_group", "call_id")
     file_map: dict = st.descriptor.get("file_map", {})  # filename -> Media.kind
     base = f"{st.driver.scheme}://{st.descriptor['bucket']}/"
@@ -57,7 +58,8 @@ def _reconcile_agent(db: Session, agent_id: str, st: ResolvedStorage, cutoff: da
         kind = file_map.get(uri.rsplit("/", 1)[-1])
         if kind is None:
             continue
-        m = key_re.search(uri.removeprefix(base))  # regex is over the key (bucket-relative)
+        # tenant-supplied key_regex → ReDoS-bounded match (safe_search timeout)
+        m = safe_search(key_re, uri.removeprefix(base))  # regex is over the key (bucket-relative)
         if not m:
             continue
         call_id = m.groupdict().get(id_group)

@@ -10,7 +10,6 @@ reference spec + the in-process test surface (POST → in-memory bus → drain).
 
 from __future__ import annotations
 
-import gzip
 import json
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
@@ -42,6 +41,7 @@ from voiceobs.db.models import (
 from voiceobs.db.session import use_org_schema
 from voiceobs.frameworks.otlp import decode_protobuf
 from voiceobs.ingestion import produce
+from voiceobs.util import PayloadTooLarge, bounded_gunzip
 
 router = APIRouter(prefix="/v1")
 
@@ -57,9 +57,15 @@ async def otlp_payload(request: Request) -> dict:
 
     An async dependency rather than the endpoint itself: the endpoint stays sync so its
     blocking DB work keeps running in the threadpool."""
+    cfg = get_config()
     raw = await request.body()
+    if len(raw) > cfg.max_ingest_bytes:
+        raise HTTPException(413, "ingest body too large")
     if "gzip" in request.headers.get("content-encoding", "").lower():
-        raw = gzip.decompress(raw)
+        try:
+            raw = bounded_gunzip(raw, cfg.max_decoded_bytes)
+        except PayloadTooLarge as e:
+            raise HTTPException(413, str(e)) from e
     if "protobuf" in request.headers.get("content-type", ""):
         return decode_protobuf(raw)
     try:
@@ -112,10 +118,10 @@ def ingest_traces(
 @router.post("/calls/{call_id}/artifacts")
 def register_artifact(
     call_id: str, body: ArtifactIn, db: Session = Depends(session_dep),
-    x_org: str = Header("default", alias=_ORG_HEADER),
+    identity: tuple[str | None, str | None] = Depends(ingest_identity),
 ) -> dict:
-    use_org_schema(db, x_org)
-    call = _get_call(db, call_id)
+    # ingest_identity already pinned the org schema and validated the token
+    call = _owned_call(db, call_id, identity)
     if db.scalar(
         select(Media).where(
             Media.call_id == call.id, Media.kind == body.kind, Media.sha256 == body.sha256
@@ -144,9 +150,9 @@ def register_prompt(
     body: PromptIn,
     response: Response,
     db: Session = Depends(session_dep),
-    x_org: str = Header("default", alias=_ORG_HEADER),
+    identity: tuple[str | None, str | None] = Depends(ingest_identity),
 ) -> dict:
-    use_org_schema(db, x_org)
+    # org-global (keyed by template_sha256) — a valid token for the org suffices, no call scope
     existing = db.scalar(
         select(Prompt).where(Prompt.template_sha256 == body.template_sha256)
     )
@@ -160,11 +166,10 @@ def register_prompt(
 @router.post("/calls/{call_id}/transcript")
 def upload_transcript(
     call_id: str, body: TranscriptIn, db: Session = Depends(session_dep),
-    x_org: str = Header("default", alias=_ORG_HEADER),
+    identity: tuple[str | None, str | None] = Depends(ingest_identity),
 ) -> dict:
     """BYO transcript — one per call, re-upload replaces. Overrides the derived one."""
-    use_org_schema(db, x_org)
-    call = _get_call(db, call_id)
+    call = _owned_call(db, call_id, identity)
     row = db.scalar(select(Transcript).where(Transcript.call_id == call.id))
     if row is None:
         row = Transcript(call_id=call.id)
@@ -180,12 +185,11 @@ def erase_call(
     call_id: str,
     db: Session = Depends(session_dep),
     confirm: str = Header("", alias="X-Voiceobs-Confirm"),
-    x_org: str = Header("default", alias=_ORG_HEADER),
+    identity: tuple[str | None, str | None] = Depends(ingest_identity),
 ) -> dict:
     if not get_config().allow_delete or confirm != call_id:
         raise HTTPException(403, "erasure requires X-Voiceobs-Confirm and VOICEOBS_ALLOW_DELETE=1")
-    use_org_schema(db, x_org)
-    call = _get_call(db, call_id)
+    call = _owned_call(db, call_id, identity)
     db.add(Tombstone(call_id=call_id, deleted_by="api"))
     for model in (Turn, Event, Metric, Utterance, Media, RawFragment, IngestRun,
                   Annotation, Label, Transcript, Judgment):
@@ -197,5 +201,16 @@ def erase_call(
 def _get_call(db: Session, call_id: str) -> Call:
     call = db.scalar(select(Call).where(Call.external_call_id == call_id))
     if call is None:
+        raise HTTPException(404, "call not found")
+    return call
+
+
+def _owned_call(db: Session, call_id: str, identity: tuple[str | None, str | None]) -> Call:
+    """The call, but only if the authenticated token's agent owns it. 404 (not 403) on a
+    mismatch so we never leak that another tenant's call exists. Under dev-open the token
+    agent is None (no per-agent identity) and the ownership check is skipped."""
+    call = _get_call(db, call_id)
+    _org, token_agent = identity
+    if token_agent is not None and call.agent_id != token_agent:
         raise HTTPException(404, "call not found")
     return call

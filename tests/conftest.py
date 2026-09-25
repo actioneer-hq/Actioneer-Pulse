@@ -27,6 +27,10 @@ def db_sessionmaker() -> sessionmaker[Session]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    # the chat agent's curated views reference current_setting(...) — register the SQLite UDF so
+    # the RBAC predicate works in tests exactly as it does via a Postgres GUC in prod.
+    from voiceobs.db.session import _register_sqlite_udf
+    _register_sqlite_udf(engine)
     Base.metadata.create_all(engine)
     return sessionmaker(bind=engine, expire_on_commit=False)
 
@@ -48,10 +52,13 @@ def client(db_sessionmaker) -> Iterator[TestClient]:
     # Streaming endpoints (chat SSE) open their own get_session() after the request dep closes —
     # point the module session at the same in-memory engine so they share this test's DB.
     import voiceobs.db.session as dbs
-    saved = (dbs._engine, dbs._Session)
+    saved = (dbs._engine, dbs._Session, dbs._AgentSession)
+    # point both the main and the agent session at this test's engine (chat SQL runs on the agent
+    # session; on SQLite it shares the main engine, which now carries the current_setting UDF).
     dbs._engine, dbs._Session = db_sessionmaker.kw["bind"], db_sessionmaker
+    dbs._AgentSession = db_sessionmaker
     yield TestClient(app)
-    dbs._engine, dbs._Session = saved
+    dbs._engine, dbs._Session, dbs._AgentSession = saved
     app.dependency_overrides.clear()
 
 

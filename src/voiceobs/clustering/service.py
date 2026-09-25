@@ -71,36 +71,51 @@ def _backfill_embeddings(db, resolved) -> None:
 
 
 def _recluster_lever(db, lever: str, since: datetime) -> int:
+    """Rewrite this lever's clusters, independently PER AGENT (cluster_key is unique within an
+    agent). Clustering across agents would mix unrelated behaviour and leak one agent's themes into
+    another; per-agent keeps each agent's failure space its own."""
     rows = db.execute(
-        select(CallEmbedding.call_id, CallEmbedding.embedding)
+        select(CallEmbedding.call_id, Call.agent_id, CallEmbedding.embedding)
         .join(Call, Call.id == CallEmbedding.call_id)
         .where(CallEmbedding.field == lever,
                func.coalesce(Call.started_at, Call.created_at) >= since)
     ).all()
-    # always rewrite this lever
+    # always rewrite this lever (all agents)
     db.execute(delete(CallCluster).where(CallCluster.lever == lever))
     db.execute(delete(Cluster).where(Cluster.lever == lever))
-    if len(rows) < _MIN_TO_CLUSTER:
-        return 0
 
-    call_ids = [r[0] for r in rows]
-    vectors = [r[1] for r in rows]
+    by_agent: dict[str, list[tuple[str, list]]] = {}
+    for call_id, agent_id, embedding in rows:
+        by_agent.setdefault(agent_id or "", []).append((call_id, embedding))
+
+    total_clusters = 0
+    for agent_id, agent_rows in by_agent.items():
+        if len(agent_rows) < _MIN_TO_CLUSTER:
+            continue  # too few of this agent's calls to cluster meaningfully
+        total_clusters += _cluster_agent(db, lever, agent_id, agent_rows)
+    db.flush()
+    return total_clusters
+
+
+def _cluster_agent(db, lever: str, agent_id: str, agent_rows: list[tuple[str, list]]) -> int:
+    """Cluster one agent's embeddings for one lever and persist the assignments + labels."""
+    call_ids = [cid for cid, _ in agent_rows]
+    vectors = [vec for _, vec in agent_rows]
     labels, coords = algo.cluster(vectors, min_cluster_size=get_config().cluster_min_size)
 
     members: dict[int, list[str]] = {}
     for call_id, key, (x, y) in zip(call_ids, labels, coords):
-        db.add(CallCluster(call_id=call_id, lever=lever,
+        db.add(CallCluster(call_id=call_id, agent_id=agent_id, lever=lever,
                            cluster_key=(key if key >= 0 else None), x=x, y=y))
         if key >= 0:
             members.setdefault(key, []).append(call_id)
 
     texts = dict(db.execute(  # call_id -> prose, for labelling exemplars
-        select(Judgment.call_id, _text_col(lever))
+        select(Judgment.call_id, _text_col(lever)).where(Judgment.call_id.in_(call_ids))
     ).all()) if members else {}
     for key, ids in members.items():
         label = _label_cluster(lever, [texts.get(cid) for cid in ids[:5] if texts.get(cid)])
-        db.add(Cluster(lever=lever, cluster_key=key, label=label, size=len(ids)))
-    db.flush()
+        db.add(Cluster(agent_id=agent_id, lever=lever, cluster_key=key, label=label, size=len(ids)))
     return len(members)
 
 

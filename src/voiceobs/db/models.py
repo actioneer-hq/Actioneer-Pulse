@@ -450,14 +450,16 @@ class CallEmbedding(Base):
 
 class Cluster(Base):
     """A semantic cluster of one prose lever (root_cause | suggested_fix | summary |
-    guardrail_points | hallucination_detail), tenant-scoped. Rewritten each clustering run."""
+    guardrail_points | hallucination_detail), scoped per AGENT. Clustering runs independently for
+    each agent, so `cluster_key` is unique only within (agent_id, lever). Rewritten each run."""
 
     __tablename__ = "cluster"
     __table_args__ = (
-        UniqueConstraint("lever", "cluster_key", name="uq_cluster"),
+        UniqueConstraint("agent_id", "lever", "cluster_key", name="uq_cluster"),
     )
 
     id: Mapped[str] = pk()
+    agent_id: Mapped[str] = mapped_column(String(36), nullable=False)  # clusters are per-agent
     lever: Mapped[str] = mapped_column(String(32), nullable=False)
     cluster_key: Mapped[int] = mapped_column(Integer, nullable=False)  # >=0 (noise not stored)
     label: Mapped[str | None] = mapped_column(Text)  # LLM-named theme
@@ -466,7 +468,9 @@ class Cluster(Base):
 
 
 class CallCluster(Base):
-    """A call's assignment for one lever + its 2D display coords. cluster_key null = HDBSCAN noise."""
+    """A call's assignment for one lever + its 2D display coords. cluster_key null = HDBSCAN noise.
+    `agent_id` is denormalized from the call so the agent-scoped chat views can filter without a
+    join and clustering stays per-agent."""
 
     __tablename__ = "call_cluster"
     __table_args__ = (
@@ -476,6 +480,7 @@ class CallCluster(Base):
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
+    agent_id: Mapped[str] = mapped_column(String(36), nullable=False)
     lever: Mapped[str] = mapped_column(String(32), nullable=False)
     cluster_key: Mapped[int | None] = mapped_column(Integer)  # null = noise
     x: Mapped[float] = mapped_column(Float, nullable=False)

@@ -21,9 +21,9 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from datetime import UTC, datetime
 
+import regex
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -31,6 +31,7 @@ from voiceobs.core.model import CallHeader, Span, SpanEvent, Stage, Trace
 from voiceobs.db.models import AgentIntegrationManifest, Call
 from voiceobs.storage import fetch_bytes
 from voiceobs.storage.config import ResolvedStorage
+from voiceobs.util import safe_search
 
 log = logging.getLogger(__name__)
 
@@ -47,12 +48,13 @@ def resolve_manifest(db: Session, agent_id: str | None) -> tuple[dict, int] | No
     return (row.manifest, row.version) if row else None
 
 
-def _manifest_rules(manifest: dict) -> list[tuple[dict, re.Pattern, int]]:
+def _manifest_rules(manifest: dict) -> list[tuple[dict, regex.Pattern, int]]:
     """Compile each artifact's path selector → (rule, regex, call_id capture group).
 
     Only `path_capture` correlation is executable today; mapper-derived multi-call correlation
-    is logged and skipped, never silently dropped."""
-    rules: list[tuple[dict, re.Pattern, int]] = []
+    is logged and skipped, never silently dropped. Patterns are tenant-authored, so matching goes
+    through `safe_search` (ReDoS timeout); they were also length-validated at register time."""
+    rules: list[tuple[dict, regex.Pattern, int]] = []
     for rule in manifest.get("artifacts", []):
         pattern = (rule.get("selector") or {}).get("object_path_regex")
         corr = (rule.get("correlation") or {}).get("call_id") or {}
@@ -62,7 +64,7 @@ def _manifest_rules(manifest: dict) -> list[tuple[dict, re.Pattern, int]]:
             log.info("manifest artifact %s uses %s correlation — not yet executed, skipped",
                      rule.get("id"), corr.get("from"))
             continue
-        rules.append((rule, re.compile(pattern), int(corr.get("group", 1))))
+        rules.append((rule, regex.compile(pattern), int(corr.get("group", 1))))
     return rules
 
 
@@ -78,7 +80,7 @@ def discover_manifest(st: ResolvedStorage, manifest: dict) -> dict[str, list[tup
     for uri, _modified in objects:
         rel = uri.removeprefix(base)
         for rule, pattern, group in rules:
-            m = pattern.search(rel)
+            m = safe_search(pattern, rel)
             if not m:
                 continue
             call_id = m.group(group)
@@ -109,7 +111,7 @@ def discover_manifest_windowed(
     for uri, modified in objects:
         rel = uri.removeprefix(base)
         for rule, pattern, group in rules:
-            m = pattern.search(rel)
+            m = safe_search(pattern, rel)
             if not m:
                 continue
             call_id = m.group(group)

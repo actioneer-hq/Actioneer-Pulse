@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -115,5 +116,35 @@ func TestHandleTracesEmptyBodyIsOK(t *testing.T) {
 	}
 	if len(cap.recs) != 0 {
 		t.Errorf("empty body should produce no records, got %d", len(cap.recs))
+	}
+}
+
+func TestHandleTracesRejectsOversizedBody(t *testing.T) {
+	srv := newTestServer(&captureProducer{})
+	srv.cfg.MaxIngestBytes = 100 // tiny cap
+	req := httptest.NewRequest("POST", "/v1/traces", bytes.NewReader(bytes.Repeat([]byte("x"), 500)))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.handleTraces(w, req)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("want 413, got %d (%s)", w.Code, w.Body.String())
+	}
+}
+
+func TestHandleTracesRejectsGzipBomb(t *testing.T) {
+	srv := newTestServer(&captureProducer{})
+	srv.cfg.MaxIngestBytes = 10 << 20
+	srv.cfg.MaxDecodedBytes = 1024 // 1 KiB ceiling
+	var buf bytes.Buffer
+	zw := gzip.NewWriter(&buf)
+	_, _ = zw.Write(bytes.Repeat([]byte{0}, 2<<20)) // 2 MiB of zeros -> tiny gzip
+	_ = zw.Close()
+	req := httptest.NewRequest("POST", "/v1/traces", bytes.NewReader(buf.Bytes()))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+	w := httptest.NewRecorder()
+	srv.handleTraces(w, req)
+	if w.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("want 413, got %d (%s)", w.Code, w.Body.String())
 	}
 }

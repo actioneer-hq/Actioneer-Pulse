@@ -12,6 +12,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 
 from voiceobs.config import get_config
+from voiceobs.util import assert_public_endpoint
 
 
 def _client(creds: dict | None):
@@ -21,6 +22,9 @@ def _client(creds: dict | None):
     if not creds:
         return boto3.client("s3")
     endpoint = creds.get("endpoint_url") or None
+    # SSRF guard: a tenant-supplied endpoint must not resolve to an internal/loopback address
+    # (169.254.169.254 metadata, RFC-1918, localhost). Opt out via VOICEOBS_BLOCK_INTERNAL_FETCH=0.
+    assert_public_endpoint(endpoint, enabled=get_config().block_internal_fetch)
     cfg = Config(s3={"addressing_style": "path"}) if endpoint else None  # MinIO/Ceph need path-style
     return boto3.client(
         "s3",
@@ -54,7 +58,11 @@ class S3Driver:
         bucket, key = _parse(uri)
         dev_dir = get_config().dev_audio_dir
         if dev_dir:  # dev override: serve from local disk keyed by the S3 key
-            path = os.path.join(dev_dir, key)
+            base = os.path.realpath(dev_dir)
+            path = os.path.realpath(os.path.join(base, key))
+            # contain within dev_dir — a key with `..`/absolute segments must not escape it
+            if os.path.commonpath([base, path]) != base:
+                raise FileNotFoundError(f"dev audio path escapes {dev_dir} (for {uri})")
             if os.path.exists(path):
                 with open(path, "rb") as f:
                     return f.read()

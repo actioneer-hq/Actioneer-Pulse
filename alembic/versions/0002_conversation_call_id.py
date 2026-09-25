@@ -12,7 +12,6 @@ Create Date: 2026-09-07
 from __future__ import annotations
 
 import sqlalchemy as sa
-
 from alembic import op
 
 revision = "0002_conv_call_id"
@@ -31,5 +30,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_conversation_call", table_name="conversation")
-    op.drop_column("conversation", "call_id")
+    insp = sa.inspect(op.get_bind())
+    if "ix_conversation_call" in {i["name"] for i in insp.get_indexes("conversation")}:
+        op.drop_index("ix_conversation_call", table_name="conversation")
+    if "call_id" in {c["name"] for c in insp.get_columns("conversation")}:
+        # batch mode rebuilds the table on SQLite — a bare DROP COLUMN fails there because a
+        # foreign-key definition references call_id ("unknown column in foreign key definition").
+        with op.batch_alter_table("conversation") as b:
+            b.drop_column("call_id")

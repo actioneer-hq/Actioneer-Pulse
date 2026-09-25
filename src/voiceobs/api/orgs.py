@@ -14,6 +14,8 @@ from voiceobs.api.deps import session_dep
 from voiceobs.api.schemas import AgentAccessIn, MemberIn, OrgIn, RoleIn
 from voiceobs.auth import current_user, encode_invite, normalize_email
 from voiceobs.db.models import Agent, AgentAccess, AppUser, Membership, Organization
+from voiceobs.db.provision import provision_org
+from voiceobs.db.session import DEFAULT_ORG
 
 router = APIRouter(prefix="/v1/orgs")
 
@@ -64,10 +66,27 @@ def list_orgs(user: AppUser = Depends(current_user), db: Session = Depends(sessi
 def create_org(
     body: OrgIn, user: AppUser = Depends(current_user), db: Session = Depends(session_dep)
 ) -> dict:
-    org = Organization(name=body.name, slug=unique_org_slug(db, body.slug or body.name))
-    db.add(org)
+    """Provision a NEW tenant in its own schema (schema-per-tenant). Because users are schema-local,
+    the caller is cloned into the new schema as its owner (same email + credentials), so they can
+    sign in under the new org's slug. This never writes a second org into the caller's schema — that
+    would break the one-org-per-schema isolation invariant the whole system relies on."""
+    slug = unique_org_slug(db, body.slug or body.name)
+    if db.get_bind().dialect.name == "postgresql":
+        # capture the caller's identity before provision_org re-pins the session to the new schema
+        email, pw_hash, name = user.email, user.password_hash, user.name
+        org = provision_org(db, slug, body.name)  # CREATE SCHEMA t_<slug> + full table set, pins it
+        owner = AppUser(email=email, password_hash=pw_hash, name=name, is_active=True)
+        db.add(owner)
+        db.flush()
+        db.add(Membership(org_id=org.id, user_id=owner.id, role="owner"))
+    else:
+        # SQLite (dev/tests): a single flat schema holds every org — no new schema to provision, and
+        # the caller already exists here, so reuse their user row for the owner membership.
+        org = Organization(name=body.name, slug=slug)
+        db.add(org)
+        db.flush()
+        db.add(Membership(org_id=org.id, user_id=user.id, role="owner"))
     db.flush()
-    db.add(Membership(org_id=org.id, user_id=user.id, role="owner"))
     return {"id": org.id, "name": org.name, "slug": org.slug}
 
 
@@ -105,7 +124,9 @@ def add_member(
         target = AppUser(email=email, is_active=True)
         db.add(target)
         db.flush()
-        invite = encode_invite(target.id)
+        # bind the org into the signed invite so accept-invite trusts the token, not a cookie
+        org_slug = db.scalar(select(Organization.slug)) or DEFAULT_ORG
+        invite = encode_invite(target.id, org_slug)
     elif _membership(db, org_id, target.id) is not None:
         raise HTTPException(409, "already a member")
     db.add(Membership(org_id=org_id, user_id=target.id, role=body.role))

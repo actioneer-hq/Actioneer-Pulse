@@ -15,7 +15,12 @@ from voiceobs.auth.deps import (
     require_role,
     visible_agent_ids,
 )
-from voiceobs.auth.jwt import decode_invite, encode_access, encode_invite
+from voiceobs.auth.jwt import (
+    decode_invite,
+    decode_invite_org,
+    encode_access,
+    encode_invite,
+)
 from voiceobs.auth.password import PasswordProvider, hash_password, normalize_email
 from voiceobs.auth.refresh import (
     mint_refresh,
@@ -52,6 +57,7 @@ __all__ = [
     "current_membership",
     "current_user",
     "decode_invite",
+    "decode_invite_org",
     "encode_access",
     "encode_invite",
     "get_scoped_call",

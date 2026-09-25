@@ -13,12 +13,16 @@ from voiceobs.chat.sql import run_agent_sql
 from voiceobs.db.models import Call, Membership, Organization
 
 
-def execute_sql(db: Session, mem: Membership, args: dict) -> dict:
+def execute_sql(db: Session, mem: Membership, args: dict, *, call: Call | None = None) -> dict:
     query = (args.get("query") or "").strip()
     if not query:
         return {"error": "no query provided"}
     slug = db.scalar(select(Organization.slug)) or "default"  # one org per schema
-    return run_agent_sql(slug, query)
+    # Enforce per-agent RBAC server-side (not via the prompt): the view predicates restrict rows to
+    # the caller's visible agents, and — in per-call chat — to the bound call only.
+    allowed = visible_agent_ids(db, mem)  # None => owner/admin (all agents)
+    return run_agent_sql(slug, query, visible_agents=allowed,
+                         call_id=(call.id if call is not None else None))
 
 
 _SQL_SCHEMA = {
@@ -70,7 +74,7 @@ def schemas(audio_native: bool = False, bound_call: bool = False) -> list[dict]:
 
 def run(db: Session, mem: Membership, name: str, args: dict, *, call: Call | None = None) -> dict:
     if name == "execute_sql":
-        return execute_sql(db, mem, args)
+        return execute_sql(db, mem, args, call=call)
     if name == "audio_native_llm":
         return _run_audio_native(db, mem, args, call)
     return {"error": f"unknown tool: {name}"}

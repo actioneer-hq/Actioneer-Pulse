@@ -18,6 +18,7 @@ from voiceobs.api.schemas import AgentMetaIn, AudioConfigIn, OtlpMappingIn
 from voiceobs.auth import resolve_ingest_token
 from voiceobs.db.models import Agent
 from voiceobs.db.session import use_org_schema
+from voiceobs.util.safety import validate_pattern
 
 router = APIRouter(prefix="/v1/ingest")
 
@@ -85,6 +86,15 @@ def put_integration_manifest(
         not isinstance(body.get("mappers"), dict) or not isinstance(body.get("artifacts"), list)
     ):
         raise HTTPException(422, "storage_polling manifest requires mappers and artifacts")
+    # Selectors are tenant-authored regexes the worker compiles + runs over every object key;
+    # reject over-long/invalid patterns here so a ReDoS pattern never reaches the sweep.
+    for art in body.get("artifacts") or []:
+        pattern = (art.get("selector") or {}).get("object_path_regex")
+        if pattern is not None:
+            try:
+                validate_pattern(pattern, "selector.object_path_regex")
+            except ValueError as e:
+                raise HTTPException(422, str(e)) from e
     from voiceobs.db.models import AgentIntegrationManifest
 
     row = db.scalar(

@@ -13,6 +13,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from voiceobs.config import get_config
+from voiceobs.util import assert_public_endpoint
+
 
 def _account_url(creds: dict) -> str:
     if creds.get("account_url"):
@@ -25,8 +28,11 @@ def _service_client(creds: dict):
 
     if creds.get("connection_string"):
         return BlobServiceClient.from_connection_string(creds["connection_string"])
+    url = _account_url(creds)
+    # SSRF guard on a tenant-supplied account_url (Azurite/custom); opt out via config.
+    assert_public_endpoint(url, enabled=get_config().block_internal_fetch)
     credential = creds.get("account_key") or creds.get("sas_token")
-    return BlobServiceClient(account_url=_account_url(creds), credential=credential)
+    return BlobServiceClient(account_url=url, credential=credential)
 
 
 def _parse(uri: str) -> tuple[str, str]:
