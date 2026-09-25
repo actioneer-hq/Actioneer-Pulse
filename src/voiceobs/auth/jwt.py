@@ -76,10 +76,16 @@ def decode_access_org(token: str | None) -> str | None:
     return (claims.get("org") or "default") if claims else None
 
 
-def encode_invite(user_id: str) -> str:
-    return _encode({"sub": user_id}, INVITE_TTL, "invite")
+def encode_invite(user_id: str, org: str = "default") -> str:
+    return _encode({"sub": user_id, "org": org}, INVITE_TTL, "invite")
 
 
 def decode_invite(token: str | None) -> str | None:
     claims = _decode(token, "invite")
     return claims.get("sub") if claims else None
+
+
+def decode_invite_org(token: str | None) -> str | None:
+    """The org slug bound into the invite (signed) — the schema to accept it in, not the cookie."""
+    claims = _decode(token, "invite")
+    return (claims.get("org") or "default") if claims else None

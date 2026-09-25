@@ -7,10 +7,11 @@ is a single flat schema, so `use_org_schema` is a no-op."""
 
 from __future__ import annotations
 
+import contextvars
 import re
 from collections.abc import Iterator
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from voiceobs.config import get_config
@@ -21,6 +22,30 @@ _agent_engine = None
 _AgentSession: sessionmaker[Session] | None = None
 
 DEFAULT_ORG = "default"
+
+# Per-request authorization scope for the chat SQL agent's curated views. On Postgres this rides a
+# `SET LOCAL` GUC read by the view predicates; on SQLite there is no GUC, so a UDF named
+# `current_setting` (registered below) reads this ContextVar instead — the SAME view SQL works on
+# both. Empty dict / missing key = unset = fail-closed (views return nothing).
+_agent_ctx: contextvars.ContextVar[dict[str, str] | None] = contextvars.ContextVar(
+    "agent_ctx", default=None
+)
+
+
+def set_agent_scope(visible_agents: str, call_id: str) -> None:
+    """Set the chat agent's view scope for the current context (SQLite path; PG uses set_config)."""
+    _agent_ctx.set({"pulse.visible_agents": visible_agents, "pulse.call_id": call_id})
+
+
+def _current_setting(name, *_):  # SQLite UDF mirroring Postgres current_setting(name, missing_ok)
+    return (_agent_ctx.get() or {}).get(name)
+
+
+def _register_sqlite_udf(engine) -> None:
+    """Expose `current_setting` to SQLite so agent-view predicates are dialect-portable."""
+    @event.listens_for(engine, "connect")
+    def _on_connect(dbapi_conn, _rec):  # pragma: no cover — driver callback
+        dbapi_conn.create_function("current_setting", -1, _current_setting)
 
 
 def _sanitize(slug: str) -> str:
@@ -72,6 +97,8 @@ def _init() -> None:
     if not url:
         raise RuntimeError("VOICEOBS_DATABASE_URL must be set")
     _engine = create_engine(url, future=True)
+    if _engine.dialect.name == "sqlite":  # dev reuses this engine for the agent too
+        _register_sqlite_udf(_engine)
     _Session = sessionmaker(bind=_engine, expire_on_commit=False)
 
 

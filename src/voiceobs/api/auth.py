@@ -23,6 +23,7 @@ from voiceobs.auth import (
     REFRESH_PATH,
     current_user,
     decode_invite,
+    decode_invite_org,
     hash_password,
     issue_access,
     mint_refresh,
@@ -275,11 +276,13 @@ def accept_invite(
     body: AcceptInviteIn, request: Request, response: Response,
     db: Session = Depends(session_dep),
 ) -> dict:
-    org = request.cookies.get(ORG_COOKIE) or DEFAULT_ORG
-    use_org_schema(db, org)  # the invited user lives in the inviting org's schema
+    # Derive the org from the SIGNED invite token, not the client cookie — the invite is bound to
+    # the org it was minted in, so a forged/mismatched cookie can't retarget it.
     uid = decode_invite(body.token)
     if not uid:
         raise HTTPException(400, "invalid or expired invite")
+    org = decode_invite_org(body.token) or DEFAULT_ORG
+    use_org_schema(db, org)  # the invited user lives in the inviting org's schema
     user = db.get(AppUser, uid)
     if user is None:
         raise HTTPException(400, "invalid invite")

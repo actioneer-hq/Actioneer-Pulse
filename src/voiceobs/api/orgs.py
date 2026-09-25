@@ -15,6 +15,7 @@ from voiceobs.api.schemas import AgentAccessIn, MemberIn, OrgIn, RoleIn
 from voiceobs.auth import current_user, encode_invite, normalize_email
 from voiceobs.db.models import Agent, AgentAccess, AppUser, Membership, Organization
 from voiceobs.db.provision import provision_org
+from voiceobs.db.session import DEFAULT_ORG
 
 router = APIRouter(prefix="/v1/orgs")
 
@@ -123,7 +124,9 @@ def add_member(
         target = AppUser(email=email, is_active=True)
         db.add(target)
         db.flush()
-        invite = encode_invite(target.id)
+        # bind the org into the signed invite so accept-invite trusts the token, not a cookie
+        org_slug = db.scalar(select(Organization.slug)) or DEFAULT_ORG
+        invite = encode_invite(target.id, org_slug)
     elif _membership(db, org_id, target.id) is not None:
         raise HTTPException(409, "already a member")
     db.add(Membership(org_id=org_id, user_id=target.id, role=body.role))

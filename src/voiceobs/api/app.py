@@ -26,6 +26,27 @@ from voiceobs.api import (
 )
 
 app = FastAPI(title="Pulse")
+
+# The SPA is served same-origin, so a strict CSP is safe. HSTS is emitted only over HTTPS so local
+# http dev is unaffected (behind a TLS-terminating proxy, front it with the same header there).
+_CSP = ("default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+        "script-src 'self'; connect-src 'self'; font-src 'self' data:; frame-ancestors 'none'; "
+        "base-uri 'self'; form-action 'self'; object-src 'none'")
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    resp = await call_next(request)
+    resp.headers.setdefault("Content-Security-Policy", _CSP)
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "DENY")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    resp.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    if request.url.scheme == "https":
+        resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return resp
+
+
 app.include_router(auth.router)
 app.include_router(orgs.router)
 app.include_router(agents.router)
