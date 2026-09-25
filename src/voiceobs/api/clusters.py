@@ -52,16 +52,18 @@ def archetypes(
     """Recurring cross-lever combinations: (root-cause theme × fix theme × model_fault × objective),
     with count and lift (observed vs. independence-expected)."""
     # per-call cluster label per lever
-    label_of = {(lev, key): lbl for lev, key, lbl in db.execute(
-        select(Cluster.lever, Cluster.cluster_key, Cluster.label)).all()}
+    # cluster_key is unique only within (agent_id, lever) now → key labels by agent too
+    label_of = {(aid, lev, key): lbl for aid, lev, key, lbl in db.execute(
+        select(Cluster.agent_id, Cluster.lever, Cluster.cluster_key, Cluster.label)).all()}
     per_call: dict[str, dict[str, str]] = defaultdict(dict)
     cc_rows = db.execute(_scope(
-        select(Call.external_call_id, CallCluster.lever, CallCluster.cluster_key)
+        select(Call.external_call_id, CallCluster.agent_id, CallCluster.lever,
+               CallCluster.cluster_key)
         .join(Call, Call.id == CallCluster.call_id)
         .where(CallCluster.lever.in_(_ARCHETYPE_LEVERS), CallCluster.cluster_key.isnot(None)),
         db, mem, agent_id, range)).all()
-    for cid, lever, key in cc_rows:
-        lbl = label_of.get((lever, key))
+    for cid, aid, lever, key in cc_rows:
+        lbl = label_of.get((aid, lever, key))
         if lbl:
             per_call[cid][lever] = lbl
     # enums per call
@@ -113,10 +115,16 @@ def points(
     """The 2D scatter for one lever: clusters (id, label, size) + points (call, x, y, cluster)."""
     if lever not in LEVERS:
         raise HTTPException(404, "unknown lever")
+    # clusters are per-agent — scope the list to the same agents as the points (RBAC + filter)
+    cl_stmt = select(Cluster).where(Cluster.lever == lever)
+    ids = visible_agent_ids(db, mem)
+    if ids is not None:
+        cl_stmt = cl_stmt.where(Cluster.agent_id.in_(ids))
+    if agent_id:
+        cl_stmt = cl_stmt.where(Cluster.agent_id == agent_id)
     clusters = [
-        {"key": c.cluster_key, "label": c.label, "size": c.size}
-        for c in db.scalars(select(Cluster).where(Cluster.lever == lever)
-            .order_by(Cluster.size.desc()))
+        {"key": c.cluster_key, "agent_id": c.agent_id, "label": c.label, "size": c.size}
+        for c in db.scalars(cl_stmt.order_by(Cluster.size.desc()))
     ]
     rows = db.execute(_scope(
         select(Call.external_call_id, CallCluster.x, CallCluster.y, CallCluster.cluster_key)
