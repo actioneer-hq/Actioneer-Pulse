@@ -84,7 +84,9 @@ func (s *server) handleTraces(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(w, r.Body, s.cfg.MaxIngestBytes)
+	if s.cfg.MaxIngestBytes > 0 { // <=0 = no limit (defensive: never deny-all on an unset config)
+		r.Body = http.MaxBytesReader(w, r.Body, s.cfg.MaxIngestBytes)
+	}
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		var mbe *http.MaxBytesError

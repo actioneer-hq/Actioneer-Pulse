@@ -57,6 +57,13 @@ func gunzip(b []byte, limit int64) ([]byte, error) {
 		return nil, errBadBody{err}
 	}
 	defer r.Close()
+	if limit <= 0 { // no ceiling configured — read it all (defensive default)
+		out, err := io.ReadAll(r)
+		if err != nil {
+			return nil, errBadBody{err}
+		}
+		return out, nil
+	}
 	// read at most limit+1 bytes; if we get limit+1, the true output exceeds the ceiling (bomb)
 	out, err := io.ReadAll(io.LimitReader(r, limit+1))
 	if err != nil {
