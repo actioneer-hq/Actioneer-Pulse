@@ -177,6 +177,14 @@ def login(
     if ratelimit.fail_count(lock_key) >= c.login_lockout_max:
         raise HTTPException(429, "account temporarily locked after repeated failed logins")
     use_org_schema(db, org)  # authenticate within the org's schema
+    # Guard schema aliasing (Postgres only): distinct slugs can sanitize to the same schema
+    # ("a_b" vs "a-b" → t_a_b). The caller must present the pinned schema's exact canonical slug,
+    # else an aliased slug could authenticate against another tenant's schema. On SQLite every org
+    # shares one flat schema, so this check would wrongly reject non-first orgs — skip it there.
+    if db.get_bind().dialect.name == "postgresql":
+        existing_org = db.scalar(select(Organization))
+        if existing_org is not None and existing_org.slug != org:
+            raise HTTPException(401, "invalid credentials")
     # Dev convenience: under dev-open, the login form prefills the seeded dev credentials. If that
     # account doesn't exist yet (fresh DB, or the DB was bootstrapped with a different first user so
     # `bootstrap`/signup no-op'd), create it on the fly so one-click sign-in always works. Never

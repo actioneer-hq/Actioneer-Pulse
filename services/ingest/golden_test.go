@@ -63,7 +63,7 @@ func TestGoldenParity(t *testing.T) {
 			t.Errorf("record %d missing batch_id/received_at header", i)
 		}
 		// Compare the decompressed JSON value structurally.
-		gzRaw, err := gunzip(g0.Value)
+		gzRaw, err := gunzip(g0.Value, 1<<30)
 		if err != nil {
 			t.Fatalf("record %d gunzip: %v", i, err)
 		}

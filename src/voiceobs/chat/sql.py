@@ -39,6 +39,9 @@ def run_agent_sql(org_slug: str, query: str, *, max_rows: int = _MAX_ROWS) -> di
     is_pg = session.get_bind().dialect.name == "postgresql"
     try:
         if is_pg:
+            # Defense-in-depth on top of the pulse_agent_ro role: even a misconfigured role
+            # cannot write inside a read-only transaction.
+            session.execute(text("SET TRANSACTION READ ONLY"))
             session.execute(text(f"SET LOCAL statement_timeout = '{_TIMEOUT_MS}ms'"))
             use_agent_schema(session, org_slug)  # search_path -> ag_<slug>
         else:

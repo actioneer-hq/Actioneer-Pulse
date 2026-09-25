@@ -7,10 +7,12 @@ that needs to know which one arrived."""
 from __future__ import annotations
 
 import base64
-import gzip
 import json
 from collections.abc import Iterator
 from typing import Any
+
+from voiceobs.config import get_config
+from voiceobs.util import bounded_gunzip
 
 Scalar = str | int | float | bool | None
 
@@ -19,8 +21,8 @@ def decode_otlp(raw: bytes, *, filename: str = "") -> dict:
     """Decode an OTLP export from a stored file (gzip-aware, JSON or protobuf) into the OTLP/JSON dict
     shape. Used by OTLP-from-blob backfill, where there's no content-type — infer from the gzip magic
     and the file extension, falling back to try-JSON-then-protobuf for unknown names."""
-    if raw[:2] == b"\x1f\x8b":  # gzip magic
-        raw = gzip.decompress(raw)
+    if raw[:2] == b"\x1f\x8b":  # gzip magic — bound the output (a stored file can be a gzip bomb)
+        raw = bounded_gunzip(raw, get_config().max_decoded_bytes)
     name = filename.lower()
     if name.endswith((".pb", ".protobuf", ".bin")):
         return decode_protobuf(raw)

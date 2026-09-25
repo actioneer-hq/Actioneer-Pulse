@@ -33,6 +33,13 @@ def provision_org(db: Session, slug: str, name: str | None = None) -> Organizati
     build_agent_views(db, slug)
 
     org = db.scalar(select(Organization))  # one org per schema
+    if is_pg and org is not None and org.slug != slug:
+        # a DIFFERENT org already lives in this PG schema — the requested slug sanitized onto an
+        # existing tenant's schema (e.g. "a_b" vs "a-b" both → t_a_b). Refuse to co-tenant.
+        # (On SQLite every org shares the one flat schema by design, so this never applies.)
+        raise ValueError(
+            f"slug {slug!r} collides with existing org {org.slug!r} (same schema {org_schema(slug)})"
+        )
     if org is None:
         display = name or slug.capitalize()
         # keep the well-known "default" id stable; other orgs get a generated uuid pk.

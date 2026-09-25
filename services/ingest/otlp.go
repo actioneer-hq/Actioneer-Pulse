@@ -20,13 +20,21 @@ type errBadBody struct{ err error }
 
 func (e errBadBody) Error() string { return "unreadable OTLP body: " + e.err.Error() }
 
+// errTooLarge signals a decompressed body over the configured ceiling — mapped to HTTP 413.
+type errTooLarge struct{ limit int64 }
+
+func (e errTooLarge) Error() string {
+	return fmt.Sprintf("decompressed body exceeds %d bytes", e.limit)
+}
+
 // decodePayload turns a request body into the OTLP/JSON dict shape, honoring content-encoding (gzip)
-// and content-type (protobuf vs json), matching the substring detection in otlp_payload.
-func decodePayload(body []byte, contentType, contentEncoding string) (map[string]any, error) {
+// and content-type (protobuf vs json), matching the substring detection in otlp_payload. maxDecoded
+// bounds gunzip output to stop a decompression bomb.
+func decodePayload(body []byte, contentType, contentEncoding string, maxDecoded int64) (map[string]any, error) {
 	if strings.Contains(strings.ToLower(contentEncoding), "gzip") {
-		gunzipped, err := gunzip(body)
+		gunzipped, err := gunzip(body, maxDecoded)
 		if err != nil {
-			return nil, errBadBody{err}
+			return nil, err
 		}
 		body = gunzipped
 	}
@@ -43,13 +51,21 @@ func decodePayload(body []byte, contentType, contentEncoding string) (map[string
 	return payload, nil
 }
 
-func gunzip(b []byte) ([]byte, error) {
+func gunzip(b []byte, limit int64) ([]byte, error) {
 	r, err := gzip.NewReader(bytes.NewReader(b))
 	if err != nil {
-		return nil, err
+		return nil, errBadBody{err}
 	}
 	defer r.Close()
-	return io.ReadAll(r)
+	// read at most limit+1 bytes; if we get limit+1, the true output exceeds the ceiling (bomb)
+	out, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, errBadBody{err}
+	}
+	if int64(len(out)) > limit {
+		return nil, errTooLarge{limit}
+	}
+	return out, nil
 }
 
 // gzipJSON marshals v to JSON and gzip-compresses it — the raw-spans record value framing.

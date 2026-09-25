@@ -95,7 +95,7 @@ func TestKeyFallbackTraceThenBatch(t *testing.T) {
 func TestSliceValueRoundTrips(t *testing.T) {
 	p := mkPayload(mkSpan("t1", "s1", "", "call-A"))
 	recs, _ := buildRecords(p, "o", "", "b", time.Unix(0, 0))
-	raw, err := gunzip(recs[0].Value)
+	raw, err := gunzip(recs[0].Value, 1<<30)
 	if err != nil {
 		t.Fatal(err)
 	}

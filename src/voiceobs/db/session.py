@@ -92,17 +92,26 @@ def get_session() -> Iterator[Session]:
 
 
 def _init_agent() -> None:
-    """Lazily build the agent engine. When agent_database_url is unset (SQLite/dev) the sandbox has
-    no separate read-only role, so we fall back to the main engine."""
+    """Lazily build the agent engine. `agent_database_url` should point at a dedicated read-only
+    role (`pulse_agent_ro`) — the SQL agent runs LLM-generated queries, so it must never touch the
+    main read-write role. On SQLite (dev) there is no separate role, so we fall back to the main
+    engine and rely on `PRAGMA query_only`; on Postgres an unset url is a fail-closed error rather
+    than a silent downgrade to the RW role."""
     global _agent_engine, _AgentSession
     url = get_config().agent_database_url
     if url:
         _agent_engine = create_engine(url, future=True)
         _AgentSession = sessionmaker(bind=_agent_engine, expire_on_commit=False)
-    else:
-        if _Session is None:
-            _init()
-        _AgentSession = _Session
+        return
+    if _Session is None:
+        _init()
+    assert _Session is not None and _engine is not None
+    if _engine.dialect.name == "postgresql":
+        raise RuntimeError(
+            "VOICEOBS_AGENT_DATABASE_URL is required on Postgres: the SQL agent must use a "
+            "read-only role (pulse_agent_ro), never the main read-write connection."
+        )
+    _AgentSession = _Session  # SQLite/dev only — read-only enforced via PRAGMA query_only
 
 
 def agent_session() -> Session:

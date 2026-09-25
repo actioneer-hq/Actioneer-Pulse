@@ -11,10 +11,10 @@ analysis_error) and counted; they never abort the job.
 from __future__ import annotations
 
 import logging
-import re
 import time
 from contextlib import contextmanager
 
+import regex
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -24,6 +24,7 @@ from voiceobs.db.models import BackfillJob, Call, Media
 from voiceobs.db.session import get_session, org_schema_keys, use_org_schema
 from voiceobs.judge.queue import enqueue_judge
 from voiceobs.storage import ResolvedStorage, resolve_storage
+from voiceobs.util import safe_search
 from voiceobs.worker.process import ensure_audio_call, process_audio_only
 
 log = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ def discover(st: ResolvedStorage) -> dict[str, dict[str, str]]:
     """List the store and group objects by call_id → {media_kind: uri}, via the descriptor's
     key_regex + file_map (same convention as reconcile)."""
     objects = st.driver.list(st.descriptor, st.creds)
-    key_re = re.compile(st.descriptor["key_regex"])
+    key_re = regex.compile(st.descriptor["key_regex"])
     id_group = st.descriptor.get("id_group", "call_id")
     file_map: dict = st.descriptor.get("file_map", {})
     base = f"{st.driver.scheme}://{st.descriptor['bucket']}/"
@@ -49,7 +50,7 @@ def discover(st: ResolvedStorage) -> dict[str, dict[str, str]]:
         kind = file_map.get(uri.rsplit("/", 1)[-1])
         if kind is None:
             continue
-        m = key_re.search(uri.removeprefix(base))
+        m = safe_search(key_re, uri.removeprefix(base))
         if not m:
             continue
         call_id = m.groupdict().get(id_group)
@@ -62,7 +63,7 @@ def discover_otlp(st: ResolvedStorage) -> dict[str, str]:
     """List the store for OTLP trace files (file_map kind == 'otlp') → {call_id: uri}. One file per
     call; later files for the same call id win."""
     objects = st.driver.list(st.descriptor, st.creds)
-    key_re = re.compile(st.descriptor["key_regex"])
+    key_re = regex.compile(st.descriptor["key_regex"])
     id_group = st.descriptor.get("id_group", "call_id")
     file_map: dict = st.descriptor.get("file_map", {})
     base = f"{st.driver.scheme}://{st.descriptor['bucket']}/"
@@ -70,7 +71,7 @@ def discover_otlp(st: ResolvedStorage) -> dict[str, str]:
     for uri, _modified in objects:
         if file_map.get(uri.rsplit("/", 1)[-1]) != "otlp":
             continue
-        m = key_re.search(uri.removeprefix(base))
+        m = safe_search(key_re, uri.removeprefix(base))
         if not m:
             continue
         call_id = m.groupdict().get(id_group)

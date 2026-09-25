@@ -46,6 +46,7 @@ from voiceobs.db.models import (
     Prompt,
 )
 from voiceobs.judge.queue import enqueue_judge
+from voiceobs.util.safety import validate_pattern
 
 router = APIRouter(prefix="/v1/agents")
 
@@ -222,6 +223,14 @@ def _apply_audio_config(db: Session, agent_id: str, body: AudioConfigIn) -> Agen
     if body.provider is not None:
         cfg.provider = body.provider
     if body.descriptor is not None:
+        # key_regex is compiled + run over every object key by reconcile/backfill — bound it here
+        # so a ReDoS pattern can never be stored (the worker match itself is also timeout-guarded).
+        key_regex = body.descriptor.get("key_regex")
+        if key_regex is not None:
+            try:
+                validate_pattern(key_regex, "descriptor.key_regex")
+            except ValueError as e:
+                raise HTTPException(422, str(e)) from e
         cfg.descriptor = body.descriptor
     if body.cred_spec is not None:
         cfg.cred_spec = body.cred_spec
