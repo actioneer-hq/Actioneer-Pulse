@@ -52,6 +52,15 @@ def test_unregistered_model_costs_nothing():
     assert c.total is None
 
 
+def test_sarvam_rates_are_inr():
+    c = price_call(
+        llm_model="sarvam-105b", stt_model="saaras", tts_model="bulbul-v3",
+        tokens_in=0, tokens_out=0, tokens_cached=0, tts_chars=10_000, stt_seconds=0,
+    )
+    assert c.currency == "INR"
+    assert c.tts == round(10_000 / 1e6 * 3000.0, 6)
+
+
 def test_seeded_model_is_priced():
     # MODEL_PRICING ships with common models seeded; add more in core/pricing.py.
     c = price_call(

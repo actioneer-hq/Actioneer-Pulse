@@ -24,6 +24,7 @@ class ModelPrice(BaseModel):
     cached_per_1m: float = 0.0     # cached input tokens, per 1M (usually discounted)
     tts_per_1m_chars: float = 0.0  # TTS, per 1M characters
     stt_per_min: float = 0.0       # STT, per minute of audio
+    currency: str = "USD"          # the unit of the rates above
 
 
 # Approximate public list prices (USD). Edit/extend freely — this dict is meant to grow.
@@ -44,6 +45,14 @@ MODEL_PRICING: dict[str, ModelPrice] = {
     # --- common third-party STT/TTS (examples; verify current rates) ---
     "nova-2": ModelPrice(stt_per_min=0.0043),            # Deepgram Nova-2
     "eleven_turbo_v2_5": ModelPrice(tts_per_1m_chars=100.00),  # ElevenLabs Turbo
+    # Cascade defaults. Figures are the INR list prices in research-analyst
+    # voice/pipeline/cost.py (Sarvam, August 2026). A model not listed here
+    # stays unpriced.
+    "sarvam-105b": ModelPrice(
+        input_per_1m=4.0, output_per_1m=16.0, cached_per_1m=2.5, currency="INR"
+    ),
+    "saaras": ModelPrice(stt_per_min=0.5, currency="INR"),  # Rs 30 / hour
+    "bulbul-v3": ModelPrice(tts_per_1m_chars=3000.0, currency="INR"),  # Rs 30 / 10k characters
 }
 
 
@@ -91,4 +100,10 @@ def price_call(
 
     parts = [c for c in (llm, stt, tts) if c is not None]
     total = round(sum(parts), 6) if parts else None
-    return CallCost(llm=llm, stt=stt, tts=tts, total=total)
+    currencies = [
+        price.currency
+        for price, amount in ((llm_p, llm), (stt_p, stt), (tts_p, tts))
+        if price is not None and amount is not None
+    ]
+    currency = currencies[0] if currencies and len(set(currencies)) == 1 else COST_CURRENCY
+    return CallCost(llm=llm, stt=stt, tts=tts, total=total, currency=currency)

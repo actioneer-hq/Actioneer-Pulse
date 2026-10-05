@@ -65,6 +65,9 @@ services:
     environment:
       VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
       VOICEOBS_REDIS_URL: redis://redis:6379   # auth abuse protection
+      # Host folder the voice worker fills via VOICE_PULSE_AUDIO_DIR. s3://pulse-dev/<file> is read from here.
+      VOICEOBS_DEV_AUDIO_DIR: /audio
+    volumes: ["./dev-audio:/audio"]
     ports: ["${VO_PORT:-8000}:8000"]
     depends_on:
       db:
@@ -101,6 +104,8 @@ services:
       VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
       VOICEOBS_KAFKA_BROKERS: redpanda:9092
       VOICEOBS_SKIP_MIGRATE: "1"
+      VOICEOBS_DEV_AUDIO_DIR: /audio
+    volumes: ["./dev-audio:/audio"]
     depends_on:
       db:
         condition: service_healthy
@@ -118,6 +123,8 @@ services:
       VOICEOBS_KAFKA_BROKERS: redpanda:9092
       VOICEOBS_BACKFILL_INTERVAL_S: "5"
       VOICEOBS_SKIP_MIGRATE: "1"
+      VOICEOBS_DEV_AUDIO_DIR: /audio
+    volumes: ["./dev-audio:/audio"]
     depends_on:
       db:
         condition: service_healthy

@@ -27,6 +27,7 @@ from voiceobs.db.models import (
     IngestRun,
     Media,
     Metric,
+    Prompt,
     RawFragment,
     TenantSettings,
     Utterance,
@@ -264,7 +265,7 @@ def _persist(
         Media.kind.like("peaks_%") | Media.kind.like("energy_%"),
     ))
 
-    _apply_header(call, trace.header)
+    _apply_header(db, call, trace.header)
     _rollup(call, trace, analysis)
     call.unattributed_spans = sum(
         1 for s in trace.spans
@@ -360,7 +361,7 @@ def _cols(model) -> set[str]:
     return {c.name for c in model.__table__.columns}
 
 
-def _apply_header(call: Call, h: CallHeader) -> None:
+def _apply_header(db: Session, call: Call, h: CallHeader) -> None:
     """Copy the adapter's view onto the row. Identity columns are ingest's, not ours:
     renaming a call here would orphan every artifact already posted against it."""
     fields = h.model_dump() | (h.counters or {})
@@ -370,6 +371,10 @@ def _apply_header(call: Call, h: CallHeader) -> None:
             setattr(call, name, fields[name])
     call.labels = h.labels or {}
     call.campaign_id = (h.labels or {}).get("campaign_id")
+    if h.template_sha256 and call.prompt_id is None:
+        prompt = db.scalar(select(Prompt).where(Prompt.template_sha256 == h.template_sha256))
+        if prompt is not None:
+            call.prompt_id = prompt.id
     if h.started_at and h.ended_at:
         call.duration_s = round((h.ended_at - h.started_at).total_seconds(), 3)
 

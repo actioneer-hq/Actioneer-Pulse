@@ -80,6 +80,9 @@ class Call(Base):
     tts_provider: Mapped[str | None] = mapped_column(String(64))
     voice: Mapped[str | None] = mapped_column(String(64))
     campaign_id: Mapped[str | None] = mapped_column(String(128))
+    # The prompt version (sha256 of the template, without this lead). Set from
+    # the trace even when the prompt text has not been registered yet.
+    template_sha256: Mapped[str | None] = mapped_column(String(64))
     prompt_id: Mapped[str | None] = mapped_column(ForeignKey("prompt.id"))
     labels: Mapped[dict | None] = mapped_column(JSON)  # opaque — the OSS boundary
 

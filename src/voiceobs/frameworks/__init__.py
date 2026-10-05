@@ -23,6 +23,7 @@ from voiceobs.frameworks.base import (
     register_adapter,
 )
 from voiceobs.frameworks.generic import OTLPAdapter
+from voiceobs.frameworks.cascade import CascadeAdapter
 from voiceobs.frameworks.livekit import LiveKitAdapter
 from voiceobs.frameworks.pipecat import PipecatAdapter
 
@@ -31,10 +32,12 @@ from voiceobs.frameworks.pipecat import PipecatAdapter
 # foundation for a future BYO-OTLP framework) but is deliberately left unregistered.
 register(Framework("livekit", LiveKitAdapter()))
 register(Framework("pipecat", PipecatAdapter()))
+register(Framework("cascade", CascadeAdapter()))
 
 __all__ = [
     "Adapter",
     "Framework",
+    "CascadeAdapter",
     "LiveKitAdapter",
     "OTLPAdapter",
     "PipecatAdapter",

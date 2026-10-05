@@ -330,6 +330,107 @@ def _audio(call: Call, media: list[Media], db: Session) -> dict | None:
             "duration_s": call.duration_s}
 
 
+@router.get("/prompts/comparison")
+def prompt_comparison(
+    mem: Membership = Depends(current_membership),
+    db: Session = Depends(session_dep),
+    campaign_id: str | None = None,
+    agent_id: str | None = None,
+) -> dict:
+    """One row per prompt hash. Rates use calls the judge marked as answered by a human."""
+    stmt = select(Call).order_by(Call.started_at.desc().nulls_last())
+    ids = visible_agent_ids(db, mem)
+    if ids is not None:
+        stmt = stmt.where(Call.agent_id.in_(ids))
+    if agent_id:
+        stmt = stmt.where(Call.agent_id == agent_id)
+    if campaign_id:
+        stmt = stmt.where(Call.campaign_id == campaign_id)
+    calls = db.scalars(stmt).all()
+    if not calls:
+        return {"items": []}
+    call_ids = [c.id for c in calls]
+    prompt_ids = {c.prompt_id for c in calls if c.prompt_id}
+    shas = {c.template_sha256 for c in calls if c.template_sha256}
+    prompts = {
+        p.id: p for p in (
+            db.scalars(select(Prompt).where(Prompt.id.in_(prompt_ids))) if prompt_ids else []
+        )
+    }
+    by_sha = {p.template_sha256: p for p in prompts.values()}
+    missing = shas - set(by_sha)
+    if missing:
+        for prompt in db.scalars(select(Prompt).where(Prompt.template_sha256.in_(missing))):
+            by_sha[prompt.template_sha256] = prompt
+            prompts[prompt.id] = prompt
+    judgments = {
+        j.call_id: j for j in db.scalars(select(Judgment).where(Judgment.call_id.in_(call_ids)))
+    }
+    v2v_by_call: dict[str, list[float]] = {}
+    for call_id, latency in db.execute(
+        select(Turn.call_id, Turn.response_latency_ms).where(
+            Turn.call_id.in_(call_ids), Turn.response_latency_ms.isnot(None)
+        )
+    ):
+        v2v_by_call.setdefault(call_id, []).append(latency)
+
+    groups: dict[str, dict] = {}
+    for call in calls:
+        prompt = by_sha.get(call.template_sha256) if call.template_sha256 else None
+        if prompt is None and call.prompt_id:
+            prompt = prompts.get(call.prompt_id)
+        key = call.template_sha256 or (prompt.template_sha256 if prompt else "")
+        row = groups.setdefault(key, {
+            "sha256": key or None,
+            "preview": (prompt.text[:180] if prompt else ""),
+            "calls": 0,
+            "connected": 0,
+            "achieved": 0,
+            "followed": 0,
+            "guardrails": 0,
+            "cost": [],
+            "v2v": [],
+        })
+        if prompt and not row["preview"]:
+            row["preview"] = prompt.text[:180]
+        row["calls"] += 1
+        if call.cost_total is not None:
+            row["cost"].append(call.cost_total)
+        judged = judgments.get(call.id)
+        connected = judged is not None and judged.answered_by == "human"
+        if connected:
+            row["connected"] += 1
+            row["v2v"].extend(v2v_by_call.get(call.id, []))
+            if judged.objective_achieved == "achieved":
+                row["achieved"] += 1
+            if judged.script_adherence == "followed":
+                row["followed"] += 1
+            if judged.guardrail_violation:
+                row["guardrails"] += 1
+        elif judged is None:
+            row["v2v"].extend(v2v_by_call.get(call.id, []))
+
+    items = []
+    for row in groups.values():
+        connected = row.pop("connected")
+        achieved = row.pop("achieved")
+        followed = row.pop("followed")
+        guardrails = row.pop("guardrails")
+        cost = row.pop("cost")
+        v2v = sorted(row.pop("v2v"))
+        items.append({
+            **row,
+            "connected": connected,
+            "objective_rate": (achieved / connected) if connected else None,
+            "adherence_rate": (followed / connected) if connected else None,
+            "guardrail_rate": (guardrails / connected) if connected else None,
+            "v2v_p50_ms": v2v[len(v2v) // 2] if v2v else None,
+            "avg_cost": (sum(cost) / len(cost)) if cost else None,
+        })
+    items.sort(key=lambda item: item["calls"], reverse=True)
+    return {"items": items}
+
+
 @router.get("/calls/{call_id}/audio")
 def get_audio(
     call: Call = Depends(get_scoped_call), db: Session = Depends(session_dep)

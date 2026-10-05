@@ -587,6 +587,28 @@ export const listCalls = (limit = 200, agentId?: string) =>
   ).then((d) => d.items);
 export const getCall = (id: string) => get<CallDetail>(`/v1/calls/${encodeURIComponent(id)}`);
 
+export type PromptComparison = {
+  sha256: string | null;
+  preview: string;
+  calls: number;
+  connected: number;
+  objective_rate: number | null;
+  adherence_rate: number | null;
+  guardrail_rate: number | null;
+  v2v_p50_ms: number | null;
+  avg_cost: number | null;
+};
+
+export const comparePrompts = (campaignId?: string, agentId?: string) => {
+  const qs = new URLSearchParams();
+  if (campaignId) qs.set("campaign_id", campaignId);
+  if (agentId) qs.set("agent_id", agentId);
+  const q = qs.toString();
+  return get<{ items: PromptComparison[] }>(`/v1/prompts/comparison${q ? `?${q}` : ""}`).then(
+    (d) => d.items,
+  );
+};
+
 // ---- backfill (analyse historical audio from storage) ----
 export type BackfillPreview = {
   agent_id: string;
