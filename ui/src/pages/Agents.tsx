@@ -437,6 +437,10 @@ function StoragePanel({ agent }: { agent: Agent }) {
       setProvider(c.provider || "s3_compatible");
       setBucket((c.descriptor?.bucket as string) || "");
       setPrefix((c.descriptor?.list_prefix as string) || "");
+      // Preload the stored NON-SECRET creds (access key, region, endpoint). The save path replaces
+      // cred_public wholesale, so if we started blank, editing one field would wipe the others.
+      // Secrets stay blank (write-only) and are merged server-side.
+      setCreds({ ...(c.cred_public || {}) });
       setDiarizeUrl(c.diarize_base_url || "");
       setDiarizeModel(c.diarize_model || "");
     }).catch((e: Error) => setErr(e.message));
@@ -461,7 +465,8 @@ function StoragePanel({ agent }: { agent: Agent }) {
         diarize_base_url: diarizeUrl || null, diarize_model: diarizeModel || null,
         diarize_api_key: diarizeKey || undefined,  // omit to keep the stored key
       });
-      setCfg(c); setCreds({}); setDiarizeKey(""); setSaved(true);
+      // re-seed from the saved non-secret creds so a follow-up edit doesn't wipe untouched fields
+      setCfg(c); setCreds({ ...(c.cred_public || {}) }); setDiarizeKey(""); setSaved(true);
     } catch (e) { setErr((e as Error).message); }
   }
 

@@ -1,14 +1,15 @@
-"""Judge one call: disposition (always) + two LLM passes on connected calls — the post-call
-judge (JudgeOutput) and, in parallel, a failure-analysis LLM (FailureAnalysis) for root cause.
+"""Judge one call: disposition (always), then up to two SEQUENTIAL LLM stages on connected calls.
 
-The two models are network-bound and independent, so they run concurrently in a thread pool;
-each returns plain results and ALL DB/ORM mutation happens on this (main) thread afterwards, so
-the Session is never touched off-thread. Own transaction; neither model failure raises."""
+Stage 1 — the post-call judge (JudgeOutput) gives the neutral quality read. Stage 2 —
+failure-analysis (FailureAnalysis) root-causes the call, but runs ONLY when the judge's own
+signals flag a shortfall (objective not fully achieved, or a guardrail broken). Deciding failure
+from the judge (not from the analyst itself) removes the old bias of a "root-cause analyst" that
+both declared and diagnosed failure, and avoids the second LLM call on clean calls. Own
+transaction; neither model failure raises."""
 
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -59,24 +60,51 @@ def judge_call(db: Session, call: Call) -> Judgment:
         j.status, j.model, j.error = "skipped", None, "no_params"
         return j
 
-    # DB reads happen here on the main thread; the LLM passes below get plain args.
     script, guardrails = _script(db, call), _guardrails(db, call)
     ctx = (script, guardrails, transcript, call.external_call_id, params)
 
-    # Both models are network-bound and independent → run them at the same time.
-    with ThreadPoolExecutor(max_workers=2) as ex:
-        judge_future = ex.submit(_judge, ctx)
-        failure_future = ex.submit(_failure, ctx)
-        judge_res = judge_future.result()
-        failure_res = failure_future.result()
-
+    # Sequential, two stages:
+    #  1) the post-call judge produces the neutral quality read.
+    #  2) failure analysis (root cause) runs ONLY when the judge's own signals say the call fell
+    #     short — objective not fully achieved, or a guardrail broken. This replaces the old
+    #     parallel design where a "root-cause analyst" both decided failure AND diagnosed it (biased
+    #     toward finding failure), and it skips the second LLM call entirely on clean calls.
+    judge_res = _judge(ctx)
     _apply_judge(j, judge_res)
-    _apply_failure(j, failure_res)
+
+    if _judge_flags_failure(judge_res):
+        failure_res = _failure(ctx)
+        if failure_res is not None:
+            failure_res["is_failure"] = True  # the judge decided it failed; keep the RCA fields
+        _apply_failure(j, failure_res if failure_res is not None else _FAILURE_DEFAULT)
+    else:
+        _apply_failure(j, _FAILURE_DEFAULT)  # not a failure → empty RCA block
     return j
 
 
+# A connected call is a failure (→ run root-cause analysis) when the judge's neutral signals say so.
+_FAILED_OBJECTIVES = {"not_achieved", "partial"}
+
+
+def _judge_flags_failure(res: dict) -> bool:
+    fields = res.get("fields") or {}
+    if not fields:  # judge errored/skipped — no signal, so don't run RCA blindly
+        return False
+    obj = fields.get("objective_achieved")
+    obj = obj.value if hasattr(obj, "value") else obj
+    return bool(fields.get("guardrail_violation")) or obj in _FAILED_OBJECTIVES
+
+
+# Default RCA block for calls the judge did NOT flag as failures (no second LLM call).
+_FAILURE_DEFAULT = {
+    "is_failure": False, "root_cause": None, "model_fault": "none", "model_fault_detail": None,
+    "hallucination": False, "hallucination_detail": None, "suggested_fix": None,
+    "llm_corrections": [],
+}
+
+
 def _judge(ctx) -> dict:
-    """Run the post-call judge (in a worker thread). Pure: returns results, never touches the DB."""
+    """Run the post-call judge (stage 1). Returns plain results; never touches the DB."""
     script, guardrails, transcript, call_id, params = ctx
     resolved = resolve_llm(LLMRole.POST_CALL_ANALYSIS)
     if resolved is None:  # role not configured (no API key)
@@ -92,7 +120,7 @@ def _judge(ctx) -> dict:
 
 
 def _failure(ctx) -> dict | None:
-    """Run the failure-analysis LLM (in a worker thread). Returns its fields, or None if the role
+    """Run the failure-analysis LLM (stage 2). Returns its fields, or None if the role
     is unconfigured or it errored — best-effort, never raises."""
     script, guardrails, transcript, call_id, params = ctx
     resolved = resolve_llm(LLMRole.FAILURE_ANALYSIS)

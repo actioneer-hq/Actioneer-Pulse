@@ -24,10 +24,12 @@ def provision_org(db: Session, slug: str, name: str | None = None) -> Organizati
 
     if is_pg:
         db.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{org_schema(slug)}"'))
-    use_org_schema(db, slug)  # pin so unqualified DDL/DML lands in this schema
-    if is_pg:
-        # Build every table inside the schema (search_path is set on this connection).
+        # Include `public` in the search_path for the DDL: the pgvector `vector` type is installed
+        # in public, so a VECTOR column (call_embedding.embedding) only resolves if public is on the
+        # path. Without this, creating a fresh tenant schema fails with "type vector does not exist".
+        db.execute(text(f'SET search_path TO "{org_schema(slug)}", public'))
         Base.metadata.create_all(db.connection())
+    use_org_schema(db, slug)  # pin to the org schema ALONE for DML (keeps tenant isolation on return)
 
     # Build the read-only agent view menu (ag_<slug> + grants on PG; flat views on SQLite).
     build_agent_views(db, slug)
