@@ -23,6 +23,7 @@ from voiceobs.api import (
     orgs,
     read,
     settings,
+    uploads,
 )
 
 app = FastAPI(title="Pulse")
@@ -61,6 +62,7 @@ app.include_router(export.router)
 app.include_router(judge.router)
 app.include_router(settings.router)
 app.include_router(backfill.router)
+app.include_router(uploads.router)
 
 
 @app.get("/health")
@@ -89,4 +91,6 @@ if _UI.is_dir():
         index = _UI / "index.html"
         if not index.is_file():
             raise HTTPException(404, "not found")
-        return FileResponse(index)
+        # index.html names the hashed bundles; it must be revalidated on every load, or a browser
+        # keeps running the previous build against a newer API after a deploy.
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})

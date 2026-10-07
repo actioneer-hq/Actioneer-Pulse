@@ -26,7 +26,7 @@ export default function BackfillToast() {
     return (
       <button className="backfill-pill" onClick={() => setCollapsed(false)}>
         {!settled && <span className="chat-streaming" />}
-        Backfill {settled ? job.status : `${job.completed}/${total || "?"}`}
+        {job.source === "upload" ? "Upload" : "Backfill"} {settled ? job.status : `${job.completed}/${total || "?"}`}
       </button>
     );
   }

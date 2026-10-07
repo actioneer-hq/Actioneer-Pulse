@@ -19,6 +19,7 @@ type BackfillState = {
   analyzedCalls: Call[];
   boardsRefreshToken: number;
   start: (agentId: string, options?: Record<string, unknown>) => Promise<void>;
+  follow: (job: BackfillJob) => void;  // track a job created elsewhere (e.g. a file upload)
   cancel: () => Promise<void>;
   dismiss: () => void;
 };
@@ -67,6 +68,12 @@ export function BackfillProvider({ children }: { children: ReactNode }) {
     subscribe(j.id);
   }, [subscribe]);
 
+  const follow = useCallback((j: BackfillJob) => {
+    setAnalyzedCalls([]);
+    setJob(j);
+    subscribe(j.id);
+  }, [subscribe]);
+
   const cancel = useCallback(async () => {
     if (!job) return;
     try {
@@ -82,7 +89,7 @@ export function BackfillProvider({ children }: { children: ReactNode }) {
   }, [stopStream]);
 
   const value: BackfillState = {
-    job, analyzedCalls, boardsRefreshToken, start, cancel, dismiss,
+    job, analyzedCalls, boardsRefreshToken, start, follow, cancel, dismiss,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

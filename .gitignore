@@ -38,3 +38,4 @@ baby-sentinel/
 
 # Client-specific, uncommitted backfill code + data
 clients/
+data/

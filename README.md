@@ -63,7 +63,12 @@ it off `8000`.
 
 ## Getting your data in
 
-Pulse has two ingestion paths. Pick by how your agent already stores telemetry.
+**Simplest: upload files.** Create a project and upload a ZIP of call recordings — Pulse transcribes
+them (Sarvam STT, timestamped) and runs the full analysis. Add an optional `pulse.calls.v1` JSON with
+transcripts, the script and per-call prompt parameters to skip transcription. See
+[UPLOADS.md](UPLOADS.md).
+
+For live, continuous ingestion there are two more paths. Pick by how your agent already stores telemetry.
 
 ### 1. Live OTLP (recommended for supported frameworks)
 

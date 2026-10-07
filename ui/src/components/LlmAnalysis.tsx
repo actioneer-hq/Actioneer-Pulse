@@ -5,7 +5,7 @@ import type { Judgment } from "../api";
 const FIELDS: [keyof Judgment, string, string][] = [
   ["sentiment", "Sentiment", "Overall caller sentiment across the call, from very negative to very positive."],
   ["objective_achieved", "Objective", "Whether the call's goal was achieved, partially met, or not achieved."],
-  ["answered_by", "Answered by", "Who or what picked up: a human, voicemail, an IVR, or unknown."],
+  ["answered_by", "Answered by", "Who or what the agent talked to: a human, a call screener, a recording, voicemail, an IVR, or unknown."],
   ["script_adherence", "Script adherence", "How closely the agent followed its configured script."],
   ["primary_language", "Language", "The main language spoken during the call."],
   ["escalation_requested", "Escalation", "Did the caller ask to be escalated to a human or supervisor."],

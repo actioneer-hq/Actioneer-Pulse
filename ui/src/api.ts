@@ -620,7 +620,7 @@ export type BackfillJob = {
   id: string;
   agent_id: string;
   source: string | null;
-  status: "queued" | "scanning" | "running" | "clustering" | "done" | "failed" | "cancelled";
+  status: "uploading" | "queued" | "scanning" | "running" | "clustering" | "done" | "failed" | "cancelled";
   phase: string | null;
   total: number;
   completed: number;
@@ -644,6 +644,60 @@ export const createBackfill = (
 ) => req<BackfillJob>("POST", "/v1/backfill", body);
 export const getBackfillJob = (id: string) =>
   get<BackfillJob>(`/v1/backfill/${encodeURIComponent(id)}`);
+// ---- file onboarding: audio ZIP + exactly one of a params CSV or a pulse.calls.v1 JSON ----
+export type UploadMode = "csv" | "json";
+export type UploadOptions = { agentChannel: "auto" | "left" | "right"; language: string };
+// Schemas derived from the project's script: CSV columns and JSON `params` = its {{placeholders}}.
+export type UploadFormat = {
+  format: string;
+  has_script: boolean;
+  params: string[];
+  json: { schema: unknown };
+  csv: { columns: string[]; example: string };
+};
+export const getUploadFormat = (agentId?: string) =>
+  get<UploadFormat>(`/v1/uploads/format${agentId ? `?agent_id=${encodeURIComponent(agentId)}` : ""}`);
+
+// Multipart upload via XHR so the UI can show byte progress for large ZIPs. Resolves to the
+// queued job; its progress then streams over the backfill SSE endpoint. A rejected upload's
+// problems come back one per line.
+export function uploadCalls(
+  agentId: string, zip: File, side: { mode: UploadMode; file: File }, opts: UploadOptions,
+  onProgress?: (fraction: number) => void,
+): Promise<BackfillJob> {
+  const form = new FormData();
+  form.append("audio", zip);
+  form.append(side.mode === "csv" ? "params_csv" : "manifest", side.file);
+  form.append("agent_channel", opts.agentChannel);
+  form.append("language", opts.language);
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `/v1/agents/${encodeURIComponent(agentId)}/uploads`);
+    xhr.withCredentials = true;
+    if (activeOrg) xhr.setRequestHeader("X-Voiceobs-Org", activeOrg);
+    const csrf = csrfToken();
+    if (csrf) xhr.setRequestHeader("X-CSRF-Token", csrf);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
+    xhr.onerror = () => reject(new Error("upload failed — network error"));
+    xhr.onload = () => {
+      let body: any = null;
+      try { body = JSON.parse(xhr.responseText); } catch { /* non-JSON */ }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve({ id: body.id, agent_id: agentId, source: "upload", status: body.status,
+          phase: null, total: body.calls ?? 0, completed: 0, failed: 0, error: null,
+          created_at: null, finished_at: null });
+        return;
+      }
+      const d = body?.detail;
+      const msg = typeof d === "string" ? d
+        : d?.errors ? `${d.message}:\n${d.errors.map((e: string) => `• ${e}`).join("\n")}`
+        : `upload failed (${xhr.status})`;
+      reject(new Error(msg));
+    };
+    xhr.send(form);
+  });
+}
+
 export const cancelBackfill = (id: string) =>
   req<BackfillJob>("POST", `/v1/backfill/${encodeURIComponent(id)}/cancel`);
 

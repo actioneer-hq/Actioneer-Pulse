@@ -28,6 +28,8 @@ class Objective(StrEnum):
 
 class AnsweredBy(StrEnum):
     HUMAN = "human"
+    CALL_SCREENER = "call_screener"  # the callee's phone assistant screening the call
+    RECORDING = "recording"          # carrier/network announcement or other pre-recorded message
     VOICEMAIL = "voicemail"
     IVR = "ivr"
     UNKNOWN = "unknown"

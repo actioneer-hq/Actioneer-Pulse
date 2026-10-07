@@ -64,8 +64,8 @@ export default function Members() {
     <div className="settings">
       <div className="settings-hd">
         <h1>Members</h1>
-        <div className="sub">Coarse role plus granular per-agent grants. A member/viewer with no
-          grants sees all agents; adding a grant restricts them to it.</div>
+        <div className="sub">Coarse role plus granular per-project grants. A member/viewer with no
+          grants sees all projects; adding a grant restricts them to it.</div>
       </div>
       {error && <Alert variant="danger">{error}</Alert>}
       <div className="add-row wide">
@@ -85,7 +85,7 @@ export default function Members() {
         <TableHeader>
           <TableRow>
             <TableColumn>Email</TableColumn><TableColumn>Role</TableColumn>
-            <TableColumn>Agent access</TableColumn><TableColumn />
+            <TableColumn>Project access</TableColumn><TableColumn />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -137,10 +137,10 @@ function GrantEditor(
 
   return (
     <Modal open onOpenChange={(o) => !o && onClose()}>
-      <ModalHeader><ModalTitle>Agent access · {member.email ?? member.user_id}</ModalTitle></ModalHeader>
+      <ModalHeader><ModalTitle>Project access · {member.email ?? member.user_id}</ModalTitle></ModalHeader>
       <ModalBody>
-        <p className="sub">Select the agents this member may see. Leave all unchecked to give
-          access to every agent in the org.</p>
+        <p className="sub">Select the projects this member may see. Leave all unchecked to give
+          access to every project in the org.</p>
         <div className="grant-list">
           {agents.map((a) => (
             <label key={a.id} className="grant-item">

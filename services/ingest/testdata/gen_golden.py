@@ -11,16 +11,15 @@ from __future__ import annotations
 
 import gzip
 import json
+import sys
 from pathlib import Path
 
 from voiceobs.bus.memory import InMemoryBus
 from voiceobs.ingestion import produce
 
 # The fixture lives under tests/ — import it directly.
-import sys
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from tests.fixtures.livekit_call import sample_call  # noqa: E402
+from tests.fixtures.livekit_call import sample_call
 
 ORG = "vastu-hfc"
 AGENT_ID = "agent-7"

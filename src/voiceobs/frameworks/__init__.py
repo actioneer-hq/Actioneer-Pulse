@@ -22,8 +22,8 @@ from voiceobs.frameworks.base import (
     register,
     register_adapter,
 )
-from voiceobs.frameworks.generic import OTLPAdapter
 from voiceobs.frameworks.cascade import CascadeAdapter
+from voiceobs.frameworks.generic import OTLPAdapter
 from voiceobs.frameworks.livekit import LiveKitAdapter
 from voiceobs.frameworks.pipecat import PipecatAdapter
 
@@ -36,8 +36,8 @@ register(Framework("cascade", CascadeAdapter()))
 
 __all__ = [
     "Adapter",
-    "Framework",
     "CascadeAdapter",
+    "Framework",
     "LiveKitAdapter",
     "OTLPAdapter",
     "PipecatAdapter",
