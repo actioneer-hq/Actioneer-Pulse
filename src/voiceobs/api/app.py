@@ -19,6 +19,7 @@ from voiceobs.api import (
     export,
     ingest,
     ingest_config,
+    journeys,
     judge,
     orgs,
     read,
@@ -63,6 +64,7 @@ app.include_router(judge.router)
 app.include_router(settings.router)
 app.include_router(backfill.router)
 app.include_router(uploads.router)
+app.include_router(journeys.router)
 
 
 @app.get("/health")

@@ -108,6 +108,14 @@ forbidden_modules = [
     "voiceobs.groundtruth",
 ]
 
+# The journey judge (script -> journey, questions, merge, curation) is pure logic so it can move to
+# another product; DB / queue wiring lives in judge/ and worker/.
+[[tool.importlinter.contracts]]
+name = "journey is portable — no api, worker, db or bus"
+type = "forbidden"
+source_modules = ["voiceobs.journey"]
+forbidden_modules = ["voiceobs.api", "voiceobs.worker", "voiceobs.db", "voiceobs.bus"]
+
 # auth sits above core/frameworks (it's an API concern that touches db); they must not
 # reach up into it.
 [[tool.importlinter.contracts]]

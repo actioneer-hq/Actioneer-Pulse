@@ -285,6 +285,13 @@ def _run_once() -> None:  # pragma: no cover
             while (job := claim_next(db)) is not None:
                 log.info("backfill: running job %s (org=%s)", job.id, org)
                 run_job(db, job, org)
+            try:  # journeys for newly saved script versions (script -> journey extraction)
+                from voiceobs.worker.journey import run_pending
+
+                run_pending(db)
+            except Exception:
+                log.exception("journey extraction pass failed (org=%s)", org)
+                db.rollback()
 
 
 def main() -> None:  # pragma: no cover — entrypoint (one-shot, or a loop with an interval)

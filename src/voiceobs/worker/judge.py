@@ -21,21 +21,22 @@ from voiceobs.config import get_config
 from voiceobs.db.models import Call
 from voiceobs.db.session import get_session, use_org_schema
 from voiceobs.judge import judge_call
-from voiceobs.judge.queue import decode_judge
+from voiceobs.judge.queue import decode_judge, enqueue_stage
 
 log = logging.getLogger(__name__)
 session_scope = contextmanager(get_session)
 
 
-def handle_judge(db, record: Record) -> None:
-    """Judge one queued call within its org schema. Missing call = a no-op (erased/never persisted)."""
+def handle_judge(db, record: Record) -> bool:
+    """Judge one queued call within its org schema. Missing call = a no-op (erased/never persisted).
+    Returns True when the journey judgment needs stage 2 (LLM enrichment) — queued after the commit."""
     org, call_id = decode_judge(record)
     use_org_schema(db, org)
     call = db.scalar(select(Call).where(Call.external_call_id == call_id))
     if call is None:
         log.warning("judge: call %s not found (org=%s) — skipping", call_id, org)
-        return
-    judge_call(db, call)
+        return False
+    return judge_call(db, call).enrich_status == "pending"
 
 
 def main() -> None:  # pragma: no cover — the long-running consumer loop
@@ -74,7 +75,10 @@ def _consume_one(record: Record) -> bool:  # pragma: no cover
     for attempt in range(get_config().kafka_max_retries):
         try:
             with session_scope() as db:
-                handle_judge(db, record)
+                enrich = handle_judge(db, record)
+            if enrich:  # after the commit, so stage 2 always sees the stage-1 result
+                org, call_id = decode_judge(record)
+                enqueue_stage(get_producer(), "enrich", org, call_id)
             return True
         except Exception:
             log.exception("handle_judge failed (attempt %d)", attempt + 1)

@@ -429,7 +429,56 @@ class Judgment(Base):
     # per-turn corrected actions (training data) — only when model_fault is llm
     llm_corrections: Mapped[list | None] = mapped_column(JSON)
     summary: Mapped[str | None] = mapped_column(Text)
+    # journey judge result (journey/merge.CallJudgment or jev.ShortJudgment), when the call's script
+    # version has a journey and a decision model is configured
+    journey: Mapped[dict | None] = mapped_column(JSON)
+    # journey stages after the decision model: 2 = LLM enrichment (summary, timeline, spans),
+    # 3 = training-data curation. pending|running|ok|failed|skipped; None = not a journey judgment.
+    enrich_status: Mapped[str | None] = mapped_column(String(16))
+    curate_status: Mapped[str | None] = mapped_column(String(16))
     judged_at: Mapped[datetime] = created_col()
+
+
+class AgentJourney(Base):
+    """The journey extracted from one script version (keyed by its Prompt), used to judge every call that
+    ran on that version. Extracted asynchronously (status pending -> ready | failed); editable by hand."""
+
+    __tablename__ = "agent_journey"
+
+    id: Mapped[str] = pk()
+    prompt_id: Mapped[str] = mapped_column(ForeignKey("prompt.id"), nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False)
+    journey: Mapped[dict | None] = mapped_column(JSON)   # journey/model.Journey
+    draft: Mapped[dict | None] = mapped_column(JSON)     # raw extraction output (to see what was dropped)
+    model: Mapped[str | None] = mapped_column(String(64))
+    error: Mapped[str | None] = mapped_column(Text)
+    edited: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = created_col()
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TrainingSample(Base):
+    """One curated correction of a failed agent turn (journey stage 3) — an SFT target / DPO pair: at
+    `turn` the agent said `observed`, it should have said `corrected`. Re-curating a call replaces its
+    rows."""
+
+    __tablename__ = "training_sample"
+    __table_args__ = (UniqueConstraint("call_id", "turn", "item", name="uq_training_sample"),)
+
+    id: Mapped[str] = pk()
+    call_id: Mapped[str] = mapped_column(ForeignKey("call.id"), nullable=False, index=True)
+    prompt_id: Mapped[str | None] = mapped_column(String(36))
+    turn: Mapped[int] = mapped_column(Integer, nullable=False)
+    item: Mapped[str] = mapped_column(Text, nullable=False)          # the journey item that failed
+    failure_kind: Mapped[str] = mapped_column(String(16), nullable=False)  # stage|branch|guardrail|…
+    kind: Mapped[str] = mapped_column(String(16), default="response", nullable=False)
+    observed: Mapped[str] = mapped_column(Text, nullable=False)
+    corrected: Mapped[str] = mapped_column(Text, nullable=False)
+    corrected_tool: Mapped[str | None] = mapped_column(String(128))
+    corrected_args: Mapped[dict | None] = mapped_column(JSON)
+    rationale: Mapped[str | None] = mapped_column(Text)
+    model: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = created_col()
 
 
 class CallEmbedding(Base):

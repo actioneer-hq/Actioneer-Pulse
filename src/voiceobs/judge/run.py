@@ -69,6 +69,13 @@ def judge_call(db: Session, call: Call) -> Judgment:
         return j
     ctx = (script, guardrails, transcript, call.external_call_id, params)
 
+    # Journey path: the call's script version has an extracted journey and a decision model is set up
+    # -> decision model (+ LLM for longer calls) in parallel; else the classic judge below.
+    from voiceobs.judge.journey_path import try_journey
+
+    if try_journey(db, call, j, transcript, params, script):
+        return j
+
     # Sequential, two stages:
     #  1) the post-call judge produces the neutral quality read.
     #  2) failure analysis (root cause) runs ONLY when the judge's own signals say the call fell

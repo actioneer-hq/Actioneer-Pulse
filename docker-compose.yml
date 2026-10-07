@@ -45,7 +45,10 @@ services:
         rpk topic create raw-spans.dlq -p 1 -X brokers=redpanda:9092 || true;
         rpk topic create judge-requests -p 12 -X brokers=redpanda:9092 || true;
         rpk topic create judge-requests.backfill -p 12 -X brokers=redpanda:9092 || true;
-        rpk topic create judge-requests.dlq -p 1 -X brokers=redpanda:9092 || true
+        rpk topic create judge-requests.dlq -p 1 -X brokers=redpanda:9092 || true;
+        rpk topic create journey-enrich -p 12 -X brokers=redpanda:9092 || true;
+        rpk topic create journey-curate -p 12 -X brokers=redpanda:9092 || true;
+        rpk topic create journey-llm.dlq -p 1 -X brokers=redpanda:9092 || true
     restart: "no"
 
   redis:
@@ -161,6 +164,25 @@ services:
   judge:
     build: .
     command: ["python", "-m", "voiceobs.worker.judge"]
+    env_file: [.env]
+    environment:
+      VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
+      VOICEOBS_KAFKA_BROKERS: redpanda:9092
+      VOICEOBS_SKIP_MIGRATE: "1"
+      VOICEOBS_DECISION_API_KEY: ${VOICEOBS_DECISION_API_KEY:-}   # journey judge decision model (unset = off)
+    depends_on:
+      db:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+
+  # journey-llm worker — journey stages 2 (LLM enrichment: summary, timeline, spans) and 3 (training
+  # data from failed turns), backfilled after the judge's decision model. Scale with
+  # `--scale journey-llm=N`. Uses the journey_judge / training_curator role keys (fall back to
+  # VOICEOBS_POST_CALL_API_KEY).
+  journey-llm:
+    build: .
+    command: ["python", "-m", "voiceobs.worker.journey_llm"]
     env_file: [.env]
     environment:
       VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs

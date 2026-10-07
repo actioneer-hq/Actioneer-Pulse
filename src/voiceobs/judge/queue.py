@@ -23,3 +23,11 @@ def decode_judge(record: Record) -> tuple[str, str]:
     """A judge-request record → (org, external_call_id)."""
     body = json.loads(record.value)
     return body.get("org") or record.headers.get("org") or "default", body["call_id"]
+
+
+def enqueue_stage(producer: Producer, stage: str, org: str, call_id: str) -> None:
+    """Queue journey stage 2 (`enrich`) or 3 (`curate`) for a call; same message shape as judging."""
+    c = get_config()
+    topic = c.kafka_topic_enrich if stage == "enrich" else c.kafka_topic_curate
+    producer.send(topic, call_id, json.dumps({"org": org, "call_id": call_id}).encode(), {"org": org})
+    producer.flush()

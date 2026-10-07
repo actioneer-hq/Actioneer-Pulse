@@ -12,6 +12,7 @@ import Calls from "./pages/Calls";
 import Chat from "./pages/Chat";
 import Clusters from "./pages/Clusters";
 import Prompts from "./pages/Prompts";
+import Journey from "./pages/Journey";
 import Login from "./pages/Login";
 import Members from "./pages/Members";
 import BackfillToast from "./components/BackfillToast";
@@ -43,6 +44,9 @@ function Shell() {
           </NavLink>
           <NavLink to="/prompts" className={({ isActive }) => (isActive ? "on" : undefined)}>
             Prompts
+          </NavLink>
+          <NavLink to="/journey" className={({ isActive }) => (isActive ? "on" : undefined)}>
+            Journey
           </NavLink>
           {isAdmin && (
             <>
@@ -133,6 +137,7 @@ export default function App() {
         <Route path="/boards" element={<RequireAgent><Boards /></RequireAgent>} />
         <Route path="/clusters" element={<RequireAgent><Clusters /></RequireAgent>} />
         <Route path="/prompts" element={<RequireAgent><Prompts /></RequireAgent>} />
+        <Route path="/journey" element={<RequireAgent><Journey /></RequireAgent>} />
         <Route path="/settings/agents"
           element={<RequireAdmin><Agents /></RequireAdmin>} />
         <Route path="/settings/members"

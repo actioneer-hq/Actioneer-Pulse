@@ -4,6 +4,11 @@ produced by the failure-analysis LLM when model_fault == llm) into downloadable 
 - **sft**  — chat `messages[]` ending in the corrected assistant turn (the single training target).
 - **dpo**  — same prompt context; `chosen` = corrected, `rejected` = observed (offline preference RL).
 
+Each correction is its own row: the conversation exactly as it happened up to that turn (earlier mistakes
+included, never re-simulated) -> the corrected turn. Journey-judged calls read their curated samples
+(`training_sample`, journey stage 3: one per failed turn, `gt_source: "curated"`); their history is cut
+at the exact turn from the same transcript lines the judge indexed.
+
 Scoped exactly like the Clusters/boards reads (schema = tenant, RBAC visible_agent_ids, optional
 agent_id + range). Streamed so a large agent doesn't buffer in memory. Every row carries a `meta`
 block with `gt_source: "judge_unverified"` and a `recoverable` flag — these are the judge's claims,
@@ -17,13 +22,14 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import Select
 
 from voiceobs.api.deps import session_dep
 from voiceobs.auth import current_membership, visible_agent_ids
-from voiceobs.db.models import Call, Judgment, Membership, Prompt, Turn
+from voiceobs.db.models import Call, Judgment, Membership, Prompt, TrainingSample, Turn
+from voiceobs.transcript import resolve
 
 router = APIRouter(prefix="/v1/export")
 
@@ -93,6 +99,18 @@ def _fault_pos(convo: list[dict], observed: str | None) -> int:
     return len(convo)
 
 
+def _lines_conversation(transcript: dict, turn: int) -> list[dict] | None:
+    """Journey calls: the transcript lines before the agent line at `turn` (the index the judge saw), as
+    chat messages. None when that turn isn't in the transcript."""
+    lines = transcript.get("lines") or []
+    at = next((i for i, ln in enumerate(lines)
+               if ln.get("turn_index") == turn and ln.get("role") != "caller"), None)
+    if at is None:
+        return None
+    return [{"role": "user" if ln.get("role") == "caller" else "assistant", "content": ln.get("text") or ""}
+            for ln in lines[:at] if (ln.get("text") or "").strip()]
+
+
 def _context(script: str | None, convo: list[dict], pos: int) -> list[dict]:
     """system(script) + the conversation up to (not including) the faulty assistant turn. The model
     must produce the corrected assistant turn as the next message."""
@@ -117,32 +135,51 @@ def _dpo_row(ctx: list[dict], c: dict, observed: str, dialect: str, meta: dict |
     return {**row, "meta": meta} if meta else row
 
 
+def _samples(db: Session, call_id: str) -> list[dict]:
+    """A journey-judged call's curated corrections, in the same shape as `llm_corrections`."""
+    return [{"turn": s.turn, "item": s.item, "failure_kind": s.failure_kind, "kind": s.kind,
+             "observed": s.observed, "corrected": s.corrected, "corrected_tool": s.corrected_tool,
+             "corrected_args": s.corrected_args, "rationale": s.rationale}
+            for s in db.scalars(select(TrainingSample).where(TrainingSample.call_id == call_id)
+                                .order_by(TrainingSample.turn))]
+
+
 def _rows(db: Session, mem: Membership, fmt: str, dialect: str, include_meta: bool,
           agent_id: str | None, range_key: str | None) -> Iterator[str]:
     stmt = _scope(
         select(Call, Judgment).join(Judgment, Judgment.call_id == Call.id)
-        .where(Judgment.model_fault == "llm"),
+        .where(or_(Judgment.model_fault == "llm", Judgment.journey.isnot(None))),
         db, mem, agent_id, range_key,
     )
     for call, j in db.execute(stmt).all():
-        corrections = j.llm_corrections or []
+        journey = j.journey is not None
+        corrections = _samples(db, call.id) if journey else (j.llm_corrections or [])
         if not corrections:
             continue
         script = db.scalar(select(Prompt.text).where(Prompt.id == call.prompt_id)) if call.prompt_id else None
-        turns = list(db.scalars(
-            select(Turn).where(Turn.call_id == call.id).order_by(Turn.turn_index)))
-        convo = _conversation(turns)
+        if journey:
+            transcript = resolve(db, call)
+        else:
+            convo = _conversation(list(db.scalars(
+                select(Turn).where(Turn.call_id == call.id).order_by(Turn.turn_index))))
         recoverable = j.objective_achieved != "yes"  # controllable failure with a produced fix
         outcome = _outcome(j.objective_achieved)  # terminal label for filtering/weighting downstream
         for c in corrections:
             if not (c.get("corrected") or c.get("corrected_tool")):
                 continue  # nothing to train toward
-            ctx = _context(script, convo, _fault_pos(convo, c.get("observed")))
+            if journey:
+                history = _lines_conversation(transcript, c["turn"]) if c.get("turn") is not None else None
+                if history is None:
+                    continue  # can't place it in the conversation — don't guess
+                ctx = [{"role": "system", "content": script or ""}, *history]
+            else:
+                ctx = _context(script, convo, _fault_pos(convo, c.get("observed")))
             meta = {
                 "call_id": call.external_call_id, "agent_id": call.agent_id,
-                "turn_id": c.get("turn_id"), "kind": c.get("kind"),
-                "fault_dim": j.model_fault, "recoverable": recoverable,
-                "outcome": outcome, "gt_source": "judge_unverified",
+                "turn_id": c.get("turn") if journey else c.get("turn_id"), "kind": c.get("kind"),
+                "fault_dim": "llm", "recoverable": recoverable,
+                "outcome": outcome, "gt_source": "curated" if journey else "judge_unverified",
+                **({"item": c.get("item"), "failure_kind": c.get("failure_kind")} if journey else {}),
             } if include_meta else None
             row = (_sft_row(ctx, c, meta) if fmt == "sft"
                    else _dpo_row(ctx, c, c.get("observed") or "", dialect, meta))

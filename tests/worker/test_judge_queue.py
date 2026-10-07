@@ -29,13 +29,14 @@ def test_handle_judge_runs_judge(db_sessionmaker, monkeypatch):
     from voiceobs.worker import judge as jw
 
     judged: list[str] = []
-    monkeypatch.setattr(jw, "judge_call", lambda db, call: judged.append(call.external_call_id))
+    monkeypatch.setattr(jw, "judge_call", lambda db, call: judged.append(call.external_call_id)
+                        or Judgment(call_id=call.id, enrich_status=None))
     with db_sessionmaker() as db:
         db.add(Call(external_call_id="c9", source="x", environment="prod", status="ingested"))
         db.commit()
         rec = Record(topic="judge-requests", key="c9",
                      value=json.dumps({"org": "default", "call_id": "c9"}).encode())
-        jw.handle_judge(db, rec)
+        assert jw.handle_judge(db, rec) is False  # no journey stage 2 to queue
         assert judged == ["c9"]
 
 

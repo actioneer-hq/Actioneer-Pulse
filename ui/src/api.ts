@@ -157,6 +157,54 @@ export type Judgment = {
   hallucination_detail: string | null;
   suggested_fix: string | null;
   summary: string | null;
+  journey?: CallJourney | null;  // journey judge result (decision model + LLM), when available
+  enrich_status?: string | null;  // journey stage 2 (LLM): pending|running|ok|failed|skipped
+  curate_status?: string | null;  // journey stage 3 (training data)
+};
+
+// ---- journey: the script, structured; and per-call / per-project results against it ----
+export type Cause = "script_gap" | "not_followed" | null;
+export type Failure = { kind: string; item: string; cause: Exclude<Cause, null>; turns: number[];
+  target_turn?: number | null };
+export type JourneyBranch = { if: string; then: string; goes_to: string; script_quote?: string | null;
+  standard?: boolean; in_script?: boolean };
+export type Journey = {
+  format: string; objective: string; params: string[];
+  opening?: { agent: string; done_when: string } | null;
+  funnel: { stage: string; agent: string; done_when: string; side: JourneyBranch[] }[];
+  closing?: { agent: string; done_when: string } | null;
+  anytime: JourneyBranch[];
+  guardrails: { rule: string; script_quote?: string | null }[];
+};
+export type JourneyDoc = { status: string; version: number | null; prompt_id?: string;
+  journey: Journey | null; error?: string | null; edited?: boolean; model?: string | null };
+export type CallJourney = {
+  format: "full" | "short";
+  answered_by: string; objective_achieved: string; sentiment: string;
+  // short
+  primary_language?: string; furthest_stage?: string | null;
+  // full
+  opening_done?: boolean | null; closing_done?: boolean | null;
+  language?: { primary: string; secondary: string[] };
+  stages?: { stage: string; reached: boolean; p: number }[];
+  branches?: { stage: string | null; if: string; happened: boolean; handled: boolean | null;
+    cause: Cause; in_script: boolean }[];
+  guardrails_broken?: { rule: string; p: number; cause: Cause }[];
+  standard?: Record<string, boolean | string | null>;
+  unscripted?: { turn: number; what: string; agent_response_ok: boolean }[];
+  wrong_values?: { param: string; expected: string; said: string; turn: number }[];
+  summary?: string | null; ended_by?: string;
+  failures?: Failure[];
+};
+export type JourneyFunnel = {
+  status: string; version?: number; calls: number; human?: number; short?: number;
+  answered_by?: Record<string, number>; objective?: Record<string, number>;
+  stages?: { stage: string; reached: number }[];
+  branches?: ({ stage: string | null; if: string } & Record<string, number>)[];
+  guardrails?: ({ rule: string } & Record<string, number>)[];
+  causes?: Record<string, number>; standard?: Record<string, number>;
+  unscripted?: [string, number][];
+  failures?: { kind: string; item: string; cause: string; calls: number }[];
 };
 
 export type CallDetail = {
@@ -334,6 +382,14 @@ export const getAgentScript = (agentId: string) =>
   req<AgentScript>("GET", `/v1/agents/${agentId}/script`);
 export const setAgentScript = (agentId: string, text: string) =>
   req<AgentScript>("PUT", `/v1/agents/${agentId}/script`, { text });
+export const getJourney = (agentId: string) =>
+  req<JourneyDoc>("GET", `/v1/agents/${agentId}/journey`);
+export const setJourney = (agentId: string, journey: unknown) =>
+  req<JourneyDoc>("PUT", `/v1/agents/${agentId}/journey`, journey);
+export const regenerateJourney = (agentId: string) =>
+  req<JourneyDoc>("POST", `/v1/agents/${agentId}/journey/regenerate`);
+export const getJourneyFunnel = (agentId: string) =>
+  req<JourneyFunnel>("GET", `/v1/agents/${agentId}/journey/funnel`);
 export const listAgentScripts = (agentId: string) =>
   req<{ items: AgentScript[] }>("GET", `/v1/agents/${agentId}/scripts`).then((d) => d.items);
 

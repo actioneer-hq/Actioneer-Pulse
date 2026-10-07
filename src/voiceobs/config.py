@@ -40,6 +40,14 @@ class Config(BaseSettings):
     global_chat_api_key: str | None = None
     per_call_chat_api_key: str | None = None
     failure_analysis_api_key: str | None = None
+    script_journey_api_key: str | None = None  # unset -> falls back to post_call_api_key
+    journey_judge_api_key: str | None = None   # unset -> falls back to post_call_api_key
+    training_curator_api_key: str | None = None  # unset -> falls back to post_call_api_key
+    curate_enabled: bool = True                 # stage 3 (training data from failed turns) on/off
+    # decision model (System-One: yes/no / choice / score answers) for journey judging
+    decision_provider: str = "openai"
+    decision_model: str = "gpt-6-luna"
+    decision_api_key: str | None = None        # unset -> journey judging is off (classic judge)
     embedding_api_key: str | None = None  # BYO embedding model (OpenAI-compatible)
     audio_native_api_key: str | None = None  # BYO audio-in model for the chat agents' audio tool
     # BYO audio-native model (name/path). Enabled ⇔ audio_native_api_key is set.
@@ -96,6 +104,12 @@ class Config(BaseSettings):
     kafka_topic_judge_backfill: str = "judge-requests.backfill"
     kafka_judge_dlq: str = "judge-requests.dlq"
     kafka_judge_group: str = "judge"
+    # Journey stages 2 (LLM enrichment) and 3 (training-data curation): backfilled after the decision
+    # model has judged the call; enrichment is drained before curation.
+    kafka_topic_enrich: str = "journey-enrich"
+    kafka_topic_curate: str = "journey-curate"
+    kafka_journey_dlq: str = "journey-llm.dlq"
+    kafka_journey_group: str = "journey-llm"
 
     # LLM rate-limit resilience (non-interactive roles: judge/failure/cluster-label/embeddings).
     llm_max_retries: int = 5
@@ -141,7 +155,10 @@ class Config(BaseSettings):
         return bool(self.dev_open) or (self.database_url or "").startswith("sqlite")
 
     def _role_api_key(self, role: LLMRole) -> str | None:
-        return getattr(self, _ROLE_KEY_FIELD[role])
+        key = getattr(self, _ROLE_KEY_FIELD[role])
+        if not key and role in (LLMRole.SCRIPT_JOURNEY, LLMRole.JOURNEY_JUDGE, LLMRole.TRAINING_CURATOR):
+            return self.post_call_api_key  # same provider as the judge by default
+        return key
 
 
 def get_config() -> Config:
@@ -165,6 +182,15 @@ LLM_ROLES: dict[LLMRole, LLMRoleCfg] = {
     # RCA emits root cause + fix + per-turn llm_corrections; 1024 tokens truncates long calls.
     LLMRole.FAILURE_ANALYSIS:   LLMRoleCfg(provider="anthropic", model="claude-haiku-4-5",
                                            max_tokens=4096),
+    # Runs once per script version, so use the strongest model; the journey JSON is long.
+    LLMRole.SCRIPT_JOURNEY:     LLMRoleCfg(provider="anthropic", model="claude-opus-5-5",
+                                           max_tokens=16000),
+    # Per-call journey enrichment (summary, timeline, unscripted moments); after the decision model.
+    LLMRole.JOURNEY_JUDGE:      LLMRoleCfg(provider="anthropic", model="claude-haiku-4-5",
+                                           max_tokens=4096),
+    # Rewrites failed agent turns as training targets — quality matters most here.
+    LLMRole.TRAINING_CURATOR:   LLMRoleCfg(provider="anthropic", model="claude-sonnet-5",
+                                           max_tokens=8192),
 }
 
 _ROLE_KEY_FIELD: dict[LLMRole, str] = {
@@ -173,6 +199,9 @@ _ROLE_KEY_FIELD: dict[LLMRole, str] = {
     LLMRole.PER_CALL_CHAT: "per_call_chat_api_key",
     LLMRole.FAILURE_ANALYSIS: "failure_analysis_api_key",
     LLMRole.AUDIO_NATIVE: "audio_native_api_key",
+    LLMRole.SCRIPT_JOURNEY: "script_journey_api_key",
+    LLMRole.JOURNEY_JUDGE: "journey_judge_api_key",
+    LLMRole.TRAINING_CURATOR: "training_curator_api_key",
 }
 
 

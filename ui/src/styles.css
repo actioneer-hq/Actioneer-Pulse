@@ -534,3 +534,27 @@ details.advanced[open]>summary{margin-bottom:10px}
 fieldset.upload-body{border:0;padding:0;margin:0;min-width:0}
 fieldset.upload-body:disabled{opacity:.45}
 fieldset.upload-body:disabled .file-btn,fieldset.upload-body:disabled .mode-switch button{cursor:not-allowed}
+/* journey */
+.cause-chip{display:inline-block;margin-left:6px;padding:0 6px;border-radius:4px;font-size:11.5px;line-height:18px;border:1px solid var(--line);background:var(--soft)}
+.cause-chip.script_gap{border-color:#d9a441;color:#8a5a00;background:#fbf3e2}
+.cause-chip.not_followed{border-color:#c0492f;color:#9b2f18;background:#fbecE8}
+.stage-strip{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.stage-strip .stage{padding:2px 8px;border-radius:12px;border:1px solid var(--line);font-size:12.5px;color:var(--ink-3, #7a827e)}
+.stage-strip .stage.on{background:var(--soft);color:var(--ink);border-color:var(--accent, #2f7d5b)}
+.jr-block{margin-top:10px}
+.jr-hd{font-weight:600;font-size:12.5px;margin:10px 0 4px;color:var(--ink-3, #7a827e);text-transform:uppercase;letter-spacing:.02em}
+.jr-row{display:flex;gap:8px;align-items:flex-start;padding:3px 0;font-size:13px}
+.jr-row .ok{color:#2f7d5b;font-weight:700}.jr-row .bad{color:#c0492f;font-weight:700}
+.ev{font-size:12px;color:var(--ink-3, #7a827e);margin-top:2px}
+.journey-view{font-size:13px}.jv-obj{margin-bottom:6px}
+.jv-stages{margin:8px 0 4px 18px;padding:0}.jv-stages>li{margin-bottom:8px}
+.jv-side{margin:4px 0 0 14px;padding:0;font-size:12.5px}.jv-side li{margin:2px 0}
+.funnel{display:flex;flex-direction:column;gap:6px;margin:8px 0 16px}
+.funnel-row{display:grid;grid-template-columns:minmax(120px,220px) 1fr 110px;gap:10px;align-items:center;font-size:13px}
+.funnel-bar{height:14px;background:var(--soft);border-radius:4px;overflow:hidden}
+.funnel-bar span{display:block;height:100%;background:var(--accent, #2f7d5b)}
+.funnel-n{text-align:right;color:var(--ink-3, #7a827e)}
+.jtable{width:100%;margin:6px 0 16px;font-size:13px}
+.gaps{margin:6px 0 16px 18px;font-size:13px}
+.pill.good{color:#2f7d5b}
+.jv-bookend{margin:6px 0;font-size:13px}

@@ -25,6 +25,10 @@ import {
   getUploadFormat,
   uploadCallParams,
   uploadCalls,
+  getJourney,
+  setJourney,
+  regenerateJourney,
+  type JourneyDoc,
   type UploadFormat,
   type UploadMode,
   type UploadOptions,
@@ -319,6 +323,7 @@ function AgentDetail({ agent }: { agent: Agent }) {
     <>
       <UploadPanel agent={agent} scriptRev={scriptRev} />
       <ScriptPanel agent={agent} onSaved={() => setScriptRev((n) => n + 1)} />
+      <JourneyPanel agent={agent} scriptRev={scriptRev} />
       <GuardrailsPanel agent={agent} />
       <CallParamsPanel agent={agent} />
       <details className="panel-card advanced">
@@ -518,6 +523,108 @@ function UploadPanel({ agent, scriptRev }: { agent: Agent; scriptRev: number }) 
         {ready && <pre className="mono json-example">{specText}</pre>}
       </div>
       </fieldset>
+    </div>
+  );
+}
+
+// The journey: the active script version, structured (stages in order, what the customer can do at each,
+// anytime branches incl. Pulse's standard rules, guardrails). Extracted in the background after a script
+// save; every call on that version is judged against it. Editable as JSON.
+function JourneyPanel({ agent, scriptRev }: { agent: Agent; scriptRev: number }) {
+  const [doc, setDoc] = useState<JourneyDoc | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    getJourney(agent.id).then(setDoc).catch(() => setDoc(null));
+  }, [agent.id]);
+  useEffect(() => { load(); setEditing(false); setMsg(null); }, [load, scriptRev]);
+  // Poll while extraction is in flight.
+  useEffect(() => {
+    if (!doc || !["pending", "extracting"].includes(doc.status)) return;
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [doc, load]);
+
+  async function regenerate() {
+    setDoc(await regenerateJourney(agent.id));
+  }
+  async function save() {
+    setMsg(null);
+    try {
+      setDoc(await setJourney(agent.id, JSON.parse(text)));
+      setEditing(false);
+    } catch (e) {
+      setMsg((e as Error).message);
+    }
+  }
+
+  const j = doc?.journey;
+  return (
+    <div className="panel-card">
+      <h3>Journey · {agent.name}
+        {doc?.version != null && <span className="pill" style={{ marginLeft: 8 }}>script v{doc.version}</span>}
+        {doc && <span className={`pill ${doc.status === "ready" ? "good" : doc.status === "failed" ? "bad" : ""}`}
+          style={{ marginLeft: 6 }}>{doc.status === "extracting" || doc.status === "pending"
+            ? "extracting…" : doc.status.replace("_", " ")}{doc.edited ? " · edited" : ""}</span>}
+      </h3>
+      <p className="dimtxt">The script, structured: stages in order, what the customer can do at each and how the
+        agent should respond, and the rules for the whole call. Every call on this script version is judged
+        against it.</p>
+      {doc?.status === "no_script" && <p className="dimtxt">Add the project's script first.</p>}
+      {doc?.status === "failed" && <div className="auth-error">Extraction failed: {doc.error}</div>}
+      {j && !editing && (
+        <div className="journey-view">
+          <div className="jv-obj"><b>Objective</b> · {j.objective}</div>
+          {j.params.length > 0 && <div className="dimtxt">Parameters: {j.params.map((p) => (
+            <code key={p} className="param-chip">{p}</code>))}</div>}
+          {j.opening && <div className="jv-bookend"><b>Opening</b> <span className="dimtxt">— {j.opening.agent}</span></div>}
+          <ol className="jv-stages">
+            {j.funnel.map((s) => (
+              <li key={s.stage}>
+                <div><b>{s.stage}</b> <span className="dimtxt">— {s.agent}</span></div>
+                <div className="dimtxt">done when: {s.done_when}</div>
+                {s.side.length > 0 && (
+                  <ul className="jv-side">
+                    {s.side.map((b) => <li key={b.if}>if <i>{b.if}</i> → {b.then} <span className="dimtxt">→ {b.goes_to}</span></li>)}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ol>
+          {j.closing && <div className="jv-bookend"><b>Closing</b> <span className="dimtxt">— {j.closing.agent}</span></div>}
+          {j.anytime.length > 0 && (
+            <>
+              <div className="jr-hd">Any time</div>
+              <ul className="jv-side">
+                {j.anytime.map((b) => (
+                  <li key={b.if}>if <i>{b.if}</i> → {b.then} <span className="dimtxt">→ {b.goes_to}</span>
+                    {b.standard && <span className="pill" style={{ marginLeft: 6 }}>Pulse rule</span>}
+                    {b.standard && b.in_script === false && <span className="cause-chip script_gap">not in script</span>}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {j.guardrails.length > 0 && (
+            <>
+              <div className="jr-hd">Guardrails</div>
+              <ul className="jv-side">{j.guardrails.map((g) => <li key={g.rule}>{g.rule}</li>)}</ul>
+            </>
+          )}
+        </div>
+      )}
+      {editing && (
+        <Textarea className="script-area" rows={16} value={text} onChange={(e) => setText(e.target.value)} />
+      )}
+      <div className="row" style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
+        {j && !editing && <Button variant="ghost" onClick={() => { setText(JSON.stringify(j, null, 2)); setEditing(true); }}>Edit</Button>}
+        {editing && <><Button onClick={save}>Save journey</Button>
+          <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button></>}
+        {doc && doc.status !== "no_script" && !editing && <Button variant="link" onClick={regenerate}>Regenerate from script</Button>}
+        {msg && <span className="auth-error">{msg}</span>}
+      </div>
     </div>
   );
 }

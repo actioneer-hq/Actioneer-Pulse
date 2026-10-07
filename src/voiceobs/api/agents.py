@@ -290,6 +290,9 @@ def set_agent_script(db: Session, agent: Agent, text: str, user_id: str | None) 
         db.add(prompt)
         db.flush()
 
+    from voiceobs.worker.journey import ensure_pending
+
+    ensure_pending(db, prompt.id)  # queue journey extraction for this script version (no-op if known)
     active = db.scalar(select(AgentScript).where(
         AgentScript.agent_id == agent.id, AgentScript.active.is_(True)))
     if active is not None and active.prompt_id == prompt.id:
