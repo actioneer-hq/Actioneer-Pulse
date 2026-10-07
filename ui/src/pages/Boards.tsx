@@ -111,7 +111,7 @@ export default function Boards() {
             </TabList>
           </Tabs>
           <span className="count">{error ?? (snap ? `${snap.totals.calls} calls` : "loading…")}</span>
-          <div className="export-group" title="Download the LLM corrections as training data for the selected agent">
+          <div className="export-group" title="Download the LLM corrections as training data for the selected project">
             <span className="export-label">Export training data</span>
             <Select value={dialect} onChange={(v) => setDialect(v as "trl" | "openai")}
               items={[{ label: "TRL / OSS", value: "trl" }, { label: "OpenAI", value: "openai" }]}

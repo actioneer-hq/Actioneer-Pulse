@@ -67,6 +67,14 @@ class Config(BaseSettings):
     # dev-only: when set, fetch_bytes resolves s3://bucket/key from {dir}/key on local disk
     # instead of hitting S3 — lets playback/ingest work without a real bucket.
     dev_audio_dir: str | None = None
+    # file onboarding: uploaded call audio lives here (upload:// URIs); shared by api + workers.
+    upload_dir: str = "./data/uploads"
+    max_upload_bytes: int = 4 * 1024 * 1024 * 1024  # one upload (ZIP + JSON) — 4 GiB
+    max_upload_files: int = 5000                     # audio files per ZIP
+    # Sarvam STT — transcribes uploaded audio when no transcript is supplied.
+    sarvam_api_key: str | None = None
+    sarvam_stt_model: str = "saarika:v2.5"
+    sarvam_stt_concurrency: int = 6                  # parallel segment requests per call
     bootstrap_email: str = ""
     bootstrap_org: str = "Default"
 
@@ -154,7 +162,9 @@ LLM_ROLES: dict[LLMRole, LLMRoleCfg] = {
     LLMRole.POST_CALL_ANALYSIS: LLMRoleCfg(provider="anthropic", model="claude-haiku-4-5"),
     LLMRole.GLOBAL_CHAT:        LLMRoleCfg(provider="anthropic", model="claude-haiku-4-5"),
     LLMRole.PER_CALL_CHAT:      LLMRoleCfg(provider="anthropic", model="claude-haiku-4-5"),
-    LLMRole.FAILURE_ANALYSIS:   LLMRoleCfg(provider="anthropic", model="claude-haiku-4-5"),  # reserved
+    # RCA emits root cause + fix + per-turn llm_corrections; 1024 tokens truncates long calls.
+    LLMRole.FAILURE_ANALYSIS:   LLMRoleCfg(provider="anthropic", model="claude-haiku-4-5",
+                                           max_tokens=4096),
 }
 
 _ROLE_KEY_FIELD: dict[LLMRole, str] = {

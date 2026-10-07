@@ -116,9 +116,25 @@ def _process_otlp_call(db: Session, agent_id: str | None, call_id: str, uri: str
     return "ok"
 
 
-def run_job(db: Session, job: BackfillJob) -> None:
+def run_job(db: Session, job: BackfillJob, org: str | None = None) -> None:
     """Execute one backfill job end-to-end within the already-pinned org schema. Commits per call so
-    the SSE endpoint sees progress and analysed calls stream into the UI."""
+    the SSE endpoint sees progress and analysed calls stream into the UI. `org` is the schema key
+    the worker pinned — the judge worker needs it to find the call."""
+    org = org or job.org_id or "default"
+    producer = get_producer()  # one per job, flushed per send: a dropped producer loses its queue
+
+    def judge(cid: str) -> None:
+        enqueue_judge(producer, org, cid, backfill=True)
+        producer.flush()
+
+    if job.source == "upload":  # file onboarding: ZIP (+ JSON) already on local disk, no storage
+        from voiceobs.onboarding.job import run_upload
+
+        run_upload(db, job, org, enqueue=judge, is_cancelled=lambda: _is_cancelled(db, job.id))
+        if job.status in ("failed", "cancelled"):
+            return
+        _cluster_and_finish(db, job)
+        return
     st = resolve_storage(db, job.agent_id)
     if st is None:
         _finish(db, job, status="failed", error="storage not configured for agent")
@@ -202,9 +218,13 @@ def run_job(db: Session, job: BackfillJob) -> None:
         job.updated_at = _now()
         db.commit()
         if judge_cid:  # enqueue after the commit → backfill-priority judge queue
-            enqueue_judge(get_producer(), job.org_id or "default", judge_cid, backfill=True)
+            judge(judge_cid)
 
-    # Clusters once at the end (meaningful only when there is judgment prose — audio+STT / OTLP).
+    _cluster_and_finish(db, job)
+
+
+def _cluster_and_finish(db: Session, job: BackfillJob) -> None:
+    """Clusters once at the end (meaningful only when there is judgment prose — audio+STT / OTLP)."""
     job.status = "clustering"
     job.phase = "clustering"
     job.updated_at = _now()
@@ -264,7 +284,7 @@ def _run_once() -> None:  # pragma: no cover
             use_org_schema(db, org)
             while (job := claim_next(db)) is not None:
                 log.info("backfill: running job %s (org=%s)", job.id, org)
-                run_job(db, job)
+                run_job(db, job, org)
 
 
 def main() -> None:  # pragma: no cover — entrypoint (one-shot, or a loop with an interval)

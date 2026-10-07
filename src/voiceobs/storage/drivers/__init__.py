@@ -41,4 +41,7 @@ def driver_for_uri(uri: str) -> StorageDriver:
     if uri.startswith("azblob://"):
         from voiceobs.storage.drivers.azure import AzureDriver
         return AzureDriver()
+    if uri.startswith("upload://"):
+        from voiceobs.storage.drivers.local import LocalDriver
+        return LocalDriver()
     raise NotImplementedError(f"unsupported storage uri scheme: {uri}")

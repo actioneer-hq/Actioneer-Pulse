@@ -4,13 +4,11 @@ import {
 } from "@actioneer/ads";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  backfillPreview,
   createAgent,
   deleteAgent,
   deleteCallParams,
   getAgentGuardrails,
   getAgentScript,
-  getAudioConfig,
   getCallParams,
   listAgentGuardrails,
   listAgents,
@@ -23,28 +21,22 @@ import {
   rotateToken,
   setAgentGuardrails,
   setAgentScript,
-  setAudioConfig,
   setParamsRequired,
+  getUploadFormat,
   uploadCallParams,
+  uploadCalls,
+  type UploadFormat,
+  type UploadMode,
+  type UploadOptions,
   type Agent,
   type AgentGuardrails,
   type AgentScript,
-  type AudioConfig,
   type CallParamsView,
-  type CredField,
   type IngestTokenRow,
-  type BackfillPreview,
   type MintedToken,
 } from "../api";
 import { useAuth } from "../auth";
 import { useBackfill } from "../BackfillProvider";
-
-// Producer frameworks offered at agent creation. Only LiveKit is wired up today; the rest
-// are shown disabled so the choice is explicit and the roadmap is visible.
-const FRAMEWORKS: { id: string; label: string; note: string; ready: boolean }[] = [
-  { id: "livekit", label: "LiveKit", note: "LiveKit Agents — native OTLP", ready: true },
-  { id: "byo", label: "Bring your own OTLP", note: "Any OpenTelemetry producer", ready: false },
-];
 
 export default function Agents() {
   const { activeOrg } = useAuth();
@@ -62,10 +54,10 @@ export default function Agents() {
 
   useEffect(() => { load(); }, [load, activeOrg]);
 
-  async function add(name: string, script?: string, guardrails?: string, audio?: boolean) {
+  async function add(name: string, script?: string, guardrails?: string) {
     setError(null);
     try {
-      const a = await createAgent(name.trim(), audio ? { enabled: true } : undefined, script, guardrails);
+      const a = await createAgent(name.trim(), undefined, script, guardrails);
       setCreating(false);
       load();
       setSel(a.id);
@@ -73,12 +65,12 @@ export default function Agents() {
   }
 
   async function rename(a: Agent) {
-    const name = prompt("Rename agent", a.name)?.trim();
+    const name = prompt("Rename project", a.name)?.trim();
     if (name && name !== a.name) { await renameAgent(a.id, name); load(); }
   }
 
   async function remove(a: Agent) {
-    if (!confirm(`Delete agent "${a.name}"? Its ingest tokens stop working.`)) return;
+    if (!confirm(`Delete project "${a.name}"? Its calls stay, but it disappears from Pulse.`)) return;
     await deleteAgent(a.id);
     load();
   }
@@ -88,17 +80,17 @@ export default function Agents() {
   return (
     <div className="settings">
       <div className="settings-hd">
-        <h1>Agents</h1>
-        <div className="sub">An agent is a project / OTLP routing target. Producers authenticate
-          with a per-agent ingest token.</div>
+        <h1>Projects</h1>
+        <div className="sub">A project holds one voice agent's calls. Upload a ZIP of recordings to
+          analyse them.</div>
       </div>
       {error && <div className="auth-error">{error}</div>}
       <div className="settings-cols">
         <div className="col">
           <div className="add-row">
-            <Button onClick={() => setCreating(true)}>+ New agent</Button>
+            <Button onClick={() => setCreating(true)}>+ New project</Button>
           </div>
-          <table>
+          <table className="project-list">
             <tbody>
               {agents.map((a) => (
                 <tr key={a.id} className={a.id === sel ? "on" : undefined}
@@ -116,7 +108,7 @@ export default function Agents() {
                 </tr>
               ))}
               {agents.length === 0 && (
-                <tr><td className="dimtxt">No agents yet — add one to start ingesting.</td></tr>
+                <tr><td className="dimtxt">No projects yet — create one, then upload calls.</td></tr>
               )}
             </tbody>
           </table>
@@ -124,7 +116,7 @@ export default function Agents() {
         <div className="col">
           {selected
             ? <AgentDetail agent={selected} />
-            : <div className="empty">Select an agent to connect it and manage ingest tokens.</div>}
+            : <div className="empty">Select a project to upload calls and set its script.</div>}
         </div>
       </div>
       {creating && <NewAgentModal onClose={() => setCreating(false)} onCreate={add} />}
@@ -135,44 +127,28 @@ export default function Agents() {
 function NewAgentModal(
   { onClose, onCreate }:
   { onClose: () => void;
-    onCreate: (name: string, script?: string, guardrails?: string, audio?: boolean) => void },
+    onCreate: (name: string, script?: string, guardrails?: string) => void },
 ) {
   const [name, setName] = useState("");
-  const [framework, setFramework] = useState("livekit");
   const [script, setScript] = useState("");
   const [guardrails, setGuardrails] = useState("");
-  const [audio, setAudio] = useState(false);
 
   function submit() {
     if (!name.trim()) return;
-    onCreate(name, script.trim() || undefined, guardrails.trim() || undefined, audio);
+    onCreate(name, script.trim() || undefined, guardrails.trim() || undefined);
   }
 
   return (
     <Modal open onOpenChange={(o) => !o && onClose()} size="lg">
-      <ModalHeader><ModalTitle>New agent</ModalTitle></ModalHeader>
+      <ModalHeader><ModalTitle>New project</ModalTitle></ModalHeader>
       <ModalBody>
-        <p className="sub">An agent is a project / OTLP routing target. Pick the framework your
-          voice agent runs on, then connect it with an ingest token.</p>
+        <p className="sub">A project holds one voice agent's calls. After creating it, upload a ZIP
+          of call recordings to start the analysis.</p>
         <div className="field">
           <InputField label="Name" id="agent-name" autoFocus value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Sales Bot" />
         </div>
-        <div className="field">
-          <label>Framework</label>
-          <div className="fw-picker">
-            {FRAMEWORKS.map((f) => (
-              <button key={f.id} type="button" disabled={!f.ready}
-                className={`fw-option ${framework === f.id ? "on" : ""} ${f.ready ? "" : "soon"}`}
-                onClick={() => f.ready && setFramework(f.id)}>
-                <span className="fw-name">{f.label}{!f.ready && <em> · coming soon</em>}</span>
-                <span className="fw-note">{f.note}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
         <div className="field">
           <label htmlFor="agent-script">Script <span className="dimtxt">— the prompt this agent
             follows (optional; versioned & hashed)</span></label>
@@ -189,19 +165,10 @@ function NewAgentModal(
             placeholder={"e.g.\nStay on script; don't be steered off purpose.\nAlways verify the caller before any DB/tool lookup."} />
         </div>
 
-        <div className="field">
-          <label className="check">
-            <Checkbox checked={audio} onChange={(e) => setAudio(e.target.checked)} />
-            <span>Enable audio analysis <span className="dimtxt">— analyse call recordings (tone,
-              dead-air, talk ratio). You can toggle this anytime.</span></span>
-          </label>
-          <p className="dimtxt">Where recordings live (S3/Azure) is configured after creation in the
-            Storage panel.</p>
-        </div>
       </ModalBody>
       <ModalFooter>
         <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button disabled={!name.trim()} onClick={submit}>Create agent</Button>
+        <Button disabled={!name.trim()} onClick={submit}>Create project</Button>
       </ModalFooter>
     </Modal>
   );
@@ -327,6 +294,7 @@ function AgentDetail({ agent }: { agent: Agent }) {
   // Shared so the Connect snippet can show a real Bearer header, then management can revoke it.
   const [minted, setMinted] = useState<MintedToken | null>(null);
   const [name, setName] = useState("");
+  const [scriptRev, setScriptRev] = useState(0);  // bumps on script save -> upload schemas refresh
 
   const load = useCallback(() => { listTokens(agent.id).then(setTokens).catch(() => setTokens([])); },
     [agent.id]);
@@ -349,10 +317,12 @@ function AgentDetail({ agent }: { agent: Agent }) {
 
   return (
     <>
-      <ScriptPanel agent={agent} />
+      <UploadPanel agent={agent} scriptRev={scriptRev} />
+      <ScriptPanel agent={agent} onSaved={() => setScriptRev((n) => n + 1)} />
       <GuardrailsPanel agent={agent} />
-      <StoragePanel agent={agent} />
       <CallParamsPanel agent={agent} />
+      <details className="panel-card advanced">
+        <summary>Live ingest (OTLP) — advanced</summary>
       <ConnectPanel agent={agent} token={minted?.token ?? null} onMint={mint} />
       <div className="panel-card">
         <h3>Ingest tokens · {agent.name}</h3>
@@ -391,210 +361,170 @@ function AgentDetail({ agent }: { agent: Agent }) {
           </tbody>
         </table>
       </div>
+      </details>
     </>
   );
 }
 
-// Default credential field-specs for manual setup (no wizard). A wizard-supplied cred_spec fully
-// overrides these — the form renders whatever spec is in effect, so any provider/store works.
-const DEFAULT_SPECS: Record<string, CredField[]> = {
-  s3_compatible: [
-    { name: "access_key_id", label: "Access key ID", type: "text", secret: false },
-    { name: "secret_access_key", label: "Secret access key", type: "password", secret: true },
-    { name: "region", label: "Region", type: "text", secret: false },
-    { name: "endpoint_url", label: "Endpoint (optional, MinIO/R2/…)", type: "text", secret: false },
-  ],
-  azure: [
-    { name: "account_name", label: "Account name", type: "text", secret: false },
-    { name: "account_key", label: "Account key", type: "password", secret: true },
-  ],
-};
-// The default convention descriptor for manual setup: <prefix>/<call_id>/<file>.
-const DEFAULT_FILE_MAP = {
-  "audio.wav": "audio", "audio_caller.wav": "audio_caller", "audio_agent.wav": "audio_agent",
-};
+// Start analysis from files: an audio ZIP plus exactly one of
+//   1. a CSV of call parameters  -> Pulse transcribes (Sarvam), then analyses;
+//   2. a pulse.calls.v1 JSON     -> transcripts + params supplied, no transcription.
+// The format box is a copy-paste spec (rules + schema + example) using this project's own
+// placeholder names, so it can be handed straight to a coding agent to generate the file.
+function UploadPanel({ agent, scriptRev }: { agent: Agent; scriptRev: number }) {
+  const { follow, job } = useBackfill();
+  const [mode, setMode] = useState<UploadMode>("csv");
+  const [zip, setZip] = useState<File | null>(null);
+  const [side, setSide] = useState<File | null>(null);
+  const [channel, setChannel] = useState<UploadOptions["agentChannel"]>("auto");
+  const [language, setLanguage] = useState("hi-IN");
+  const [sent, setSent] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [spec, setSpec] = useState<UploadFormat | null>(null);
+  const [copied, setCopied] = useState(false);
+  const zipRef = useRef<HTMLInputElement>(null);
+  const sideRef = useRef<HTMLInputElement>(null);
 
-// Per-agent blob-storage config. The credential form is DATA-driven (cred_spec) — a future wizard
-// pushes the spec + descriptor; here we default to the S3/convention form for manual setup.
-function StoragePanel({ agent }: { agent: Agent }) {
-  const [cfg, setCfg] = useState<AudioConfig | null>(null);
-  const [enabled, setEnabled] = useState(false);
-  const [provider, setProvider] = useState("s3_compatible");
-  const [bucket, setBucket] = useState("");
-  const [prefix, setPrefix] = useState("");
-  const [creds, setCreds] = useState<Record<string, string>>({});
-  const [diarizeUrl, setDiarizeUrl] = useState("");
-  const [diarizeModel, setDiarizeModel] = useState("");
-  const [diarizeKey, setDiarizeKey] = useState("");
-  const [saved, setSaved] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  // Re-read whenever the script changes: the schemas are its placeholders.
+  useEffect(() => { getUploadFormat(agent.id).then(setSpec).catch(() => setSpec(null)); },
+    [agent.id, scriptRev]);
+  // Uploading needs a script with {{placeholders}} — the per-call parameters come from them.
+  const ready = !!spec?.has_script && spec.params.length > 0;
 
-  useEffect(() => {
-    setSaved(false); setErr(null); setCreds({}); setDiarizeKey("");
-    getAudioConfig(agent.id).then((c) => {
-      setCfg(c);
-      setEnabled(c.enabled);
-      setProvider(c.provider || "s3_compatible");
-      setBucket((c.descriptor?.bucket as string) || "");
-      setPrefix((c.descriptor?.list_prefix as string) || "");
-      // Preload the stored NON-SECRET creds (access key, region, endpoint). The save path replaces
-      // cred_public wholesale, so if we started blank, editing one field would wipe the others.
-      // Secrets stay blank (write-only) and are merged server-side.
-      setCreds({ ...(c.cred_public || {}) });
-      setDiarizeUrl(c.diarize_base_url || "");
-      setDiarizeModel(c.diarize_model || "");
-    }).catch((e: Error) => setErr(e.message));
-  }, [agent.id]);
+  const mine = job && job.agent_id === agent.id ? job : null;
+  const busy = sent !== null || (!!mine && !["done", "failed", "cancelled"].includes(mine.status));
 
-  // Effective field-spec: the server's (wizard-supplied) spec wins; else the provider default.
-  const spec = cfg?.cred_spec && cfg.cred_spec.length ? cfg.cred_spec : DEFAULT_SPECS[provider] ?? [];
+  function switchMode(m: UploadMode) {
+    setMode(m); setSide(null); setError(null);
+    if (sideRef.current) sideRef.current.value = "";
+  }
 
-  async function save() {
-    setErr(null);
-    // Wizard-supplied descriptor is preserved; manual mode builds the convention descriptor.
-    const descriptor = cfg?.descriptor && cfg.cred_spec
-      ? { ...cfg.descriptor, bucket, list_prefix: prefix }
-      : {
-          bucket, list_prefix: prefix,
-          key_regex: "(?P<call_id>[^/]+)/[^/]+$", id_group: "call_id",
-          id_maps_to: "external_call_id", file_map: DEFAULT_FILE_MAP,
-        };
+  async function start() {
+    if (!zip || !side) return;
+    setError(null);
+    setSent(0);
     try {
-      const c = await setAudioConfig(agent.id, {
-        enabled, provider, descriptor, cred_spec: spec, credentials: creds,
-        diarize_base_url: diarizeUrl || null, diarize_model: diarizeModel || null,
-        diarize_api_key: diarizeKey || undefined,  // omit to keep the stored key
-      });
-      // re-seed from the saved non-secret creds so a follow-up edit doesn't wipe untouched fields
-      setCfg(c); setCreds({ ...(c.cred_public || {}) }); setDiarizeKey(""); setSaved(true);
-    } catch (e) { setErr((e as Error).message); }
+      const j = await uploadCalls(agent.id, zip, { mode, file: side },
+        { agentChannel: channel, language }, setSent);
+      follow(j);
+      setZip(null); setSide(null);
+      if (zipRef.current) zipRef.current.value = "";
+      if (sideRef.current) sideRef.current.value = "";
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSent(null);
+    }
+  }
+
+  // Just the schemas: the CSV header (one column per script placeholder) with sample rows, and
+  // the JSON Schema of pulse.calls.v1.
+  const specText = !spec ? "Loading…" : !ready ? "" : mode === "csv"
+    ? spec.csv.example
+    : JSON.stringify(spec.json.schema, null, 2);
+
+  function copy() {
+    navigator.clipboard?.writeText(specText).then(() => {
+      setCopied(true); setTimeout(() => setCopied(false), 1500);
+    });
   }
 
   return (
     <div className="panel-card">
-      <h3>Storage · {agent.name} <span className="right">audio recordings</span></h3>
-      <label className="audio-toggle">
-        <Checkbox checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-        <span><b>Enable audio analysis</b> — Pulse pulls recordings from your bucket and runs the
-          audio-ground-truth overlay. Off = OTLP only.</span>
-      </label>
-      {enabled && (
-        <>
-          <div className="grid2">
-            <div className="field"><label>Provider</label>
-              <select className="agent-filter" value={provider}
-                onChange={(e) => { setProvider(e.target.value); setCreds({}); }}>
-                <option value="s3_compatible">S3-compatible (S3, MinIO, R2, GCS interop…)</option>
-                <option value="azure">Azure Blob</option>
-              </select></div>
-            <div className="field"><label>{provider === "azure" ? "Container" : "Bucket"}</label>
-              <input value={bucket} onChange={(e) => setBucket(e.target.value)}
-                placeholder="my-recordings" /></div>
-            <div className="field"><label>Prefix</label>
-              <input value={prefix} onChange={(e) => setPrefix(e.target.value)}
-                placeholder="calls/" /></div>
-          </div>
-          <div className="grid2">
-            {spec.map((f) => (
-              <div className="field" key={f.name}><label>{f.label}</label>
-                <input type={f.secret ? "password" : "text"}
-                  autoComplete={f.secret ? "new-password" : "off"}
-                  value={creds[f.name] ?? (f.secret ? "" : (cfg?.cred_public?.[f.name] ?? ""))}
-                  onChange={(e) => setCreds((v) => ({ ...v, [f.name]: e.target.value }))}
-                  placeholder={f.secret && cfg?.has_secret?.[f.name] ? "•••• stored" : ""} /></div>
-            ))}
-          </div>
-          <div className="backfill-section">
-            <div className="dimtxt" style={{ marginBottom: 8 }}>
-              <b>Speaker separation (diarization)</b> — bring your own endpoint. Only used for
-              mixed/mono recordings; separated stereo needs none.
-            </div>
-            <div className="grid2">
-              <div className="field"><label>Diarization endpoint URL</label>
-                <input value={diarizeUrl} onChange={(e) => setDiarizeUrl(e.target.value)}
-                  placeholder="https://diarize.example.com" /></div>
-              <div className="field"><label>Model</label>
-                <input value={diarizeModel} onChange={(e) => setDiarizeModel(e.target.value)}
-                  placeholder="pyannote-3.1" /></div>
-              <div className="field"><label>API key</label>
-                <input type="password" autoComplete="new-password" value={diarizeKey}
-                  onChange={(e) => setDiarizeKey(e.target.value)}
-                  placeholder={cfg?.has_diarize_key ? "•••• stored" : ""} /></div>
-            </div>
-          </div>
-        </>
+      <h3>Analyse calls · {agent.name}</h3>
+      {spec && !ready && (
+        <div className="upload-gate">
+          {!spec.has_script
+            ? <>Add this project's <b>script</b> first (Script panel below). Write per-call values as
+              <code> {"{{placeholders}}"}</code>, e.g. <code>{"{{customer_name}}"}</code> — they become
+              the columns of the parameters file.</>
+            : <>The script has no <code>{"{{placeholders}}"}</code>. Mark the per-call values in it
+              (e.g. <code>{"{{customer_name}}"}</code>) — every upload needs them.</>}
+        </div>
       )}
-      {err && <div className="auth-error">{err}</div>}
-      <div className="add-row wide">
-        <Button onClick={save}>Save storage config</Button>
-        {saved && <span className="dimtxt" style={{ alignSelf: "center" }}>Saved ✓</span>}
+      <fieldset className="upload-body" disabled={!ready}>
+      <div className="mode-switch">
+        <button type="button" className={mode === "csv" ? "on" : ""} onClick={() => switchMode("csv")}>
+          <b>Audio + parameters</b><span>ZIP + CSV · Pulse transcribes</span></button>
+        <button type="button" className={mode === "json" ? "on" : ""} onClick={() => switchMode("json")}>
+          <b>Audio + transcripts</b><span>ZIP + JSON · no transcription</span></button>
       </div>
-      {cfg?.enabled && <BackfillSection agent={agent} />}
-    </div>
-  );
-}
-
-// Scan the agent's bucket for historical audio and analyse it in one pass. Preview first
-// (how many calls have audio), then hand off to the app-wide BackfillProvider so the
-// progress toast survives navigation.
-function BackfillSection({ agent }: { agent: Agent }) {
-  const { start, job } = useBackfill();
-  const [preview, setPreview] = useState<BackfillPreview | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [stt, setStt] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const running = !!job && job.agent_id === agent.id
-    && !["done", "failed", "cancelled"].includes(job.status);
-
-  async function doPreview() {
-    setErr(null); setLoading(true); setPreview(null);
-    try {
-      setPreview(await backfillPreview(agent.id));
-    } catch (e) { setErr((e as Error).message); }
-    finally { setLoading(false); }
-  }
-
-  async function confirm() {
-    setErr(null);
-    try { await start(agent.id, { stt }); setPreview(null); }
-    catch (e) { setErr((e as Error).message); }
-  }
-
-  return (
-    <div className="backfill-section">
-      <div className="strong">Backfill from storage</div>
-      <p className="dimtxt">Scan this bucket for historical recordings and analyse any call
-        that has audio but hasn't been analysed yet.</p>
-      {err && <div className="auth-error">{err}</div>}
-      <div className="add-row">
-        {!preview && (
-          <Button variant="link" disabled={loading || running} onClick={doPreview}>
-            {loading ? "Scanning…" : "Preview backfill"}</Button>
-        )}
-        {preview && (
-          <>
-            <span className="dimtxt" style={{ alignSelf: "center" }}>
-              Found {preview.audio_calls} call{preview.audio_calls === 1 ? "" : "s"} with audio
-              ({preview.files} file{preview.files === 1 ? "" : "s"}).
-            </span>
-            <label className="dimtxt" style={{ alignSelf: "center", display: "flex", gap: 6 }}>
-              <Checkbox checked={stt} onChange={(e) => setStt(e.target.checked)} />
-              Transcribe with STT (content + judge; costs per minute)
+      {ready && (
+        <p className="dimtxt">Per-call parameters from the script: {spec.params.map((p) => (
+          <code key={p} className="param-chip">{p}</code>))}</p>
+      )}
+      <div className="params-upload">
+        <div className="row">
+          <label className="file-btn">
+            <input ref={zipRef} type="file" accept=".zip,application/zip" hidden
+              onChange={(e) => setZip(e.target.files?.[0] ?? null)} />
+            {zip ? `ZIP: ${zip.name}` : "Choose audio ZIP…"}
+          </label>
+          <label className="file-btn">
+            <input ref={sideRef} type="file" hidden
+              accept={mode === "csv" ? ".csv,text/csv" : ".json,application/json"}
+              onChange={(e) => setSide(e.target.files?.[0] ?? null)} />
+            {side ? `${mode.toUpperCase()}: ${side.name}`
+              : mode === "csv" ? "Choose parameters CSV…" : "Choose transcripts JSON…"}
+          </label>
+        </div>
+        {mode === "csv" && (
+          <div className="row">
+            <label className="dimtxt">Agent voice is on{" "}
+              <select value={channel}
+                onChange={(e) => setChannel(e.target.value as UploadOptions["agentChannel"])}>
+                <option value="auto">auto-detect</option>
+                <option value="left">left channel</option>
+                <option value="right">right channel</option>
+              </select>
             </label>
-            <Button disabled={running || preview.audio_calls === 0}
-              onClick={confirm}>Start backfill</Button>
-            <Button variant="link" onClick={() => setPreview(null)}>Cancel</Button>
-          </>
+            <label className="dimtxt">Language{" "}
+              <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+                <option value="hi-IN">Hindi / Hinglish</option>
+                <option value="en-IN">English (India)</option>
+                <option value="unknown">Auto-detect</option>
+                <option value="bn-IN">Bengali</option>
+                <option value="gu-IN">Gujarati</option>
+                <option value="kn-IN">Kannada</option>
+                <option value="ml-IN">Malayalam</option>
+                <option value="mr-IN">Marathi</option>
+                <option value="od-IN">Odia</option>
+                <option value="pa-IN">Punjabi</option>
+                <option value="ta-IN">Tamil</option>
+                <option value="te-IN">Telugu</option>
+              </select>
+            </label>
+          </div>
         )}
-        {running && <span className="dimtxt" style={{ alignSelf: "center" }}>Backfill running…</span>}
+        <div className="row">
+          <Button disabled={!ready || !zip || !side || busy} onClick={start}>
+            {sent !== null ? `Uploading… ${Math.round(sent * 100)}%` : "Start analysis"}
+          </Button>
+          {mine && (
+            <span className="dimtxt">
+              {mine.status === "done" ? `Done — ${mine.completed} analysed, ${mine.failed} failed`
+                : mine.status === "failed" ? `Failed: ${mine.error ?? "unknown error"}`
+                : `${mine.phase ?? mine.status}… ${mine.completed + mine.failed}/${mine.total || "?"}`}
+            </span>
+          )}
+        </div>
+        {error && <div className="auth-error upload-errors">{error}</div>}
       </div>
+      <div className="format-box">
+        <div className="format-hd">
+          <span>{mode === "csv" ? "CSV schema" : `JSON schema · ${spec?.format ?? ""}`}</span>
+          <Button variant="link" onClick={copy} disabled={!ready}>{copied ? "Copied" : "Copy"}</Button>
+        </div>
+        {ready && <pre className="mono json-example">{specText}</pre>}
+      </div>
+      </fieldset>
     </div>
   );
 }
 
 // The agent's script — the prompt it's meant to follow. Versioned + hash-addressed; each call
 // pins the version it ran under. Owner/admin edits (viewers get 403 from the API).
-function ScriptPanel({ agent }: { agent: Agent }) {
+function ScriptPanel({ agent, onSaved }: { agent: Agent; onSaved?: () => void }) {
   const [script, setScript] = useState<AgentScript | null>(null);
   const [text, setText] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -614,6 +544,7 @@ function ScriptPanel({ agent }: { agent: Agent }) {
 
   async function save() {
     await setAgentScript(agent.id, text);
+    onSaved?.();
     setSaved(true);
     load();
   }

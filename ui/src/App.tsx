@@ -48,7 +48,7 @@ function Shell() {
             <>
               <NavLink to="/settings/agents"
                 className={({ isActive }) => (isActive ? "on" : undefined)}>
-                Agents
+                Projects
               </NavLink>
               <NavLink to="/settings/members"
                 className={({ isActive }) => (isActive ? "on" : undefined)}>

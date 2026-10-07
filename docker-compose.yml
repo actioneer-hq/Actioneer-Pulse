@@ -67,7 +67,9 @@ services:
       VOICEOBS_REDIS_URL: redis://redis:6379   # auth abuse protection
       # Host folder the voice worker fills via VOICE_PULSE_AUDIO_DIR. s3://pulse-dev/<file> is read from here.
       VOICEOBS_DEV_AUDIO_DIR: /audio
-    volumes: ["./dev-audio:/audio"]
+      VOICEOBS_UPLOAD_DIR: /data/uploads   # file onboarding: uploaded call audio
+      VOICEOBS_SARVAM_API_KEY: ${VOICEOBS_SARVAM_API_KEY:-}   # STT for uploads (or set it in .env)
+    volumes: ["./dev-audio:/audio", "voiceobs-uploads:/data/uploads"]
     ports: ["${VO_PORT:-8000}:8000"]
     depends_on:
       db:
@@ -105,7 +107,9 @@ services:
       VOICEOBS_KAFKA_BROKERS: redpanda:9092
       VOICEOBS_SKIP_MIGRATE: "1"
       VOICEOBS_DEV_AUDIO_DIR: /audio
-    volumes: ["./dev-audio:/audio"]
+      VOICEOBS_UPLOAD_DIR: /data/uploads   # file onboarding: uploaded call audio
+      VOICEOBS_SARVAM_API_KEY: ${VOICEOBS_SARVAM_API_KEY:-}   # STT for uploads (or set it in .env)
+    volumes: ["./dev-audio:/audio", "voiceobs-uploads:/data/uploads"]
     depends_on:
       db:
         condition: service_healthy
@@ -124,7 +128,9 @@ services:
       VOICEOBS_BACKFILL_INTERVAL_S: "5"
       VOICEOBS_SKIP_MIGRATE: "1"
       VOICEOBS_DEV_AUDIO_DIR: /audio
-    volumes: ["./dev-audio:/audio"]
+      VOICEOBS_UPLOAD_DIR: /data/uploads   # file onboarding: uploaded call audio
+      VOICEOBS_SARVAM_API_KEY: ${VOICEOBS_SARVAM_API_KEY:-}   # STT for uploads (or set it in .env)
+    volumes: ["./dev-audio:/audio", "voiceobs-uploads:/data/uploads"]
     depends_on:
       db:
         condition: service_healthy
@@ -168,3 +174,4 @@ services:
 
 volumes:
   voiceobs-pg:
+  voiceobs-uploads:
