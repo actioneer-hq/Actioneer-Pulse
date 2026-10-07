@@ -175,6 +175,40 @@ def test_failure_analysis_skipped_when_judge_passes(db, monkeypatch):
     assert j.model_fault == "none"
 
 
+def test_failure_analysis_skipped_for_non_human_answerer(db, monkeypatch):
+    _config(monkeypatch)
+    monkeypatch.setenv("VOICEOBS_FAILURE_ANALYSIS_API_KEY", "sk-fa")
+    call = _call(db)
+    screener = _FAKE_FAIL.model_copy(update={"answered_by": "call_screener"})
+    monkeypatch.setattr(sys.modules["voiceobs.judge.run"], "call_model", lambda r, m: screener)
+
+    def must_not_run(r, m):
+        raise AssertionError("no root cause for a call that never reached a human")
+
+    monkeypatch.setattr(sys.modules["voiceobs.judge.run"], "analyze_failure", must_not_run)
+    j = judge_call(db, call)
+    assert j.status == "ok"
+    assert j.answered_by == "call_screener"
+    assert j.is_failure is False
+
+
+def test_scripted_agent_without_script_is_skipped(db, monkeypatch):
+    from voiceobs.db.models import Agent, CallParams
+
+    _config(monkeypatch)
+    agent = Agent(org_id="t", name="Scripted", slug="scripted", params_required=True)
+    db.add(agent)
+    db.flush()
+    call = _call(db)
+    call.agent_id = agent.id
+    db.add(CallParams(agent_id=agent.id, call_key=call.external_call_id, params={"name": "A"}))
+    db.commit()
+    monkeypatch.setattr(sys.modules["voiceobs.judge.run"], "call_model",
+                        lambda r, m: (_ for _ in ()).throw(AssertionError("must not judge")))
+    j = judge_call(db, call)
+    assert (j.status, j.error) == ("skipped", "no_script")
+
+
 def test_failure_columns_default_when_role_unconfigured(db, monkeypatch):
     _config(monkeypatch)
     monkeypatch.delenv("VOICEOBS_FAILURE_ANALYSIS_API_KEY", raising=False)

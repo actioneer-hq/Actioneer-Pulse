@@ -61,6 +61,12 @@ def judge_call(db: Session, call: Call) -> Judgment:
         return j
 
     script, guardrails = _script(db, call), _guardrails(db, call)
+    # Script gate: a parameterized-script agent judged without its script compares the agent to
+    # nothing — scripted lines read as fabrications. Skip rather than produce confident nonsense.
+    if _params_required(db, call) and script is None:
+        _clear(j, _JUDGE_FIELDS + _FAILURE_FIELDS)
+        j.status, j.model, j.error = "skipped", None, "no_script"
+        return j
     ctx = (script, guardrails, transcript, call.external_call_id, params)
 
     # Sequential, two stages:
@@ -89,6 +95,11 @@ _FAILED_OBJECTIVES = {"not_achieved", "partial"}
 def _judge_flags_failure(res: dict) -> bool:
     fields = res.get("fields") or {}
     if not fields:  # judge errored/skipped — no signal, so don't run RCA blindly
+        return False
+    # Only a conversation with a live human can fail on the agent's conduct; a screener, recording,
+    # voicemail or IVR is a reach outcome, not something to root-cause.
+    who = fields.get("answered_by")
+    if (who.value if hasattr(who, "value") else who) != "human":
         return False
     obj = fields.get("objective_achieved")
     obj = obj.value if hasattr(obj, "value") else obj
