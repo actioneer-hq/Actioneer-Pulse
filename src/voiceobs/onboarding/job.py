@@ -11,6 +11,7 @@ recorded on the job; they never abort it.
 from __future__ import annotations
 
 import logging
+import tempfile
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -32,7 +33,7 @@ from voiceobs.onboarding.stt import (
     transcribe_stereo,
 )
 from voiceobs.onboarding.trace import build_trace, customer_spoke
-from voiceobs.storage.drivers.local import uri_for
+from voiceobs.storage.drivers.local import blob_keys, get_blob, uri_for
 from voiceobs.worker.process import ensure_audio_call, process_trace
 
 log = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ class PlannedCall:
     spec: UploadCall | None = None
     utterances: list[Utterance] | None = None
     error: str | None = None
+    audio_uri: str | None = None  # upload:// uri of the stored audio (playback)
     meta: dict = field(default_factory=dict)
 
 
@@ -180,21 +182,48 @@ def plan_calls(audio: dict[str, Path], manifest_calls: list[UploadCall]) -> list
 
 def run_upload(db: Session, job: BackfillJob, org: str,
                enqueue: Callable[[str], None], is_cancelled: Callable[[], bool]) -> None:
-    from voiceobs.worker.backfill import _finish, _now  # shared job bookkeeping
+    from voiceobs.worker.backfill import _finish  # shared job bookkeeping
 
     opts = job.options or {}
-    job_dir = Path(opts["dir"])
-    try:
-        # no ZIP = a JSON upload with transcripts only (no playback)
-        audio = extract_audio(job_dir / "calls.zip", job_dir / "audio") if opts.get("audio", True) else {}
-        manifest = None
-        if opts.get("manifest"):
-            manifest = parse_manifest((job_dir / "manifest.json").read_bytes())
-    except (UploadError, ManifestError, OSError) as e:
-        _finish(db, job, status="failed", error=str(e))
-        return
+    with tempfile.TemporaryDirectory(prefix="pulse-upload-") as tmp:
+        try:
+            audio, manifest, uris = _load_upload(db, opts, Path(tmp))
+        except (UploadError, ManifestError, OSError) as e:
+            _finish(db, job, status="failed", error=str(e))
+            return
+        _run_plans(db, job, audio, manifest, uris, opts, enqueue, is_cancelled)
+
+
+def _load_upload(db: Session, opts: dict, tmp: Path):
+    """The job's audio (as local files, for STT/decoding), its manifest, and audio name -> upload uri,
+    all read back from `upload_blob` under `opts["prefix"]`."""
+    if "prefix" not in opts:  # staged on the api's own disk (before uploads moved to the DB)
+        raise UploadError("this upload was stored where the worker can't read it — upload again")
+    prefix = opts["prefix"]
+    raw = get_blob(db, f"{prefix}/manifest.json")
+    if raw is None:
+        raise UploadError("the uploaded JSON/CSV is missing — upload again")
+    manifest = parse_manifest(raw)
+    audio: dict[str, Path] = {}
+    uris: dict[str, str] = {}
+    for key in blob_keys(db, f"{prefix}/audio/"):
+        name = key.rsplit("/", 1)[1]
+        path = tmp / name
+        path.write_bytes(get_blob(db, key) or b"")
+        audio[name], uris[name] = path, uri_for(key)
+    if opts.get("audio") and not audio:
+        raise UploadError("the uploaded audio is missing — upload again")
+    return audio, manifest, uris
+
+
+def _run_plans(db: Session, job: BackfillJob, audio: dict[str, Path], manifest, uris: dict[str, str],
+               opts: dict, enqueue: Callable[[str], None], is_cancelled: Callable[[], bool]) -> None:
+    from voiceobs.worker.backfill import _finish, _now  # shared job bookkeeping
 
     plans = plan_calls(audio, manifest.calls if manifest else [])
+    for p in plans:
+        if p.audio is not None:
+            p.audio_uri = uris.get(p.audio.name)
     job.total = len(plans)
     job.status, job.phase, job.updated_at = "running", "transcribing", _now()
     db.commit()
@@ -280,7 +309,7 @@ def _analyse(db: Session, agent_id: str | None, plan: PlannedCall, stt: SttConfi
         call.prompt_id = script_prompt
     duration = (len(wav[0]) / wav[1]) if wav else None
     if plan.audio is not None:
-        _register_audio(db, call, plan.audio, data, wav)
+        _register_audio(db, call, plan.audio, plan.audio_uri, data, wav)
     if plan.spec and plan.spec.params:
         _upsert_params(db, agent_id, plan.call_id, plan.spec.params)
     trace = build_trace(plan.call_id, utterances or [],
@@ -295,8 +324,9 @@ def _analyse(db: Session, agent_id: str | None, plan: PlannedCall, stt: SttConfi
     return customer_spoke(utterances or [])
 
 
-def _register_audio(db: Session, call: Call, path: Path, data: bytes, wav) -> None:
-    uri = uri_for(path)
+def _register_audio(db: Session, call: Call, path: Path, uri: str | None, data: bytes, wav) -> None:
+    if uri is None:
+        raise UploadError("the uploaded audio has no stored copy")
     m = db.scalar(select(Media).where(Media.call_id == call.id, Media.kind == "audio"))
     if m is None:
         m = Media(call_id=call.id, kind="audio", uri=uri)

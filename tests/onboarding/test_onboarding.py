@@ -107,16 +107,21 @@ def test_diarized_entries_map_speakers():
 
 
 # ── local store ──────────────────────────────────────────────────────────────────────
-def test_upload_uri_cannot_escape_root(tmp_path, monkeypatch):
+def test_upload_store_reads_the_db_then_legacy_disk(authed_client, db_sessionmaker, tmp_path,
+                                                    monkeypatch):
     from voiceobs.storage.drivers import local
 
     monkeypatch.setenv("VOICEOBS_UPLOAD_DIR", str(tmp_path))
+    with db_sessionmaker() as db:
+        assert local.put_blob(db, "default/ag1/j1/audio/x.wav", b"RIFF-db") == "upload://default/ag1/j1/audio/x.wav"
+        db.commit()
+    assert local.LocalDriver().fetch_bytes("upload://default/ag1/j1/audio/x.wav", None) == b"RIFF-db"
     (tmp_path / "a").mkdir()
-    (tmp_path / "a" / "x.wav").write_bytes(b"RIFF")
+    (tmp_path / "a" / "x.wav").write_bytes(b"RIFF")  # uploaded before the move to the DB
     assert local.LocalDriver().fetch_bytes("upload://a/x.wav", None) == b"RIFF"
     for bad in ("upload://../etc/passwd", "upload:///etc/passwd", "upload://a/../../x"):
         with pytest.raises(ValueError):
-            local.path_for(bad)
+            local.LocalDriver().fetch_bytes(bad, None)
 
 
 # ── planning ─────────────────────────────────────────────────────────────────────────
@@ -134,7 +139,7 @@ def test_plan_pairs_json_entries_with_audio(tmp_path):
 
 
 # ── end to end ───────────────────────────────────────────────────────────────────────
-def test_upload_job_end_to_end(tmp_path, db_sessionmaker, bus, monkeypatch):
+def test_upload_job_end_to_end(tmp_path, authed_client, db_sessionmaker, bus, monkeypatch):
     from voiceobs.config import get_config
     from voiceobs.worker.backfill import run_job
 
@@ -142,25 +147,25 @@ def test_upload_job_end_to_end(tmp_path, db_sessionmaker, bus, monkeypatch):
     monkeypatch.setenv("VOICEOBS_SARVAM_API_KEY", "k")
     cfg = get_config()
     monkeypatch.setattr(stt_mod, "_rest_transcribe", lambda c, audio, client: "हाँ जी")
-    job_dir = tmp_path / "org" / "ag1" / "job1"
-    job_dir.mkdir(parents=True)
-    with zipfile.ZipFile(job_dir / "calls.zip", "w") as z:
-        z.writestr("calls/with-json.wav", _wav(8, stereo=True))
-        z.writestr("calls/stt-me.wav", _wav(10, stereo=True, speech=[(1, 0.5, 6), (0, 7, 8)]))
-        z.writestr("__MACOSX/._junk.wav", b"x")
-        z.writestr("notes.txt", b"ignore me")
+    prefix = "default/ag1/job1"
+    audio = {"with-json.wav": _wav(8, stereo=True),
+             "stt-me.wav": _wav(10, stereo=True, speech=[(1, 0.5, 6), (0, 7, 8)])}
     manifest = {"format": "pulse.calls.v1", "calls": [{
         "call_id": "with-json", "params": {"first_name": "Mamta"},
         "transcript": [{"speaker": "agent", "text": "नमस्ते", "start": 0.2, "end": 2.0},
                        {"speaker": "customer", "text": "हाँ", "start": 2.5, "end": 3.0},
                        {"speaker": "agent", "text": "offer", "start": 3.4, "end": 6.0}],
     }]}
-    (job_dir / "manifest.json").write_text(json.dumps(manifest))
+
+    from voiceobs.storage.drivers.local import put_blob
 
     with db_sessionmaker() as db:
         db.add(Agent(id="ag1", org_id="default", name="Bot", slug="bot"))
+        put_blob(db, f"{prefix}/manifest.json", json.dumps(manifest).encode())
+        for name, data in audio.items():
+            put_blob(db, f"{prefix}/audio/{name}", data)
         job = BackfillJob(org_id="default", agent_id="ag1", source="upload", status="queued",
-                          options={"dir": str(job_dir), "manifest": True})
+                          options={"prefix": prefix, "manifest": True, "audio": True})
         db.add(job)
         db.commit()
         run_job(db, job, "default")
@@ -176,7 +181,7 @@ def test_upload_job_end_to_end(tmp_path, db_sessionmaker, bus, monkeypatch):
         assert any(t.caller_transcript == "हाँ" and t.response_latency_ms == pytest.approx(400, abs=1)
                    for t in turns)
         media = db.scalar(select(Media).where(Media.call_id == c.id))
-        assert media.uri == "upload://org/ag1/job1/audio/with-json.wav" and media.channels == 2
+        assert media.uri == "upload://default/ag1/job1/audio/with-json.wav" and media.channels == 2
         assert db.scalar(select(CallParams.params).where(CallParams.call_key == "with-json")) == \
             {"first_name": "Mamta"}
         stt_turns = db.scalars(select(Turn).where(Turn.call_id == calls["stt-me"].id)).all()
@@ -225,14 +230,20 @@ def test_upload_json_mode(project, tmp_path):
     assert project.get("/v1/agents/ag1/script").json()["text"] == "Hi {{first_name}}"
 
 
-def test_upload_csv_mode_uses_project_script(project, tmp_path):
+def test_upload_csv_mode_uses_project_script(project, db_sessionmaker, tmp_path):
     project.put("/v1/agents/ag1/script", json={"text": "नमस्ते {{first_name}} — {{plan}}"})
     r = _post(project, _zip("x1.wav", "x2.wav"),
               csv="call_id,first_name,plan\nx1,Jagdish,Stocks\nx2,Mamta,Options\n")
     assert r.status_code == 201, r.text
     assert r.json() == {**r.json(), "calls": 2, "params": ["first_name", "plan"], "transcribe": 2}
-    saved = next(tmp_path.rglob("manifest.json"))
-    m = parse_manifest(saved.read_bytes())
+    from voiceobs.db.models import UploadBlob
+
+    with db_sessionmaker() as db:
+        keys = set(db.scalars(select(UploadBlob.key)))
+        saved = db.scalar(select(UploadBlob.data).where(UploadBlob.key.endswith("/manifest.json")))
+    assert {k.rsplit("/", 1)[1] for k in keys} == {"manifest.json", "x1.wav", "x2.wav"}
+    assert not list(tmp_path.rglob("*.wav"))  # nothing left on the api's disk
+    m = parse_manifest(saved)
     assert {c.call_id: c.params for c in m.calls}["x2"] == {"first_name": "Mamta", "plan": "Options"}
 
 
