@@ -8,14 +8,13 @@ An upload is exactly one of:
 
 Everything is checked before anything runs (script present, every call has its audio and a value
 for every `{{placeholder}}`); any problem rejects the upload with the exact list. A valid upload is
-stored on local disk and queued as a `BackfillJob(source="upload")`; progress/cancel/SSE are the
+stored in the DB (`upload_blob`: the manifest and each audio file) and queued as a `BackfillJob(source="upload")`; progress/cancel/SSE are the
 backfill endpoints (/v1/backfill/{id}).
 """
 
 from __future__ import annotations
 
-import shutil
-import uuid
+import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -37,8 +36,8 @@ from voiceobs.onboarding.format import (
     parse_params_csv,
     placeholders,
 )
-from voiceobs.onboarding.job import UploadError, audio_names, check_upload
-from voiceobs.storage.drivers.local import upload_root
+from voiceobs.onboarding.job import UploadError, audio_names, check_upload, extract_audio
+from voiceobs.storage.drivers.local import put_blob
 
 router = APIRouter(prefix="/v1")
 
@@ -132,9 +131,8 @@ def create_upload(
         raise HTTPException(400, "transcription is not configured (VOICEOBS_SARVAM_API_KEY); "
                                  "upload a JSON with transcripts instead")
 
-    staging = upload_root() / ".incoming" / uuid.uuid4().hex
-    staging.mkdir(parents=True, exist_ok=True)
-    try:
+    with tempfile.TemporaryDirectory(prefix="pulse-upload-") as tmp:
+        staging = Path(tmp)
         size, names = 0, None
         if has_audio:
             size = _save(audio, staging / "calls.zip", cfg.max_upload_bytes)
@@ -146,22 +144,25 @@ def create_upload(
         errors = check_upload(names, parsed.calls, required)
         if errors:
             raise _reject(errors)
-        (staging / "manifest.json").write_text(parsed.model_dump_json())
-    except BaseException:
-        shutil.rmtree(staging, ignore_errors=True)
-        raise
 
-    if parsed.script:
-        set_agent_script(db, agent, parsed.script, mem.user_id)  # becomes the project's next version
-    agent.params_required = bool(required)  # judge waits for params whenever the script has them
-    job = BackfillJob(org_id=mem.org_id, agent_id=agent.id, source="upload", status="queued",
-                      created_at=now(), options={})
-    db.add(job)
-    db.flush()
-    job_dir = upload_root() / mem.org_id / agent.id / job.id
-    job_dir.parent.mkdir(parents=True, exist_ok=True)
-    staging.rename(job_dir)
-    job.options = {"dir": str(job_dir), "manifest": True, "bytes": size, "mode": "json" if has_json
+        if parsed.script:
+            set_agent_script(db, agent, parsed.script, mem.user_id)  # becomes the project's next version
+        agent.params_required = bool(required)  # judge waits for params whenever the script has them
+        job = BackfillJob(org_id=mem.org_id, agent_id=agent.id, source="upload", status="queued",
+                          created_at=now(), options={})
+        db.add(job)
+        db.flush()
+        # The bytes go to the DB, not a disk: the worker and playback run as other services.
+        prefix = f"{mem.org_id}/{agent.id}/{job.id}"
+        put_blob(db, f"{prefix}/manifest.json", parsed.model_dump_json().encode())
+        if has_audio:
+            try:
+                files = extract_audio(staging / "calls.zip", staging / "audio")
+            except UploadError as e:
+                raise HTTPException(422, str(e)) from e
+            for name, path in files.items():
+                put_blob(db, f"{prefix}/audio/{name}", path.read_bytes())
+    job.options = {"prefix": prefix, "manifest": True, "bytes": size, "mode": "json" if has_json
                    else "csv", "agent_channel": agent_channel, "language": language,
                    "audio": has_audio, "audio_name": audio.filename if has_audio else None}
     return {"id": job.id, "status": job.status, "calls": len(parsed.calls),

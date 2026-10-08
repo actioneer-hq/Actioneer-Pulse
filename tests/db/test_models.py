@@ -22,7 +22,7 @@ IDENTITY_TABLES = {
     "organization", "app_user", "membership", "agent", "agent_access", "ingest_token",
     "refresh_token", "agent_audio_config", "agent_integration_manifest",
     "agent_otlp_mapping", "agent_script",
-    "agent_guardrail", "agent_params_upload", "agent_journey", "training_sample", "script_proposal",
+    "agent_guardrail", "agent_params_upload", "agent_journey", "training_sample", "script_proposal", "upload_blob",
 }
 EXPECTED_TABLES = DATA_TABLES | IDENTITY_TABLES
 

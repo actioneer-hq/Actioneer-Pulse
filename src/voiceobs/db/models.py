@@ -296,6 +296,18 @@ class MetricDef(Base):
     metric_version: Mapped[int | None] = mapped_column(Integer)
 
 
+class UploadBlob(Base):
+    """Bytes of a file onboarding upload (manifest, call audio), keyed like a path:
+    `<org>/<agent>/<job>/<name>`. In the DB so the api, workers and playback all see them."""
+
+    __tablename__ = "upload_blob"
+
+    key: Mapped[str] = mapped_column(String(1024), primary_key=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = created_col()
+
+
 class Media(Base):
     """Pointers, not bytes — except peaks."""
 
