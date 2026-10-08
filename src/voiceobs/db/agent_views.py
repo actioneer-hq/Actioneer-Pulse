@@ -24,8 +24,8 @@ AGENT_ROLE = "pulse_agent_ro"
 # scope kind drives the per-request authorization predicate baked into the view body:
 #   "call"       — base table is `call`: filter its own agent_id + id (call id)
 #   "agent"      — base table is `agent`: its own id IS the agent id (no call filter)
-#   "own_call"   — base row carries agent_id + call_id (call_cluster)
-#   "own"        — base row carries agent_id, no call linkage (cluster)
+#   "own_call"   — base row carries agent_id + call_id (moment)
+#   "own"        — base row carries agent_id, no call linkage (moment_cluster)
 #   "via_call"   — call-keyed row: reach agent_id/id through an EXISTS join to `call`
 AGENT_VIEWS: dict[str, tuple[str, str, str]] = {
     "calls": ("call", (
@@ -54,9 +54,12 @@ AGENT_VIEWS: dict[str, tuple[str, str, str]] = {
         "is_failure, root_cause, model_fault, model_fault_detail, hallucination, "
         "hallucination_detail, suggested_fix, summary, judged_at"
     ), "via_call"),
-    "clusters": ("cluster", "lever, cluster_key, label, size, updated_at", "own"),
-    "call_clusters": ("call_cluster", "call_id, lever, cluster_key, x, y", "own_call"),
-    "call_embeddings": ("call_embedding", "call_id, field, embedding, model", "via_call"),
+    "moments": ("moment", (
+        "call_id, agent_id, prompt_id, kind, item, cause, turn, text, embedding, cluster_key, created_at"
+    ), "own_call"),
+    "moment_clusters": ("moment_cluster", (
+        "agent_id, prompt_id, kind, item, cause, cluster_key, name, size, updated_at"
+    ), "own"),
     "agents": ("agent", "id, name, slug", "agent"),
 }
 

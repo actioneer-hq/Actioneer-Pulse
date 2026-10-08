@@ -4,7 +4,17 @@ from __future__ import annotations
 
 import re
 
-from voiceobs.journey.model import END, AnytimeRule, Journey, JourneyDraft, Stage
+from voiceobs.journey.model import (
+    END,
+    AnytimeRule,
+    Bookend,
+    Fact,
+    Guardrail,
+    Journey,
+    JourneyDraft,
+    SideBranch,
+    Stage,
+)
 from voiceobs.onboarding.format import placeholders
 
 # Pulse's unsaid rules — apply to every voice agent whether or not its script mentions them.
@@ -41,12 +51,13 @@ def build_journey(script: str, draft: JourneyDraft) -> Journey:
     s = _norm(script)
     funnel = [
         Stage(stage=st.stage, agent=st.agent, done_when=st.done_when, script_quote=st.script_quote,
-              side=[b for b in st.side if _grounded(b.script_quote, s)])
+              say=st.say, side=[SideBranch(**b.model_dump(by_alias=True)) for b in st.side
+                                if _grounded(b.script_quote, s)])
         for st in draft.funnel
     ]
     anytime = [AnytimeRule(**b.model_dump(by_alias=True)) for b in draft.anytime
                if _grounded(b.script_quote, s)]
-    guardrails = [g for g in draft.guardrails if _grounded(g.script_quote, s)]
+    guardrails = [Guardrail(**g.model_dump()) for g in draft.guardrails if _grounded(g.script_quote, s)]
 
     cov = draft.standard_coverage
     for key, rule in STANDARD_RULES.items():
@@ -55,8 +66,12 @@ def build_journey(script: str, draft: JourneyDraft) -> Journey:
         anytime.append(AnytimeRule(**{"if": rule["if"]}, then=rule["then"], goes_to=END,
                                    standard=True, in_script=in_script,
                                    script_quote=quote if in_script else None))
+    facts = [Fact(**f.model_dump()) for f in draft.facts if _grounded(f.script_quote, s)]
+    opening = Bookend(**draft.opening.model_dump()) if draft.opening else None
+    closing = Bookend(**draft.closing.model_dump()) if draft.closing else None
     return Journey(objective=draft.objective, params=placeholders(script), funnel=funnel,
-                   opening=draft.opening, closing=draft.closing,
+                   persona=draft.persona, facts=facts,
+                   opening=opening, closing=closing,
                    anytime=_dedupe(anytime), guardrails=guardrails)
 
 

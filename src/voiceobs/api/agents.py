@@ -20,6 +20,7 @@ from voiceobs.api.schemas import (
     AgentPatchIn,
     AudioConfigIn,
     CallParamsIn,
+    CurationIn,
     GuardrailsIn,
     IngestTokenIn,
     OtlpMappingIn,
@@ -73,7 +74,8 @@ def _org_agent(db: Session, mem: Membership, agent_id: str) -> Agent:
 
 
 def _agent_dict(a: Agent) -> dict:
-    return {"id": a.id, "name": a.name, "slug": a.slug, "org_id": a.org_id}
+    return {"id": a.id, "name": a.name, "slug": a.slug, "org_id": a.org_id,
+            "curate_training_data": bool(a.curate_training_data)}
 
 
 @router.get("")
@@ -94,7 +96,8 @@ def create_agent(
     mem: Membership = Depends(require_role("owner", "admin")),
 ) -> dict:
     agent = Agent(org_id=mem.org_id, name=body.name,
-                  slug=_unique_agent_slug(db, mem.org_id, body.slug or body.name))
+                  slug=_unique_agent_slug(db, mem.org_id, body.slug or body.name),
+                  curate_training_data=body.curate_training_data)
     db.add(agent)
     db.flush()
     if body.audio is not None:
@@ -124,9 +127,13 @@ def delete_agent(
     mem: Membership = Depends(require_role("owner", "admin")),
 ) -> dict:
     agent = _org_agent(db, mem, agent_id)
-    # Remove the agent's child rows first — they hold real FKs to agent.id with no ON DELETE, so a bare
-    # db.delete(agent) FK-errors on Postgres. Calls are intentionally left (Call.agent_id is not a FK;
-    # they stay in the DB, just no longer surfaced under a live agent).
+    # Deleting a project deletes its calls and their analysis too — otherwise the calls linger,
+    # invisible, and still claim their call ids (a re-upload of the same calls would be refused).
+    from voiceobs.db.purge import purge_agent_analysis
+
+    purge_agent_analysis(db, agent_id)
+    # Then the agent's child rows — they hold real FKs to agent.id with no ON DELETE, so a bare
+    # db.delete(agent) FK-errors on Postgres.
     for model in (
         AgentScript,
         AgentGuardrail,
@@ -280,9 +287,16 @@ def _audio_config_dict(cfg: AgentAudioConfig | None) -> dict:
 # --- agent script (versioned, hash-addressed, pinned per call) ----------------- #
 
 
+def normalize_script(text: str) -> str:
+    return "\n".join(line.rstrip() for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")).strip()
+
+
 def set_agent_script(db: Session, agent: Agent, text: str, user_id: str | None) -> AgentScript:
-    """Set/replace the agent's script. Content dedupes into Prompt by sha256; a new AgentScript
-    version is minted only when the text actually changes. Returns the active version."""
+    """Set/replace the agent's script. Content dedupes into Prompt by sha256 of the normalized text
+    (line endings, trailing spaces, outer blank lines), so a whitespace-only difference is the same
+    version and is never extracted twice. A new AgentScript version is minted only when the text
+    actually changes. Returns the active version."""
+    text = normalize_script(text)
     sha = hashlib.sha256(text.encode()).hexdigest()
     prompt = db.scalar(select(Prompt).where(Prompt.template_sha256 == sha))
     if prompt is None:
@@ -453,6 +467,19 @@ def set_audio_config(
     cfg = _apply_audio_config(db, agent_id, body)
     db.flush()
     return _audio_config_dict(cfg)
+
+
+@router.put("/{agent_id}/curation")
+def set_curation(
+    agent_id: str, body: CurationIn,
+    db: Session = Depends(session_dep),
+    mem: Membership = Depends(require_role("owner", "admin")),
+) -> dict:
+    """Turn training-data curation (corrections of failed agent turns) on or off for this project."""
+    agent = _org_agent(db, mem, agent_id)
+    agent.curate_training_data = body.curate_training_data
+    db.flush()
+    return _agent_dict(agent)
 
 
 @router.put("/{agent_id}/params-required")

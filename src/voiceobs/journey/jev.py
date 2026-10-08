@@ -306,3 +306,60 @@ def to_short(j: Journey, a: JevAnswers) -> ShortJudgment:
         objective_achieved=_OBJECTIVE[_pick(a["objective"])[0]],
         sentiment=_sentiment(float(a.get("sentiment", 0.0))),
     )
+
+
+# ── where things happened (decision model, no LLM) ───────────────────────────────────
+class TimelineEntry(BaseModel):
+    """The part of the journey (a stage's exact name, Opening or Closing) an agent turn belongs to."""
+
+    turn: int = Field(ge=0)
+    item: str
+
+
+def agent_turns(lines: list[dict]) -> list[int]:
+    return list(dict.fromkeys(ln["turn_index"] for ln in lines
+                              if ln.get("role") != "caller" and "turn_index" in ln))
+
+
+def timeline_questions(j: Journey, lines: list[dict]) -> list[JevQuestion]:
+    """One choice per agent turn: which part of the call it is in. Asked with the judge questions."""
+    parts = (["Opening"] if j.opening else []) + [s.stage for s in j.funnel] + (["Closing"] if j.closing else [])
+    guide = " → ".join(parts)
+    return [JevQuestion(key=f"turn:{t}", kind="choice", options=parts,
+                        text=f"Which part of the call is the agent's turn [{t}] in? The parts, in order: {guide}")
+            for t in agent_turns(lines)]
+
+
+def to_timeline(a: JevAnswers, lines: list[dict]) -> list[TimelineEntry]:
+    out = []
+    for t in agent_turns(lines):
+        dist = a.get(f"turn:{t}")
+        if isinstance(dist, dict) and dist:
+            out.append(TimelineEntry(turn=t, item=_pick(dist)[0]))
+    return out
+
+
+def locate_questions(failures: list[tuple[int, str]], lines: list[dict]) -> list[JevQuestion]:
+    """`failures` = (id, description). One choice each: the agent turn where it went wrong."""
+    turns = agent_turns(lines)
+    if not turns:
+        return []
+    texts = {t: " ".join(ln.get("text") or "" for ln in lines
+                         if ln.get("turn_index") == t and ln.get("role") != "caller")[:60] for t in turns}
+    options = [f"[{t}] {texts[t]}" for t in turns]
+    return [JevQuestion(key=f"locate:{i}", kind="choice", options=options,
+                        text=f"At which agent turn did this go wrong: {what}")
+            for i, what in failures]
+
+
+def to_turns(a: JevAnswers, failures: list[tuple[int, str]], lines: list[dict]) -> dict[int, int | None]:
+    turns = agent_turns(lines)
+    out: dict[int, int | None] = {}
+    for i, _ in failures:
+        dist = a.get(f"locate:{i}")
+        if isinstance(dist, dict) and dist:
+            best, p = _pick(dist)
+            out[i] = int(best[1: best.index("]")]) if p >= THRESHOLD and best.startswith("[") else None
+        else:
+            out[i] = None
+    return {i: (t if t in turns else None) for i, t in out.items()}

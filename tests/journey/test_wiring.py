@@ -180,8 +180,8 @@ def test_judge_uses_short_path(db_sessionmaker, monkeypatch, journey):
         assert (j.answered_by, j.objective_achieved, j.primary_language) == ("human", "not_achieved", "Hindi")
 
 
-def test_full_path_runs_in_three_stages(db_sessionmaker, monkeypatch, journey):
-    from voiceobs.db.models import TrainingSample
+def test_full_path_decision_and_llm_in_parallel_then_curation(db_sessionmaker, monkeypatch, journey):
+    from voiceobs.db.models import Moment, TrainingSample
     from voiceobs.journey import curate as cur
     from voiceobs.judge import journey_stages as stages
     from voiceobs.judge import judge_call
@@ -191,49 +191,60 @@ def test_full_path_runs_in_three_stages(db_sessionmaker, monkeypatch, journey):
                     "stage:Opening": 0.9, "stage:Offer": 0.9,
                     "branch:Offer:Price too high:happened": 0.9, "branch:Offer:Price too high:handled": 0.1,
                     "guardrail:Never promise guaranteed returns": 0.9,
-                    "objective": {"not achieved": 1.0}, "ended_by": {"Price too high": 1.0}, "sentiment": 0.0})
+                    "objective": {"not achieved": 1.0}, "ended_by": {"Price too high": 1.0}, "sentiment": 0.0,
+                    # timeline: which part each agent turn is in
+                    "turn:0": {"Opening": 1.0}, **{f"turn:{t}": {"Offer": 1.0} for t in range(1, 5)},
+                    # failure turns (ids = failure order: price, guardrail, missed stage Payment)
+                    "locate:0": {"[2] offer": 0.9}, "locate:1": {"[3] offer": 0.8}})
     fake = _FakeDecision(answers)
-    monkeypatch.setattr(sys.modules["voiceobs.judge.journey_path"], "resolve_decision", lambda: fake)
+    mod = sys.modules["voiceobs.judge.journey_path"]
+    monkeypatch.setattr(mod, "resolve_decision", lambda: fake)
     monkeypatch.setenv("VOICEOBS_POST_CALL_API_KEY", "k")  # journey roles fall back to it
-    seen_msgs = []
-
-    def fake_llm(resolved, msgs):
-        seen_msgs.append(msgs[-1]["content"][-1]["text"])
-        # failures from stage 1, in order: 0 = Price too high, 1 = the guardrail, 2 = missed stage Payment
-        return LLMJudgment(summary="Short chat.", timeline=[{"turn": 0, "item": "opening"},
-                                                            {"turn": 1, "item": "Offer"}],
-                           failure_turns=[{"id": 0, "turn": 2}, {"id": 1, "turn": 3}, {"id": 2, "turn": None}])
-
-    monkeypatch.setattr(stages, "judge_llm", fake_llm)
+    monkeypatch.setattr(mod, "judge_llm", lambda resolved, msgs: LLMJudgment(summary="Short chat."))
     monkeypatch.setattr(cur, "structured", lambda resolved, msgs, model: cur.Curation(corrections=[
-        cur.Correction(id=0, corrected="It is just 270 a month."),
+        cur.Correction(id=0, corrected="It is just 270 a month."),           # turn 2: price + missed stage
         cur.Correction(id=1, corrected="[Do not promise returns]"),          # an instruction -> dropped
-        cur.Correction(id=2, corrected="offer"),                             # same as said -> dropped
     ]))
     with db_sessionmaker() as db:
         call, prompt_id = _seed(db, customer_lines=5)
+        db.get(Agent, "ag1").curate_training_data = True
         _ready(db, prompt_id, journey)
-        # stage 1: decision model only — failures listed, no spans, enrichment queued
         j = judge_call(db, call)
-        assert j.status == "ok" and j.journey["format"] == "full" and fake.seen[0] > 15
-        assert j.enrich_status == "pending" and j.summary is None and j.guardrail_violation is True
-        assert {f["item"] for f in j.journey["failures"]} >= {"Price too high", "Payment"}
-        assert all(not f["turns"] for f in j.journey["failures"])
-        # stage 2: the LLM places each failure (the missed stage falls back to the timeline); curation queued
-        assert stages.enrich_call(db, call) is True
-        assert "FAILURES" in seen_msgs[0] and "id 0:" in seen_msgs[0]
+        # decision call A (judge + timeline) and the LLM, then decision call B (failure turns)
+        assert len(fake.seen) == 2 and fake.seen[1] == 3   # call B: one question per failure to place
+        assert j.status == "ok" and j.journey["format"] == "full" and j.summary == "Short chat."
+        assert j.enrich_status == "ok" and j.curate_status == "pending"
+        assert [e["item"] for e in j.journey["timeline"]] == ["Opening", "Offer", "Offer", "Offer", "Offer"]
         spans = {f["item"]: (f["turns"], f["target_turn"]) for f in j.journey["failures"]}
         assert spans["Price too high"] == ([2], 2)
         assert spans["Never promise guaranteed returns"] == ([3], 3)
-        assert spans["Payment"][1] == 2          # first agent turn after the furthest stage (Offer @1)
-        assert j.summary == "Short chat." and j.enrich_status == "ok" and j.curate_status == "pending"
-        # stage 3: one sample survives the code filters
+        assert spans["Payment"][1] == 2          # not placed -> first agent turn after Offer started (@1)
+        ms = {(m.kind, m.turn, m.text) for m in db.scalars(select(Moment))}
+        assert ms == {("branch", 2, "haan"), ("guardrail", 3, "offer"), ("stage", 2, "offer")}
+        # curation (journey-llm worker): one correction per turn; one survives the filters
         assert stages.curate_call(db, call) == 1
         db.commit()
         s = db.scalar(select(TrainingSample))
-        assert (s.turn, s.item, s.observed, s.corrected) == (2, "Price too high", "offer",
-                                                              "It is just 270 a month.")
+        assert (s.turn, s.item, s.failure_kind, s.observed, s.corrected) == (
+            2, "Price too high | Payment", "multiple", "offer", "It is just 270 a month.")
         assert j.curate_status == "ok"
+
+
+def test_curation_off_unless_the_project_opts_in(db_sessionmaker, monkeypatch, journey):
+    from voiceobs.judge import judge_call
+
+    answers = {q.key: 0.1 for q in jev_questions(journey) if q.kind == "yes_no"}
+    answers.update({"answered_by": {"a live person": 0.9}, "language.primary": {"Hindi": 1.0},
+                    "guardrail:Never promise guaranteed returns": 0.9, "locate:0": {"[3] offer": 0.9},
+                    "objective": {"not achieved": 1.0}, "ended_by": {"Completed": 1.0}, "sentiment": 0.0})
+    monkeypatch.setattr(sys.modules["voiceobs.judge.journey_path"], "resolve_decision",
+                        lambda: _FakeDecision(answers))
+    monkeypatch.setattr(sys.modules["voiceobs.judge.journey_path"], "resolve_llm", lambda role: None)
+    with db_sessionmaker() as db:
+        call, prompt_id = _seed(db, customer_lines=5)
+        _ready(db, prompt_id, journey)
+        j = judge_call(db, call)
+        assert j.curate_status == "skipped" and j.enrich_status == "skipped"
 
 
 def test_judge_falls_back_without_decision_model(db_sessionmaker, monkeypatch, journey):
@@ -297,3 +308,31 @@ def test_journey_api_and_funnel(authed_client, db_sessionmaker, journey):
     assert f["standard"]["escalation_not_in_script"] == 1
     assert f["unscripted"] == [["Asked about taxes", 1]]
     assert json.dumps(f)  # serializable
+
+
+def test_timeline_and_failure_turns_from_the_decision_model(journey):
+    from voiceobs.journey.jev import locate_questions, timeline_questions, to_timeline, to_turns
+
+    lines = [{"turn_index": 0, "role": "agent", "text": "hello"}, {"turn_index": 1, "role": "caller", "text": "hi"},
+             {"turn_index": 2, "role": "agent", "text": "the price is 3200"}]
+    qs = timeline_questions(journey, lines)
+    assert [q.key for q in qs] == ["turn:0", "turn:2"] and qs[0].options == ["Opening", "Offer", "Payment"]
+    assert [(e.turn, e.item) for e in to_timeline({"turn:0": {"Opening": 0.8}, "turn:2": {"Offer": 0.9}},
+                                                  lines)] == [(0, "Opening"), (2, "Offer")]
+    lq = locate_questions([(0, "price objection not handled")], lines)
+    assert lq[0].options == ["[0] hello", "[2] the price is 3200"]
+    assert to_turns({"locate:0": {"[2] the price is 3200": 0.9}}, [(0, "x")], lines) == {0: 2}
+    assert to_turns({"locate:0": {"[2] the price is 3200": 0.3}}, [(0, "x")], lines) == {0: None}  # unsure
+
+
+def test_whitespace_only_script_changes_keep_the_version(db_sessionmaker):
+    from voiceobs.api.agents import set_agent_script
+
+    with db_sessionmaker() as db:
+        agent = Agent(id="ag9", org_id="default", name="Bot", slug="bot9")
+        db.add(agent)
+        db.flush()
+        v1 = set_agent_script(db, agent, "Greet {{first_name}}.\nOffer the plan.", None)
+        same = set_agent_script(db, agent, "Greet {{first_name}}.  \r\nOffer the plan.\n\n", None)
+        assert same.version == v1.version == 1 and same.prompt_id == v1.prompt_id
+        assert set_agent_script(db, agent, "Greet {{first_name}}. Offer the plan.", None).version == 2

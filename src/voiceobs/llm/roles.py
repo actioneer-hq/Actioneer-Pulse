@@ -19,6 +19,8 @@ class LLMRole(StrEnum):
     SCRIPT_JOURNEY = "script_journey"           # script -> journey extraction (once per script version)
     JOURNEY_JUDGE = "journey_judge"             # per-call journey enrichment (summary, timeline, gaps)
     TRAINING_CURATOR = "training_curator"       # per-call training data: corrects failed agent turns
+    CLUSTER_NAMER = "cluster_namer"             # names failure-variant / script-gap clusters
+    SCRIPT_RSI = "script_rsi"                   # script improvement: additions, meta rules, revisions
 
 
 # Interactive roles are user-facing and latency-sensitive: they bypass the gateway's rate-limit

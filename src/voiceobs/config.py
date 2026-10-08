@@ -43,7 +43,9 @@ class Config(BaseSettings):
     script_journey_api_key: str | None = None  # unset -> falls back to post_call_api_key
     journey_judge_api_key: str | None = None   # unset -> falls back to post_call_api_key
     training_curator_api_key: str | None = None  # unset -> falls back to post_call_api_key
-    curate_enabled: bool = True                 # stage 3 (training data from failed turns) on/off
+    cluster_namer_api_key: str | None = None     # unset -> falls back to post_call_api_key
+    script_rsi_api_key: str | None = None        # unset -> falls back to post_call_api_key
+    curate_enabled: bool = True                 # global kill switch for curation (projects opt in)
     # decision model (System-One: yes/no / choice / score answers) for journey judging
     decision_provider: str = "openai"
     decision_model: str = "gpt-6-luna"
@@ -88,9 +90,12 @@ class Config(BaseSettings):
 
     # embeddings (BYO, OpenAI-compatible): provider/model/endpoint here, key in env.
     embedding_provider: str = "openai"       # any-llm provider id (openai-compatible)
-    embedding_model: str = "bge-m3"          # the embedding model your endpoint serves
+    embedding_model: str = "Qwen/Qwen3-Embedding-0.6B"  # the embedding model your endpoint serves
     embedding_base_url: str | None = None    # your OpenAI-compatible endpoint (e.g. http://host/v1)
-    embedding_dim: int = 1024                # BGE-M3 = 1024; text-embedding-3-small = 1536
+    embedding_dim: int = 1024                # Qwen3-Embedding-0.6B / BGE-M3 = 1024
+    # Qwen-style task instruction prefixed to each text ("Instruct: …\nQuery:…"); "" for models without
+    # instructions (e.g. BGE). Steers what "similar" means when clustering unscripted moments.
+    embedding_instruct: str = "Given a customer moment from a business voice call, find the customer's intent"
 
     # Kafka pipeline (ingest producer → analysis consumer)
     kafka_topic_raw: str = "raw-spans"
@@ -104,9 +109,7 @@ class Config(BaseSettings):
     kafka_topic_judge_backfill: str = "judge-requests.backfill"
     kafka_judge_dlq: str = "judge-requests.dlq"
     kafka_judge_group: str = "judge"
-    # Journey stages 2 (LLM enrichment) and 3 (training-data curation): backfilled after the decision
-    # model has judged the call; enrichment is drained before curation.
-    kafka_topic_enrich: str = "journey-enrich"
+    # Training-data curation, queued by the judge for projects that turn it on; run by journey-llm.
     kafka_topic_curate: str = "journey-curate"
     kafka_journey_dlq: str = "journey-llm.dlq"
     kafka_journey_group: str = "journey-llm"
@@ -127,8 +130,8 @@ class Config(BaseSettings):
     poller_interval_s: float | None = None   # None = one-shot; set (seconds) to run as a sidecar loop
     cluster_interval_s: float | None = None  # None = one-shot; set (seconds) to run as a sidecar loop
     backfill_interval_s: float | None = 5.0  # poll interval for the backfill worker claiming jobs
-    cluster_window_days: int = 90            # rolling window of calls to (re)cluster
-    cluster_min_size: int = 8                # HDBSCAN min_cluster_size — smallest pattern to surface
+    cluster_every_s: int = 600               # backfill worker: re-cluster at most this often, when new moments
+    cluster_min_share: float = 0.02          # HDBSCAN min_cluster_size = this share of full conversations (min 2)
 
     # ingest safety limits (defend against oversized bodies / gzip bombs)
     max_ingest_bytes: int = 32 * 1024 * 1024      # reject a compressed/raw ingest body larger than this
@@ -156,7 +159,8 @@ class Config(BaseSettings):
 
     def _role_api_key(self, role: LLMRole) -> str | None:
         key = getattr(self, _ROLE_KEY_FIELD[role])
-        if not key and role in (LLMRole.SCRIPT_JOURNEY, LLMRole.JOURNEY_JUDGE, LLMRole.TRAINING_CURATOR):
+        if not key and role in (LLMRole.SCRIPT_JOURNEY, LLMRole.JOURNEY_JUDGE, LLMRole.TRAINING_CURATOR,
+                                LLMRole.CLUSTER_NAMER, LLMRole.SCRIPT_RSI):
             return self.post_call_api_key  # same provider as the judge by default
         return key
 
@@ -172,6 +176,10 @@ class LLMRoleCfg:
     model: str
     base_url: str | None = None      # optional; set for an OpenAI-compatible/self-hosted endpoint
     max_tokens: int = 1024
+    # None = the provider default. "none" turns reasoning off: some models (e.g. Sonnet 5) think by
+    # default, which multiplies output tokens and latency for short structured answers.
+    reasoning_effort: str | None = None
+    timeout_s: float | None = None   # per request; providers require it for very large outputs
 
 
 # EDIT ME: the model each role uses. Put the matching key in env (see `.env.example`).
@@ -182,15 +190,22 @@ LLM_ROLES: dict[LLMRole, LLMRoleCfg] = {
     # RCA emits root cause + fix + per-turn llm_corrections; 1024 tokens truncates long calls.
     LLMRole.FAILURE_ANALYSIS:   LLMRoleCfg(provider="anthropic", model="claude-haiku-4-5",
                                            max_tokens=4096),
-    # Runs once per script version, so use the strongest model; the journey JSON is long.
+    # Runs once per script version, so use the strongest model. The journey JSON (persona, facts, sample
+    # lines) is long and the model may think first: a cap high enough never to truncate, with a timeout.
+    # Only the final answer is used; the reasoning is never stored or shown.
     LLMRole.SCRIPT_JOURNEY:     LLMRoleCfg(provider="anthropic", model="claude-opus-5-5",
-                                           max_tokens=16000),
+                                           max_tokens=64000, timeout_s=900),
     # Per-call journey enrichment (summary, timeline, unscripted moments); after the decision model.
     LLMRole.JOURNEY_JUDGE:      LLMRoleCfg(provider="anthropic", model="claude-haiku-4-5",
-                                           max_tokens=4096),
+                                           max_tokens=4096, reasoning_effort="none"),
     # Rewrites failed agent turns as training targets — quality matters most here.
     LLMRole.TRAINING_CURATOR:   LLMRoleCfg(provider="anthropic", model="claude-sonnet-5",
-                                           max_tokens=8192),
+                                           max_tokens=8192, reasoning_effort="none"),
+    LLMRole.CLUSTER_NAMER:      LLMRoleCfg(provider="anthropic", model="claude-haiku-4-5", max_tokens=64,
+                                           reasoning_effort="none"),
+    # Script improvement: few calls per run, quality matters; low reasoning keeps outputs from being eaten
+    LLMRole.SCRIPT_RSI:         LLMRoleCfg(provider="anthropic", model="claude-opus-5-5", max_tokens=8192,
+                                           reasoning_effort="low"),
 }
 
 _ROLE_KEY_FIELD: dict[LLMRole, str] = {
@@ -202,6 +217,8 @@ _ROLE_KEY_FIELD: dict[LLMRole, str] = {
     LLMRole.SCRIPT_JOURNEY: "script_journey_api_key",
     LLMRole.JOURNEY_JUDGE: "journey_judge_api_key",
     LLMRole.TRAINING_CURATOR: "training_curator_api_key",
+    LLMRole.CLUSTER_NAMER: "cluster_namer_api_key",
+    LLMRole.SCRIPT_RSI: "script_rsi_api_key",
 }
 
 
@@ -216,6 +233,8 @@ class ResolvedLLM:
     base_url: str | None
     max_tokens: int
     prompt: str
+    reasoning_effort: str | None = None
+    timeout_s: float | None = None
 
 
 def resolve_llm(role: LLMRole) -> ResolvedLLM | None:
@@ -239,6 +258,7 @@ def resolve_llm(role: LLMRole) -> ResolvedLLM | None:
     return ResolvedLLM(
         role=role, provider=cfg.provider, model=cfg.model, api_key=key,
         base_url=cfg.base_url, max_tokens=cfg.max_tokens, prompt=default_prompt(role),
+        reasoning_effort=cfg.reasoning_effort, timeout_s=cfg.timeout_s,
     )
 
 

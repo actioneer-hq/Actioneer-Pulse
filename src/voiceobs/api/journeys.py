@@ -4,6 +4,7 @@ GET  /v1/agents/{id}/journey             active script version's journey + extra
 PUT  /v1/agents/{id}/journey             hand-edit it (validated as a Journey)
 POST /v1/agents/{id}/journey/regenerate  re-run extraction for the active version
 GET  /v1/agents/{id}/journey/funnel      aggregate of the journey judgments of that version's calls
+GET  /v1/agents/{id}/script-gaps         the unscripted-moment cluster tree + where each leaf belongs
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from sqlalchemy.orm import Session
 from voiceobs.api.agents import _org_agent
 from voiceobs.api.deps import now, session_dep
 from voiceobs.auth import current_membership, require_role
-from voiceobs.db.models import AgentJourney, AgentScript, Call, Judgment, Membership
+from voiceobs.db.models import AgentJourney, AgentScript, Call, Judgment, Membership, MomentCluster
 from voiceobs.journey.model import Journey
 from voiceobs.worker.journey import ensure_pending
 
@@ -168,3 +169,54 @@ def aggregate(stages: list[str], results: list[dict]) -> dict:
         "failures": [{"kind": k, "item": i, "cause": c, "calls": n}
                      for (k, i, c), n in failures.most_common(50)],
     }
+
+
+@router.get("/{agent_id}/script-gaps")
+def script_gaps(agent_id: str, db: Session = Depends(session_dep),
+                mem: Membership = Depends(current_membership)) -> dict:
+    """The active script version's unscripted-moment cluster tree (HDBSCAN inside HDBSCAN): every node with
+    its parent and depth; leaves carry the description and the decision model's placement in the journey."""
+    agent = _org_agent(db, mem, agent_id)
+    script = _active(db, agent.id)
+    if script is None:
+        return {"status": "no_script", "pools": {}}
+    nodes = db.scalars(select(MomentCluster).where(
+        MomentCluster.agent_id == agent.id, MomentCluster.prompt_id == script.prompt_id,
+        MomentCluster.kind == "unscripted").order_by(MomentCluster.item, MomentCluster.depth,
+                                                     MomentCluster.size.desc())).all()
+    pools: dict[str, list] = {"not_handled": [], "handled": []}
+    for n in nodes:
+        pools.setdefault(n.item, []).append({
+            "key": n.cluster_key, "parent": n.parent_key, "depth": n.depth, "leaf": n.is_leaf,
+            "name": n.name, "description": n.description, "calls": n.size, "placement": n.placement})
+    return {"status": "ok", "version": script.version, "pools": pools}
+
+
+@router.get("/{agent_id}/script-library")
+def script_library(agent_id: str, db: Session = Depends(session_dep),
+                   mem: Membership = Depends(current_membership)) -> dict:
+    """Every saved script version (text + its script journey JSON) and every improved script (each
+    variant's rendered text, script journey JSON and changes) for the Prompts tab."""
+    from voiceobs.db.models import Prompt, ScriptProposal
+
+    agent = _org_agent(db, mem, agent_id)
+    versions = []
+    for s in db.scalars(select(AgentScript).where(AgentScript.agent_id == agent.id)
+                        .order_by(AgentScript.version.desc())):
+        text = db.scalar(select(Prompt.text).where(Prompt.id == s.prompt_id)) or ""
+        row = _row(db, s.prompt_id)
+        versions.append({"version": s.version, "active": s.active, "prompt_id": s.prompt_id,
+                         "created_at": s.created_at, "chars": len(text), "text": text,
+                         "journey_status": row.status if row else "missing",
+                         "journey": row.journey if row else None})
+    by_prompt = {v["prompt_id"]: v["version"] for v in versions}
+    improved = []
+    for r in db.scalars(select(ScriptProposal).where(ScriptProposal.agent_id == agent.id)
+                        .order_by(ScriptProposal.created_at.desc()).limit(10)):
+        variants = (r.result or {}).get("variants") or {}
+        improved.append({"id": r.id, "created_at": r.created_at, "status": r.status, "error": r.error,
+                         "base_version": by_prompt.get(r.prompt_id), "approved_variant": r.approved_variant,
+                         "variants": {k: {"chars": v.get("chars"), "text": v.get("text"),
+                                          "journey": v.get("journey"), "changes": v.get("changes") or []}
+                                      for k, v in variants.items()}})
+    return {"versions": versions, "improved": improved}

@@ -122,10 +122,12 @@ def run_job(db: Session, job: BackfillJob, org: str | None = None) -> None:
     the worker pinned — the judge worker needs it to find the call."""
     org = org or job.org_id or "default"
     producer = get_producer()  # one per job, flushed per send: a dropped producer loses its queue
+    judged: list[str] = []  # what this job queued for judging — the analysis pipeline tracks them
 
     def judge(cid: str) -> None:
         enqueue_judge(producer, org, cid, backfill=True)
         producer.flush()
+        judged.append(cid)
 
     if job.source == "upload":  # file onboarding: ZIP (+ JSON) already on local disk, no storage
         from voiceobs.onboarding.job import run_upload
@@ -133,7 +135,7 @@ def run_job(db: Session, job: BackfillJob, org: str | None = None) -> None:
         run_upload(db, job, org, enqueue=judge, is_cancelled=lambda: _is_cancelled(db, job.id))
         if job.status in ("failed", "cancelled"):
             return
-        _cluster_and_finish(db, job)
+        _cluster_and_finish(db, job, judged)
         return
     st = resolve_storage(db, job.agent_id)
     if st is None:
@@ -220,23 +222,43 @@ def run_job(db: Session, job: BackfillJob, org: str | None = None) -> None:
         if judge_cid:  # enqueue after the commit → backfill-priority judge queue
             judge(judge_cid)
 
-    _cluster_and_finish(db, job)
+    _cluster_and_finish(db, job, judged)
 
 
-def _cluster_and_finish(db: Session, job: BackfillJob) -> None:
-    """Clusters once at the end (meaningful only when there is judgment prose — audio+STT / OTLP)."""
-    job.status = "clustering"
-    job.phase = "clustering"
-    job.updated_at = _now()
-    db.commit()
-    try:
-        from voiceobs.clustering.service import recluster
+def _cluster_and_finish(db: Session, job: BackfillJob, judged: list[str]) -> None:
+    """Finish the job and hand its calls to the analysis pipeline (worker/pipeline.py): judging is
+    asynchronous, so clustering and script improvement start once its calls are judged."""
+    if judged:
+        from voiceobs.worker.pipeline import start
 
-        recluster(db)
-    except Exception:
-        log.exception("backfill clustering failed for job %s", job.id)
-
+        start(job, judged)
     _finish(db, job, status="done")
+
+
+_last_cluster: dict[str, float] = {}
+
+
+def _maybe_recluster(db: Session, org: str) -> None:
+    """Cluster the org's failures at most every `cluster_every_s`, and only when new moments arrived."""
+    from sqlalchemy import func
+
+    from voiceobs.db.models import Moment
+
+    now = time.time()
+    if now - _last_cluster.get(org, 0.0) < get_config().cluster_every_s:
+        return
+    latest = db.scalar(select(func.max(Moment.created_at)))
+    if latest is None:
+        return
+    since = _last_cluster.get(org)
+    if since is not None and latest.timestamp() <= since and db.scalar(
+            select(func.count()).select_from(Moment).where(Moment.embedding.is_(None))) == 0:
+        _last_cluster[org] = now
+        return
+    from voiceobs.clustering.service import recluster
+
+    log.info("clustering %s: %s", org, recluster(db))
+    _last_cluster[org] = now
 
 
 def _register_media(db: Session, call: Call, kinds: dict[str, str]) -> None:
@@ -251,8 +273,9 @@ def _register_media(db: Session, call: Call, kinds: dict[str, str]) -> None:
 
 
 def _is_cancelled(db: Session, job_id: str) -> bool:
+    """Cancelled — or gone: deleting the project deletes its jobs, so a running one must stop too."""
     db.expire_all()
-    return db.scalar(select(BackfillJob.status).where(BackfillJob.id == job_id)) == "cancelled"
+    return db.scalar(select(BackfillJob.status).where(BackfillJob.id == job_id)) in ("cancelled", None)
 
 
 def _finish(db: Session, job: BackfillJob, *, status: str, error: str | None = None) -> None:
@@ -291,6 +314,25 @@ def _run_once() -> None:  # pragma: no cover
                 run_pending(db)
             except Exception:
                 log.exception("journey extraction pass failed (org=%s)", org)
+                db.rollback()
+            try:  # advance analysis pipelines: judged -> cluster -> improve the script
+                from voiceobs.worker.pipeline import advance
+
+                advance(db)
+            except Exception:
+                log.exception("analysis pipeline pass failed (org=%s)", org)
+                db.rollback()
+            try:  # script improvement runs (journey/rsi), one per pass
+                from voiceobs.worker.rsi import run_pending as run_rsi
+
+                run_rsi(db)
+            except Exception:
+                log.exception("script improvement pass failed (org=%s)", org)
+                db.rollback()
+            try:  # cluster journey failures (moments) into variants / script-gap themes
+                _maybe_recluster(db, org)
+            except Exception:
+                log.exception("clustering pass failed (org=%s)", org)
                 db.rollback()
 
 

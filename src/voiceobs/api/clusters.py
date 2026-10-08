@@ -1,136 +1,119 @@
-"""Read endpoints for the Clusters tab: per-lever 2D scatter data, and the cross-lever archetype
-table (recurring combinations of cluster labels + enums). RBAC-scoped exactly like boards/read —
-tenant + visible_agent_ids, joined through Call for agent scope."""
+"""Clusters tab: what fails in a project's calls, ranked by impact, and why.
+
+GET /v1/clusters?agent_id=&range=  — for the project's ACTIVE script version, over its journey-judged
+calls in range:
+- `failures`: every failure group (kind, item, cause) with how often it happens, how calls with it reach
+  the objective vs calls without it, `impact = share × max(0, achieved_without − achieved_with)`, and
+  the lines behind it.
+- `unscripted`: themes the script never covers, split by whether the agent's improvised reply worked
+  (`not_handled` / `handled`); sizes are distinct calls.
+"""
 
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import Select
 
+from voiceobs.api.agents import _org_agent
 from voiceobs.api.deps import session_dep
-from voiceobs.auth import current_membership, visible_agent_ids
-from voiceobs.clustering.service import LEVERS
-from voiceobs.db.models import Call, CallCluster, Cluster, Judgment, Membership
+from voiceobs.auth import current_membership
+from voiceobs.clustering.service import UNSCRIPTED, group_of
+from voiceobs.config import resolve_embedding
+from voiceobs.db.models import AgentScript, Call, Judgment, Membership, Moment, MomentCluster
 
 router = APIRouter(prefix="/v1/clusters")
 
 _RANGES = {"24h": timedelta(hours=24), "7d": timedelta(days=7),
            "30d": timedelta(days=30), "90d": timedelta(days=90)}
-_POINT_CAP = 3000  # recharts SVG scatter degrades past a few thousand points → downsample
-# The dimensions that make up a cross-lever archetype (cluster labels + judgment enums).
-_ARCHETYPE_LEVERS = ("root_cause", "suggested_fix")
-_ARCHETYPE_ENUMS = ("model_fault", "objective_achieved")
+_SAMPLES = 3
+_GROUP_SAMPLES = 5
 
 
-def _scope(stmt: Select, db: Session, mem: Membership, agent_id: str | None,
-           range_key: str | None) -> Select:
-    # tenant scope = the schema (search_path); only agent-level RBAC + filters remain.
-    ids = visible_agent_ids(db, mem)
-    if ids is not None:
-        stmt = stmt.where(Call.agent_id.in_(ids))
-    if agent_id:
-        stmt = stmt.where(Call.agent_id == agent_id)
-    if range_key and range_key in _RANGES:
-        since = datetime.now(UTC) - _RANGES[range_key]
-        stmt = stmt.where(func.coalesce(Call.started_at, Call.created_at) >= since)
-    return stmt
+@router.get("")
+def clusters(agent_id: str = Query(...), range: str | None = None,
+             db: Session = Depends(session_dep), mem: Membership = Depends(current_membership)) -> dict:
+    agent = _org_agent(db, mem, agent_id)
+    script = db.scalar(select(AgentScript).where(AgentScript.agent_id == agent.id,
+                                                 AgentScript.active.is_(True)))
+    if script is None:
+        return {"status": "no_script", "calls": 0, "failures": [], "unscripted": []}
+    stmt = (select(Call.id, Call.external_call_id, Judgment.journey).join(Judgment, Judgment.call_id == Call.id)
+            .where(Call.agent_id == agent.id, Call.prompt_id == script.prompt_id, Judgment.journey.isnot(None)))
+    if range in _RANGES:
+        stmt = stmt.where(func.coalesce(Call.started_at, Call.created_at) >= datetime.now(UTC) - _RANGES[range])
+    rows = db.execute(stmt).all()
+    ids = {r[0]: r[1] for r in rows}
+    moments = [m for m in db.scalars(select(Moment).where(Moment.agent_id == agent.id,
+                                                          Moment.prompt_id == script.prompt_id))
+               if m.call_id in ids]
+    names = list(db.scalars(select(MomentCluster).where(MomentCluster.agent_id == agent.id,
+                                                        MomentCluster.prompt_id == script.prompt_id)))
+    out = aggregate([r[2] for r in rows], moments, names, ids)
+    out["version"] = script.version
+    out["status"] = ("no_embeddings" if resolve_embedding() is None
+                     else "clustered" if names else "not_clustered")
+    return out
 
 
-@router.get("/archetypes")
-def archetypes(
-    mem: Membership = Depends(current_membership),
-    db: Session = Depends(session_dep),
-    agent_id: str | None = None,
-    range: str | None = None,
-    min_count: int = Query(2, ge=1),
-) -> dict:
-    """Recurring cross-lever combinations: (root-cause theme × fix theme × model_fault × objective),
-    with count and lift (observed vs. independence-expected)."""
-    # per-call cluster label per lever
-    # cluster_key is unique only within (agent_id, lever) now → key labels by agent too
-    label_of = {(aid, lev, key): lbl for aid, lev, key, lbl in db.execute(
-        select(Cluster.agent_id, Cluster.lever, Cluster.cluster_key, Cluster.label)).all()}
-    per_call: dict[str, dict[str, str]] = defaultdict(dict)
-    cc_rows = db.execute(_scope(
-        select(Call.external_call_id, CallCluster.agent_id, CallCluster.lever,
-               CallCluster.cluster_key)
-        .join(Call, Call.id == CallCluster.call_id)
-        .where(CallCluster.lever.in_(_ARCHETYPE_LEVERS), CallCluster.cluster_key.isnot(None)),
-        db, mem, agent_id, range)).all()
-    for cid, aid, lever, key in cc_rows:
-        lbl = label_of.get((aid, lever, key))
-        if lbl:
-            per_call[cid][lever] = lbl
-    # enums per call
-    for cid, mf, obj in db.execute(_scope(
-            select(Call.external_call_id, Judgment.model_fault, Judgment.objective_achieved)
-            .join(Judgment, Judgment.call_id == Call.id), db, mem, agent_id, range)).all():
-        if cid in per_call:
-            per_call[cid]["model_fault"] = mf or "none"
-            per_call[cid]["objective_achieved"] = obj or "unknown"
-
-    dims = (*_ARCHETYPE_LEVERS, *_ARCHETYPE_ENUMS)
-    combos, marginals = Counter(), {d: Counter() for d in dims}
-    total = 0
-    for vals in per_call.values():
-        if not all(d in vals for d in _ARCHETYPE_LEVERS):  # need the theme dims present
-            continue
-        tup = tuple(vals.get(d, "—") for d in dims)
-        combos[tup] += 1
-        total += 1
-        for d in dims:
-            marginals[d][vals.get(d, "—")] += 1
-
-    items = []
-    for tup, n in combos.most_common():
-        if n < min_count:
-            continue
-        expected = total
-        for d, v in zip(dims, tup):
-            expected *= marginals[d][v] / total
-        # consistency: of all calls sharing this root cause, how many follow this exact path
-        cause_total = marginals[_ARCHETYPE_LEVERS[0]][tup[0]]
-        items.append({
-            "combo": dict(zip(dims, tup)), "count": n,
-            "cause_total": cause_total,
-            "consistency": round(n / cause_total, 3) if cause_total else None,
-            "lift": round(n / expected, 2) if expected else None,
-        })
-    return {"dims": list(dims), "total": total, "archetypes": items}
+def aggregate(results: list[dict], moments: list, clusters: list, call_ids: dict[str, str]) -> dict:
+    """Pure: stored journey judgments + moments + named clusters -> the tab's data (unit-tested)."""
+    full = [r for r in results if r.get("format") == "full" and r.get("answered_by") == "human"]
+    achieved = [r.get("objective_achieved") == "achieved" for r in full]
+    groups: dict[tuple, set[int]] = defaultdict(set)
+    for i, r in enumerate(full):
+        for f in r.get("failures") or []:
+            if f.get("kind") != UNSCRIPTED:
+                groups[(f["kind"], f["item"], f["cause"])].add(i)
+    samples: dict[tuple, list] = defaultdict(list)  # the lines behind each failure
+    for m in moments:
+        g = group_of(m)
+        if m.kind != UNSCRIPTED and len(samples[g]) < _GROUP_SAMPLES:
+            samples[g].append(_sample(m, call_ids))
+    n = len(full)
+    rows = []
+    for key, with_ in groups.items():
+        without = n - len(with_)
+        rate_with = sum(achieved[i] for i in with_) / len(with_)
+        rate_without = (sum(achieved) - sum(achieved[i] for i in with_)) / without if without else None
+        share = len(with_) / n
+        impact = share * max(0.0, rate_without - rate_with) if rate_without is not None else 0.0
+        kind, item, cause = key
+        rows.append({"kind": kind, "item": item, "cause": cause, "calls": len(with_), "share": share,
+                     "achieved_with": rate_with, "achieved_without": rate_without, "impact": impact,
+                     "samples": samples.get(key, [])})
+    rows.sort(key=lambda x: (-x["impact"], -x["calls"]))
+    unscripted = [m for m in moments if m.kind == UNSCRIPTED]
+    return {"calls": len(results), "human": n, "failures": rows,
+            "unscripted": {pool: _themes([m for m in unscripted if bool(m.handled) == (pool == "handled")],
+                                         clusters, pool, call_ids)
+                           for pool in ("not_handled", "handled")},
+            "unscripted_total": len({m.call_id for m in unscripted})}
 
 
-@router.get("/{lever}")
-def points(
-    lever: str,
-    mem: Membership = Depends(current_membership),
-    db: Session = Depends(session_dep),
-    agent_id: str | None = None,
-    range: str | None = None,
-) -> dict:
-    """The 2D scatter for one lever: clusters (id, label, size) + points (call, x, y, cluster)."""
-    if lever not in LEVERS:
-        raise HTTPException(404, "unknown lever")
-    # clusters are per-agent — scope the list to the same agents as the points (RBAC + filter)
-    cl_stmt = select(Cluster).where(Cluster.lever == lever)
-    ids = visible_agent_ids(db, mem)
-    if ids is not None:
-        cl_stmt = cl_stmt.where(Cluster.agent_id.in_(ids))
-    if agent_id:
-        cl_stmt = cl_stmt.where(Cluster.agent_id == agent_id)
-    clusters = [
-        {"key": c.cluster_key, "agent_id": c.agent_id, "label": c.label, "size": c.size}
-        for c in db.scalars(cl_stmt.order_by(Cluster.size.desc()))
-    ]
-    rows = db.execute(_scope(
-        select(Call.external_call_id, CallCluster.x, CallCluster.y, CallCluster.cluster_key)
-        .join(Call, Call.id == CallCluster.call_id)
-        .where(CallCluster.lever == lever), db, mem, agent_id, range)).all()
-    if len(rows) > _POINT_CAP:  # deterministic stride downsample
-        rows = rows[:: (len(rows) // _POINT_CAP) + 1]
-    points = [{"call_id": cid, "x": x, "y": y, "cluster_key": key} for cid, x, y, key in rows]
-    return {"lever": lever, "clusters": clusters, "points": points}
+def _sample(m, call_ids: dict[str, str]) -> dict:
+    """What happened (the normalized description for unscripted moments) + the line, linked to its call."""
+    return {"call_id": call_ids.get(m.call_id), "turn": m.turn, "text": m.text,
+            "what": m.item if m.kind == UNSCRIPTED else None}
+
+
+def _themes(moments: list, clusters: list, pool: str, call_ids: dict[str, str]) -> dict:
+    """The leaf clusters of one unscripted pool (size = distinct calls), plus what fits no leaf."""
+    leaves = {c.cluster_key: c for c in clusters
+              if c.kind == UNSCRIPTED and c.item == pool and getattr(c, "is_leaf", True)}
+    by: dict[int, list] = defaultdict(list)
+    other = set()
+    for m in moments:
+        if m.cluster_key is not None and m.cluster_key in leaves:
+            by[m.cluster_key].append(m)
+        else:
+            other.add(m.call_id)
+    themes = [{"key": k, "name": leaves[k].name, "description": getattr(leaves[k], "description", None),
+               "depth": getattr(leaves[k], "depth", 0), "placement": getattr(leaves[k], "placement", None),
+               "calls": len({m.call_id for m in ms}),
+               "samples": [_sample(m, call_ids) for m in ms[:_SAMPLES]]} for k, ms in by.items()]
+    return {"themes": sorted(themes, key=lambda t: -t["calls"]), "other_calls": len(other),
+            "calls": len({m.call_id for m in moments})}

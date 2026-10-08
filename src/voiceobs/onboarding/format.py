@@ -1,7 +1,9 @@
-"""What Pulse accepts next to an audio ZIP — exactly one of:
+"""What Pulse accepts for a file upload — exactly one of:
 
-1. **CSV of call parameters** (`call_id` + one column per script placeholder) -> Pulse transcribes.
-2. **JSON `pulse.calls.v1`** (per call: params + transcript; optional top-level script) -> no STT.
+1. **CSV of call parameters** (`call_id` + one column per script placeholder) + an audio ZIP -> Pulse
+   transcribes.
+2. **JSON `pulse.calls.v1`** (per call: params + transcript; optional top-level script) -> no STT. The
+   audio ZIP is optional (playback only); without it every call needs its transcript.
 
 Call parameters are always required: every `{{placeholder}}` in the script needs a value per call.
 """

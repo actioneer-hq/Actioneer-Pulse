@@ -46,7 +46,6 @@ services:
         rpk topic create judge-requests -p 12 -X brokers=redpanda:9092 || true;
         rpk topic create judge-requests.backfill -p 12 -X brokers=redpanda:9092 || true;
         rpk topic create judge-requests.dlq -p 1 -X brokers=redpanda:9092 || true;
-        rpk topic create journey-enrich -p 12 -X brokers=redpanda:9092 || true;
         rpk topic create journey-curate -p 12 -X brokers=redpanda:9092 || true;
         rpk topic create journey-llm.dlq -p 1 -X brokers=redpanda:9092 || true
     restart: "no"
@@ -133,6 +132,7 @@ services:
       VOICEOBS_DEV_AUDIO_DIR: /audio
       VOICEOBS_UPLOAD_DIR: /data/uploads   # file onboarding: uploaded call audio
       VOICEOBS_SARVAM_API_KEY: ${VOICEOBS_SARVAM_API_KEY:-}   # STT for uploads (or set it in .env)
+      VOICEOBS_DECISION_API_KEY: ${VOICEOBS_DECISION_API_KEY:-}   # places script-gap clusters in the journey
     volumes: ["./dev-audio:/audio", "voiceobs-uploads:/data/uploads"]
     depends_on:
       db:
@@ -164,6 +164,8 @@ services:
   judge:
     build: .
     command: ["python", "-m", "voiceobs.worker.judge"]
+    deploy:
+      replicas: 4   # each judges one call at a time (decision model + LLM in parallel)
     env_file: [.env]
     environment:
       VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs
@@ -176,13 +178,14 @@ services:
       redpanda:
         condition: service_healthy
 
-  # journey-llm worker — journey stages 2 (LLM enrichment: summary, timeline, spans) and 3 (training
-  # data from failed turns), backfilled after the judge's decision model. Scale with
-  # `--scale journey-llm=N`. Uses the journey_judge / training_curator role keys (fall back to
-  # VOICEOBS_POST_CALL_API_KEY).
+  # journey-llm worker — training data from failed agent turns (curation), for projects that turn it on.
+  # The judge queues calls here after judging. 4 replicas by default; scale with
+  # `--scale journey-llm=N`. Uses the training_curator role key (falls back to VOICEOBS_POST_CALL_API_KEY).
   journey-llm:
     build: .
     command: ["python", "-m", "voiceobs.worker.journey_llm"]
+    deploy:
+      replicas: 4   # each is single-flight (one LLM call at a time); the topics have 12 partitions
     env_file: [.env]
     environment:
       VOICEOBS_DATABASE_URL: postgresql+psycopg://voiceobs:voiceobs@db:5432/voiceobs

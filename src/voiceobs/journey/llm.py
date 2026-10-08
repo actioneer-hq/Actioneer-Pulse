@@ -1,8 +1,7 @@
-"""LLM enrichment (stage 2): only what the decision model can't produce — summary, callback time,
-unscripted moments (things the script never prepared the agent for), wrong values, and the timeline
-(which turn is which journey item), which gives every failure its span.
+"""LLM half of the journey judge: only what needs words — summary, callback time, unscripted moments
+(things the script never prepared the agent for) and wrong values.
 
-It runs after the decision model (stage 1) and never repeats a yes/no the decision model owns. Prompt order for caching: system + this schema + journey JSON (identical for every call of a
+It runs in parallel with the decision model and never repeats anything the decision model owns. Prompt order for caching: system + this schema + journey JSON (identical for every call of a
 script version) -> cache breakpoint -> call parameters -> transcript.
 """
 
@@ -28,28 +27,11 @@ class WrongValue(BaseModel):
     turn: int = Field(ge=0)
 
 
-class TimelineEntry(BaseModel):
-    """Which part of the journey an agent turn belongs to: a stage's exact name, Opening or Closing."""
-
-    turn: int = Field(ge=0)
-    item: str
-
-
-class FailureTurn(BaseModel):
-    """Where a failure the decision model found happened: the agent turn that went wrong (None = the LLM
-    can't find it in the transcript)."""
-
-    id: int
-    turn: int | None = None
-
-
 class LLMJudgment(BaseModel):
     summary: str | None = None     # <= 30 words, only when someone spoke
     unscripted: list[Unscripted] = Field(default_factory=list)
     callback_time: str | None = None
     wrong_values: list[WrongValue] = Field(default_factory=list)
-    timeline: list[TimelineEntry] = Field(default_factory=list)
-    failure_turns: list[FailureTurn] = Field(default_factory=list)
 
 
 # ── the call ─────────────────────────────────────────────────────────────────────────

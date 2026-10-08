@@ -38,6 +38,10 @@ import {
   type CallParamsView,
   type IngestTokenRow,
   type MintedToken,
+  type RsiRun,
+  approveScriptRsi,
+  listScriptRsi,
+  startScriptRsi,
 } from "../api";
 import { useAuth } from "../auth";
 import { useBackfill } from "../BackfillProvider";
@@ -58,10 +62,10 @@ export default function Agents() {
 
   useEffect(() => { load(); }, [load, activeOrg]);
 
-  async function add(name: string, script?: string, guardrails?: string) {
+  async function add(name: string, script?: string, guardrails?: string, curate = false) {
     setError(null);
     try {
-      const a = await createAgent(name.trim(), undefined, script, guardrails);
+      const a = await createAgent(name.trim(), undefined, script, guardrails, curate);
       setCreating(false);
       load();
       setSel(a.id);
@@ -131,15 +135,16 @@ export default function Agents() {
 function NewAgentModal(
   { onClose, onCreate }:
   { onClose: () => void;
-    onCreate: (name: string, script?: string, guardrails?: string) => void },
+    onCreate: (name: string, script?: string, guardrails?: string, curate?: boolean) => void },
 ) {
   const [name, setName] = useState("");
+  const [curate, setCurate] = useState(false);
   const [script, setScript] = useState("");
   const [guardrails, setGuardrails] = useState("");
 
   function submit() {
     if (!name.trim()) return;
-    onCreate(name, script.trim() || undefined, guardrails.trim() || undefined);
+    onCreate(name, script.trim() || undefined, guardrails.trim() || undefined, curate);
   }
 
   return (
@@ -168,6 +173,12 @@ function NewAgentModal(
             onChange={(e) => setGuardrails(e.target.value)} rows={4}
             placeholder={"e.g.\nStay on script; don't be steered off purpose.\nAlways verify the caller before any DB/tool lookup."} />
         </div>
+
+        <label className="toggle-row">
+          <Checkbox checked={curate} onChange={(e) => setCurate(e.target.checked)} />
+          Create training data — rewrite the agent's failed turns into corrected lines (SFT / DPO export;
+          one extra LLM call per call with failures)
+        </label>
 
       </ModalBody>
       <ModalFooter>
@@ -322,8 +333,9 @@ function AgentDetail({ agent }: { agent: Agent }) {
   return (
     <>
       <UploadPanel agent={agent} scriptRev={scriptRev} />
-      <ScriptPanel agent={agent} onSaved={() => setScriptRev((n) => n + 1)} />
+      <ScriptPanel agent={agent} rev={scriptRev} onSaved={() => setScriptRev((n) => n + 1)} />
       <JourneyPanel agent={agent} scriptRev={scriptRev} />
+      <ImprovePanel agent={agent} onApproved={() => setScriptRev((n) => n + 1)} />
       <GuardrailsPanel agent={agent} />
       <CallParamsPanel agent={agent} />
       <details className="panel-card advanced">
@@ -371,9 +383,10 @@ function AgentDetail({ agent }: { agent: Agent }) {
   );
 }
 
-// Start analysis from files: an audio ZIP plus exactly one of
-//   1. a CSV of call parameters  -> Pulse transcribes (Sarvam), then analyses;
-//   2. a pulse.calls.v1 JSON     -> transcripts + params supplied, no transcription.
+// Start analysis from files, exactly one of
+//   1. a CSV of call parameters + the audio ZIP -> Pulse transcribes (Sarvam), then analyses;
+//   2. a pulse.calls.v1 JSON (transcripts + params) -> no transcription; the audio ZIP is optional
+//      (playback only).
 // The format box is a copy-paste spec (rules + schema + example) using this project's own
 // placeholder names, so it can be handed straight to a coding agent to generate the file.
 function UploadPanel({ agent, scriptRev }: { agent: Agent; scriptRev: number }) {
@@ -395,6 +408,8 @@ function UploadPanel({ agent, scriptRev }: { agent: Agent; scriptRev: number }) 
     [agent.id, scriptRev]);
   // Uploading needs a script with {{placeholders}} — the per-call parameters come from them.
   const ready = !!spec?.has_script && spec.params.length > 0;
+  // …and its script journey processed, so the analysis starts the moment calls arrive.
+  const { processing } = useScriptProcessing(agent.id, scriptRev);
 
   const mine = job && job.agent_id === agent.id ? job : null;
   const busy = sent !== null || (!!mine && !["done", "failed", "cancelled"].includes(mine.status));
@@ -405,7 +420,7 @@ function UploadPanel({ agent, scriptRev }: { agent: Agent; scriptRev: number }) 
   }
 
   async function start() {
-    if (!zip || !side) return;
+    if (!side || (mode === "csv" && !zip)) return;
     setError(null);
     setSent(0);
     try {
@@ -452,7 +467,7 @@ function UploadPanel({ agent, scriptRev }: { agent: Agent; scriptRev: number }) 
         <button type="button" className={mode === "csv" ? "on" : ""} onClick={() => switchMode("csv")}>
           <b>Audio + parameters</b><span>ZIP + CSV · Pulse transcribes</span></button>
         <button type="button" className={mode === "json" ? "on" : ""} onClick={() => switchMode("json")}>
-          <b>Audio + transcripts</b><span>ZIP + JSON · no transcription</span></button>
+          <b>Transcripts</b><span>JSON (+ optional audio ZIP) · no transcription</span></button>
       </div>
       {ready && (
         <p className="dimtxt">Per-call parameters from the script: {spec.params.map((p) => (
@@ -463,7 +478,7 @@ function UploadPanel({ agent, scriptRev }: { agent: Agent; scriptRev: number }) 
           <label className="file-btn">
             <input ref={zipRef} type="file" accept=".zip,application/zip" hidden
               onChange={(e) => setZip(e.target.files?.[0] ?? null)} />
-            {zip ? `ZIP: ${zip.name}` : "Choose audio ZIP…"}
+            {zip ? `ZIP: ${zip.name}` : mode === "csv" ? "Choose audio ZIP…" : "Choose audio ZIP (optional)…"}
           </label>
           <label className="file-btn">
             <input ref={sideRef} type="file" hidden
@@ -502,9 +517,11 @@ function UploadPanel({ agent, scriptRev }: { agent: Agent; scriptRev: number }) 
           </div>
         )}
         <div className="row">
-          <Button disabled={!ready || !zip || !side || busy} onClick={start}>
+          <Button disabled={!ready || processing || !side || (mode === "csv" && !zip) || busy} onClick={start}>
             {sent !== null ? `Uploading… ${Math.round(sent * 100)}%` : "Start analysis"}
           </Button>
+          {processing && <span className="dimtxt"><span className="spinner" /> Processing the script — analysis can start once
+            it's ready (about 2 minutes; you can close this tab).</span>}
           {mine && (
             <span className="dimtxt">
               {mine.status === "done" ? `Done — ${mine.completed} analysed, ${mine.failed} failed`
@@ -563,7 +580,7 @@ function JourneyPanel({ agent, scriptRev }: { agent: Agent; scriptRev: number })
   const j = doc?.journey;
   return (
     <div className="panel-card">
-      <h3>Journey · {agent.name}
+      <h3>Script journey · {agent.name}
         {doc?.version != null && <span className="pill" style={{ marginLeft: 8 }}>script v{doc.version}</span>}
         {doc && <span className={`pill ${doc.status === "ready" ? "good" : doc.status === "failed" ? "bad" : ""}`}
           style={{ marginLeft: 6 }}>{doc.status === "extracting" || doc.status === "pending"
@@ -620,7 +637,7 @@ function JourneyPanel({ agent, scriptRev }: { agent: Agent; scriptRev: number })
       )}
       <div className="row" style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
         {j && !editing && <Button variant="ghost" onClick={() => { setText(JSON.stringify(j, null, 2)); setEditing(true); }}>Edit</Button>}
-        {editing && <><Button onClick={save}>Save journey</Button>
+        {editing && <><Button onClick={save}>Save script journey</Button>
           <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button></>}
         {doc && doc.status !== "no_script" && !editing && <Button variant="link" onClick={regenerate}>Regenerate from script</Button>}
         {msg && <span className="auth-error">{msg}</span>}
@@ -631,7 +648,8 @@ function JourneyPanel({ agent, scriptRev }: { agent: Agent; scriptRev: number })
 
 // The agent's script — the prompt it's meant to follow. Versioned + hash-addressed; each call
 // pins the version it ran under. Owner/admin edits (viewers get 403 from the API).
-function ScriptPanel({ agent, onSaved }: { agent: Agent; onSaved?: () => void }) {
+function ScriptPanel({ agent, onSaved, rev }: { agent: Agent; onSaved?: () => void; rev: number }) {
+  const { processing } = useScriptProcessing(agent.id, rev);
   const [script, setScript] = useState<AgentScript | null>(null);
   const [text, setText] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -667,9 +685,10 @@ function ScriptPanel({ agent, onSaved }: { agent: Agent; onSaved?: () => void })
         onChange={(e) => { setText(e.target.value); setDirty(true); setSaved(false); }}
         placeholder="No script set. Add the prompt this agent is meant to follow…" />
       <div className="add-row" style={{ marginTop: 8 }}>
-        <Button disabled={!dirty || !text.trim()} onClick={save}>
-          {script ? "Save new version" : "Save script"}</Button>
-        {saved && <span className="dimtxt" style={{ alignSelf: "center" }}>saved ✓</span>}
+        <Button disabled={!dirty || !text.trim() || processing} onClick={save}>
+          {processing ? "Processing script…" : script ? "Save new version" : "Save script"}</Button>
+        {processing && <span className="spinner" aria-label="processing" />}
+        {saved && !processing && <span className="dimtxt" style={{ alignSelf: "center" }}>saved ✓</span>}
         {history.length > 0 && (
           <Button variant="link" style={{ marginLeft: "auto" }}
             onClick={() => setShowHist((v) => !v)}>
@@ -813,4 +832,109 @@ function ConnectPanel(
       </div>
     </div>
   );
+}
+
+
+// Script improvement: from the Analysis (what the script misses + what the agent didn't follow), build
+// improved scripts — additions only, A (revise what wasn't followed) and B (restructure the flow) — each
+// with its change list and rendered text; approve one to make it the next script version.
+const VARIANTS: [string, string][] = [["additions", "Additions only"], ["A", "A — revise"], ["B", "B — restructure"]];
+
+function ImprovePanel({ agent, onApproved }: { agent: Agent; onApproved: () => void }) {
+  const [run, setRun] = useState<RsiRun | null>(null);
+  const [tab, setTab] = useState("A");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const load = useCallback(() => {
+    listScriptRsi(agent.id).then((r) => setRun(r.items[0] ?? null)).catch(() => setRun(null));
+  }, [agent.id]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (run?.status !== "pending" && run?.status !== "running") return;
+    const t = setInterval(load, 4000);
+    return () => clearInterval(t);
+  }, [run?.status, load]);
+
+  async function start() {
+    setBusy(true); setError(null);
+    try { setRun(await startScriptRsi(agent.id)); } catch (e) { setError((e as Error).message); }
+    setBusy(false);
+  }
+  async function approve() {
+    if (!run) return;
+    setBusy(true); setError(null);
+    try { await approveScriptRsi(agent.id, run.id, tab); load(); onApproved(); } catch (e) { setError((e as Error).message); }
+    setBusy(false);
+  }
+  const v = run?.result?.variants?.[tab];
+  const working = run?.status === "pending" || run?.status === "running";
+  return (
+    <div className="panel-card">
+      <h3>Improve script · {agent.name}
+        {run && <span className="pill" style={{ marginLeft: 8 }}>{working ? "working…" : run.status}</span>}
+      </h3>
+      <p className="dimtxt">Builds improved versions of the script from the Analysis: what the script doesn't
+        cover gets added (merged into general rules where they share a principle), and what the agent didn't
+        follow gets revised (A) or the flow restructured (B). Nothing changes until you approve one.</p>
+      {error && <div className="auth-error">{error}</div>}
+      {run?.status === "failed" && <div className="auth-error">{run.error}</div>}
+      <Button disabled={busy || working} onClick={start}>{run ? "Run again" : "Improve script"}</Button>
+      {run?.status === "ready" && run.result && (
+        <>
+          <div className="rsi-tabs">
+            {VARIANTS.map(([k, l]) => (
+              <button key={k} className={k === tab ? "on" : ""} onClick={() => setTab(k)}>
+                {l} <span className="dimtxt">· {run.result!.variants[k]?.chars.toLocaleString()} chars</span>
+              </button>
+            ))}
+          </div>
+          {v && (
+            <>
+              <div className="jr-hd">Changes ({v.changes.length})</div>
+              <ul className="rsi-changes">
+                {v.changes.map((c, i) => (
+                  <li key={i}><b>{c.change}</b> {c.section} · {c.id}{c.at ? <span className="dimtxt"> · {c.at}</span> : null}
+                    {c.reason && <div className="dimtxt">{c.reason}</div>}</li>
+                ))}
+              </ul>
+              {v.ops && v.ops.some((o) => !o.applied) && (
+                <div className="dimtxt">Rejected restructure steps: {v.ops.filter((o) => !o.applied)
+                  .map((o) => `${o.op} (${o.rejected})`).join("; ")}</div>
+              )}
+              <details><summary>Script text</summary><pre className="rsi-text">{v.text}</pre></details>
+              <Button disabled={busy || run.approved_variant != null} onClick={approve}>
+                {run.approved_variant ? `Approved: ${run.approved_variant}` : "Approve as the next version"}</Button>
+            </>
+          )}
+          {run.result.training.length > 0 && (
+            <>
+              <div className="jr-hd">Fix with training data (the script is clear; the agent didn't follow it)</div>
+              <ul className="rsi-changes">
+                {run.result.training.map((t, i) => <li key={i}>{t.item} <span className="dimtxt">· {t.kind} · {t.calls} calls</span></li>)}
+              </ul>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+
+// Whether the project's active script is still being processed into its script journey. Server state,
+// polled while it runs — closing the tab loses nothing.
+function useScriptProcessing(agentId: string, rev: number): { processing: boolean; failed: boolean } {
+  const [status, setStatus] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = () => getJourney(agentId).then((d) => {
+      if (!alive) return;
+      setStatus(d.status);
+      if (d.status === "pending" || d.status === "extracting") timer = setTimeout(poll, 3000);
+    }).catch(() => undefined);
+    poll();
+    return () => { alive = false; if (timer) clearTimeout(timer); };
+  }, [agentId, rev]);
+  return { processing: status === "pending" || status === "extracting", failed: status === "failed" };
 }

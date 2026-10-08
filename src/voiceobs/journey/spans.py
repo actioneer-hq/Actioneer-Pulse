@@ -1,8 +1,8 @@
 """Failures of one call, each with its span (the transcript turns where it happened). Plain code.
 
-The decision model says WHAT failed (stage 1); the LLM's timeline says WHERE journey items happened
-(stage 2). Joining them gives every failure a span — what clustering embeds and curation corrects.
-Before enrichment the failures exist with empty spans.
+The decision model says WHAT failed, which part of the call every agent turn is in (timeline), and at
+which turn each failure happened. Joining them gives every failure a span — what clustering embeds and
+curation corrects.
 
 Turn numbers are the transcript's `turn_index`; one turn may hold a customer line and the agent's reply
 (Turn-based transcripts) or one line each — `_next_agent` handles both.
@@ -14,8 +14,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from voiceobs.journey.jev import COMPLETED, Cause
-from voiceobs.journey.llm import TimelineEntry
+from voiceobs.journey.jev import COMPLETED, Cause, TimelineEntry
 from voiceobs.journey.model import Journey
 from voiceobs.judge.schema import Objective
 
@@ -69,20 +68,22 @@ def failures(j: Journey, cj) -> list[Failure]:
     return out
 
 
-def describe(j: Journey, fs: list[Failure]) -> str:
-    """The FAILURES block stage 2's LLM places in the transcript (ids = positions in `fs`)."""
+def to_locate(fs: list[Failure]) -> list[tuple[int, str]]:
+    """(id, what went wrong) for the failures the decision model places (ids = positions in `fs`)."""
     what = {"branch": "the customer did this and the agent didn't handle it as the script says",
             "guardrail": "an agent line went against this rule",
             "standard": "the customer did this and the agent didn't handle it",
-            "stage": "the agent never moved the call into this stage"}
-    rows = [f"- id {i}: {what[f.kind]}: {f.item}" for i, f in enumerate(fs) if f.kind in LOCATE]
-    return "FAILURES (give the turn for each id):\n" + "\n".join(rows) if rows else ""
+            "stage": "the agent should have moved the call into this stage but didn't"}
+    return [(i, f"{what[f.kind]}: {f.item}") for i, f in enumerate(fs) if f.kind in LOCATE]
 
 
 def locate(j: Journey, fs: list[Failure], at: dict[int, int | None], timeline: list[TimelineEntry],
            lines: list[dict], unscripted=()) -> list[Failure]:
-    """Stage 2: give each failure its span. `at` = the LLM's turn per failure id (None = not found);
+    """Give each failure its span. `at` = the decision model's turn per failure id (None = not found);
     `timeline` = the stage of each agent turn; `unscripted` = the LLM's unscripted moments."""
+    starts: dict[str, int] = {}
+    for e in sorted(timeline, key=lambda e: e.turn):
+        starts.setdefault(e.item, e.turn)
     agents = _agent_turns(lines)
     out = []
     for i, f in enumerate(fs):
@@ -90,7 +91,7 @@ def locate(j: Journey, fs: list[Failure], at: dict[int, int | None], timeline: l
         if f.kind in LOCATE:
             t = at.get(i)
             if t is None and f.kind == "stage":  # fall back: the agent turns after the furthest stage
-                start = max((e.turn for e in timeline if e.item in _before(j, f.item)), default=-1)
+                start = max((t for item, t in starts.items() if item in _before(j, f.item)), default=-1)
                 t = next((a for a in agents if a > start), None)
             reply = _next_agent(lines, t) if t is not None else None
             f.turns, f.target_turn, f.located = _span(t, reply), reply, t is not None
@@ -125,3 +126,20 @@ def _next_stage(j: Journey, cj) -> str | None:
     if exit_ is None and cj.ended_by != COMPLETED:
         return None  # ended through a standard rule (callback, human, machine) — judged on its own
     return names[i]
+
+
+_CUSTOMER_LED = ("branch", "standard", "unscripted")  # failures the customer's words set off
+
+
+def moment_text(f: Failure, lines: list[dict]) -> tuple[int, str] | None:
+    """The line that caused a failure, for clustering: the customer's line for what the customer did, the
+    agent's line for what the agent did. (turn, text), or None when the failure has no span."""
+    if not f.turns:
+        return None
+    role_is_caller = f.kind in _CUSTOMER_LED
+    for turn in f.turns:
+        text = " ".join(ln.get("text") or "" for ln in lines if ln.get("turn_index") == turn
+                        and (ln.get("role") == "caller") == role_is_caller).strip()
+        if text:
+            return turn, text
+    return None

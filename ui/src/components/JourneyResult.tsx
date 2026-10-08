@@ -39,7 +39,7 @@ export default function JourneyResult({ journey, enrich }: { journey?: CallJourn
     <section className="sec">
       <h3 className="sec-toggle" role="button" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         <span className="chev">{open ? "▾" : "▸"}</span>
-        Journey
+        Script journey
         <span className="pill" style={{ marginLeft: 8 }}>{short ? "short call" : "full"}</span>
         <span className="right">{pretty(journey.objective_achieved)}</span>
       </h3>

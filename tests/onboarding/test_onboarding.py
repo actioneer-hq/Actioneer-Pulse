@@ -205,7 +205,7 @@ def project(authed_client, db_sessionmaker, tmp_path, monkeypatch):
 
 
 def _post(client, zip_bytes, *, csv=None, js=None):
-    files = {"audio": ("calls.zip", zip_bytes, "application/zip")}
+    files = {"audio": ("calls.zip", zip_bytes, "application/zip")} if zip_bytes is not None else {}
     if csv is not None:
         files["params_csv"] = ("params.csv", csv, "text/csv")
     if js is not None:
@@ -268,3 +268,88 @@ def test_format_uses_project_placeholders(project):
     assert f["csv"]["columns"] == ["call_id", "customer", "amount"]
     assert f["json"]["schema"]["$defs"]["UploadCall"]["properties"]["params"]["required"] == \
         ["customer", "amount"]
+
+
+def test_json_upload_without_audio(project, tmp_path, db_sessionmaker, bus):
+    from voiceobs.worker.backfill import run_job
+
+    body = {"format": "pulse.calls.v1", "script": "Hi {{first_name}}", "calls": [
+        {"call_id": "t1", "params": {"first_name": "Mamta"},
+         "transcript": [{"speaker": "agent", "text": "Hi Mamta", "start": 0.1, "end": 1.0},
+                        {"speaker": "customer", "text": "haan", "start": 1.4, "end": 2.0}]}]}
+    r = _post(project, None, js=body)
+    assert r.status_code == 201, r.text
+    # a CSV still needs the audio (Pulse transcribes it); a JSON call without a transcript needs it too
+    assert "needs the audio ZIP" in _post(project, None, csv="call_id,first_name\nx1,A\n").json()["detail"]
+    no_text = {"format": "pulse.calls.v1", "calls": [{"call_id": "t2", "params": {"first_name": "A"}}]}
+    errs = _post(project, None, js=no_text).json()["detail"]["errors"]
+    assert any("no transcript" in e and "t2" in e for e in errs)
+
+    with db_sessionmaker() as db:  # the job runs with no ZIP: transcript only, no audio player
+        job = db.get(BackfillJob, r.json()["id"])
+        assert job.options["audio"] is False
+        run_job(db, job, "default")
+        assert job.status == "done" and (job.completed, job.failed) == (1, 0), job.error
+        call = db.scalar(select(Call).where(Call.external_call_id == "t1"))
+        assert call.status == "computed" and db.scalar(select(Media).where(Media.call_id == call.id)) is None
+
+
+def test_deleting_a_project_deletes_its_calls_and_frees_their_ids(project, db_sessionmaker):
+    from voiceobs.db.models import Judgment
+    from voiceobs.worker.backfill import run_job
+
+    body = {"format": "pulse.calls.v1", "script": "Hi {{first_name}}", "calls": [
+        {"call_id": "t1", "params": {"first_name": "A"},
+         "transcript": [{"speaker": "agent", "text": "Hi", "start": 0.1}]}]}
+    with db_sessionmaker() as db:
+        run_job(db, db.get(BackfillJob, _post(project, None, js=body).json()["id"]), "default")
+        call = db.scalar(select(Call).where(Call.external_call_id == "t1"))
+        db.add(Judgment(call_id=call.id, status="ok"))
+        db.commit()
+    assert project.delete("/v1/agents/ag1").status_code == 200
+    with db_sessionmaker() as db:
+        assert db.scalar(select(Call)) is None and db.scalar(select(Judgment)) is None
+        db.add(Agent(id="ag1", org_id="default", name="Bot", slug="bot"))
+        db.commit()
+    with db_sessionmaker() as db:   # the same calls upload again
+        job = db.get(BackfillJob, _post(project, None, js=body).json()["id"])
+        run_job(db, job, "default")
+        assert (job.completed, job.failed) == (1, 0), job.error
+
+
+def test_upload_reclaims_calls_left_by_a_deleted_project(project, db_sessionmaker):
+    from voiceobs.worker.backfill import run_job
+
+    with db_sessionmaker() as db:   # an orphan: its project row is gone
+        db.add(Call(external_call_id="t1", agent_id="gone-agent", source="upload", environment="prod",
+                    status="computed"))
+        db.commit()
+    body = {"format": "pulse.calls.v1", "script": "Hi {{first_name}}", "calls": [
+        {"call_id": "t1", "params": {"first_name": "A"},
+         "transcript": [{"speaker": "agent", "text": "Hi", "start": 0.1}]}]}
+    with db_sessionmaker() as db:
+        job = db.get(BackfillJob, _post(project, None, js=body).json()["id"])
+        run_job(db, job, "default")
+        assert (job.completed, job.failed) == (1, 0), job.error
+        assert db.scalar(select(Call.agent_id).where(Call.external_call_id == "t1")) == "ag1"
+
+
+def test_upload_stops_when_its_project_is_deleted_mid_run(project, db_sessionmaker, monkeypatch):
+    from voiceobs.onboarding import job as job_mod
+    from voiceobs.worker.backfill import run_job
+
+    calls = [{"call_id": f"t{i}", "params": {"first_name": "A"},
+              "transcript": [{"speaker": "agent", "text": "Hi", "start": 0.1}]} for i in range(3)]
+    body = {"format": "pulse.calls.v1", "script": "Hi {{first_name}}", "calls": calls}
+    job_id = _post(project, None, js=body).json()["id"]
+    real = job_mod._analyse
+
+    def analyse_then_delete(db, *a, **k):   # the project is deleted right after the first call
+        out = real(db, *a, **k)
+        db.query(BackfillJob).filter(BackfillJob.id == job_id).delete()
+        return out
+
+    monkeypatch.setattr(job_mod, "_analyse", analyse_then_delete)
+    with db_sessionmaker() as db:
+        run_job(db, db.get(BackfillJob, job_id), "default")
+        assert len(db.scalars(select(Call)).all()) == 1   # stopped instead of ingesting the rest

@@ -54,7 +54,7 @@ GLOBAL_CHAT = (
     "pipeline of speech-to-text (STT), a language model (LLM), and text-to-speech (TTS), or a "
     "single speech-to-speech model. Pulse ingests each call's telemetry (spans, turns, latency and "
     "cost metrics) and its post-call LLM analysis (disposition, sentiment, failures, root causes, "
-    "guardrail checks, semantic clusters). You help the user understand what is happening across "
+    "guardrail checks, journey failures and their clusters). You help the user understand what is happening across "
     "their agents' calls — volumes, failures and why they happen, latency and cost, quality trends, "
     "and recurring patterns — by querying that data and answering in clear prose."
 )
@@ -168,7 +168,18 @@ Read the whole script first. Then produce, in this order:
    - Facts the agent can use (prices, features, FAQs) are not guardrails unless the script
      makes them a rule.
 
-5. STANDARD COVERAGE
+5. PERSONA and FACTS (what the script needs to be written back out as text)
+   - persona: the agent's name and company as the script gives them; tone (tone, pacing, reply length,
+     style rules) and language (which languages, when to switch) as short bullets.
+   - facts: the reference information the agent uses — prices, plans, offers, numbers, proof points,
+     product details, app or payment steps, company facts. Group by topic; keep every number, name and
+     step exactly; compact "key: value" lines, no explanations. Each fact group carries `script_quote`.
+
+6. SAMPLE LINES (`say`)
+   On the opening, closing, every stage and every branch: the 1-2 lines the script gives the agent to
+   say there, copied in the script's language (shortened if long). Empty if the script gives none.
+
+7. STANDARD COVERAGE
    For each of these three situations, quote where the script tells the agent how to handle it,
    or return null if the script is silent:
    - non_human: an IVR, voicemail, recording or the phone's own call-screening assistant answers
@@ -177,7 +188,7 @@ Read the whole script first. Then produce, in this order:
    Don't add branches for these unless the script itself describes them; they are added separately.
 
 GROUNDING (mandatory)
-- Every stage, branch and guardrail carries `script_quote`: an exact, contiguous excerpt from the
+- Every stage, branch, guardrail and fact group carries `script_quote`: an exact, contiguous excerpt from the
   script, copied character for character (keep its language and {{placeholders}} as they are),
   up to ~200 characters, that supports it.
 - If you cannot quote the script for an item, leave the item out. Never paraphrase inside
@@ -207,33 +218,53 @@ Rules:
 - wrong_values: only where the agent stated a value that contradicts CALL PARAMETERS (a name, amount,
   plan…). The journey or script may show placeholder or example values; a value matching CALL PARAMETERS
   is correct.
-- timeline: for EVERY agent turn, which part of the journey it belongs to, as {turn, item} with `turn`
-  the [n] index and `item` a stage name copied exactly from the journey, or "Opening" / "Closing".
-- failure_turns: for each id in FAILURES, the [n] of the agent turn where it went wrong — for something
-  the customer did, the agent's reply to it; for a stage never reached, the agent turn where it should
-  have moved the call on. `turn` null if you can't find it in the transcript. FAILURES are already
-  decided; you only say WHERE.
 - Judge rules by their intent, not their literal wording. A greeting like "Hello" is not a language choice."""
 
 # Per-call training-data curation (journey stage 3). Gets the failures the decision model found, each
 # with the agent turn to rewrite. `{schema}` = the Curation JSON Schema.
 TRAINING_CURATOR = """You write training data for a voice agent. You get its JOURNEY (the script, structured),
-one call's transcript and a list of FAILURES: places where the agent did not do what the script says,
-each with the agent turn where it went wrong. For each failure, write what the agent should have said at
-that turn instead. Return ONLY a JSON object matching this schema:
+one call's transcript and a list of FAILURES: agent turns where the agent did not do what the script says,
+each with everything that went wrong at that turn. For each, write the one line the agent should have
+said at that turn instead — a line that fixes all of that turn's failures together. Return ONLY a JSON object matching this schema:
 {schema}
 
 Rules:
-- One correction per failure, with its `id`. `corrected` is the literal line the agent should speak at
+- One correction per id (one per turn), with its `id`. `corrected` is the literal line the agent should speak at
   that turn: same language, register and style as the agent, the length of a natural spoken turn, any
   emotion/style tags the agent uses kept. Never an instruction or a description of what to say.
 - Write it as the best next turn given the conversation exactly as it happened up to that turn — never
   assume another correction was applied.
-- It must do what the journey says for that failure and break no guardrail; values must match CALL
+- It must do what the journey says for each listed failure and break no guardrail; values must match CALL
   PARAMETERS.
 - If the agent's turn was actually fine, or you can't tell what it should have said, set `skip` true.
 - `rationale`: one short sentence on why."""
 
+
+# Names one cluster of failure moments (the Clusters tab). `{what}` = what the lines have in common,
+# `{lines}` = a few member lines.
+CLUSTER_NAMER = """These lines come from voice-agent calls; they are one cluster of {what}.
+Name what these lines have in common, in 3 to 6 plain English words (e.g. "No money this month",
+"Wants to ask family first"). Reply with the name only, no quotes or punctuation.
+
+{lines}"""
+
+# Script improvement (journey/rsi). The shared system prompt; each step appends its own task. Meta by
+# design: it teaches how to think about a script, not how to handle any particular situation.
+SCRIPT_RSI = """You improve the script of a voice AI agent (the instructions its LLM follows on calls), working on
+its SCRIPT JOURNEY: a structured form of the script (persona, facts, stages with branches, situations that
+can come up any time, guardrails, escalation). You are given evidence from real calls.
+
+How to think:
+- Write fundamentals, not patches. Prefer one principle the agent can apply to many situations over a
+  rule for one exact phrasing; name the underlying customer need, not the surface words.
+- Base what the agent should do on what demonstrably worked in real calls; treat what failed as what
+  to avoid. Stay consistent with the script's objective, tone, language rules and facts.
+- Never invent facts (prices, policies, numbers, claims). If handling needs a fact the script doesn't
+  have, say so (needs input) instead of making one up.
+- Be concrete and checkable: an instruction should make it obvious what the agent says or does.
+- Be brief: the whole script must stay under 15,000 characters. Sample lines are short and in the
+  script's language and style.
+Return only the JSON object matching the schema."""
 
 _DEFAULTS: dict[LLMRole, str] = {
     LLMRole.POST_CALL_ANALYSIS: POST_CALL_ANALYSIS,
@@ -244,6 +275,8 @@ _DEFAULTS: dict[LLMRole, str] = {
     LLMRole.SCRIPT_JOURNEY: SCRIPT_JOURNEY,
     LLMRole.JOURNEY_JUDGE: JOURNEY_JUDGE,
     LLMRole.TRAINING_CURATOR: TRAINING_CURATOR,
+    LLMRole.CLUSTER_NAMER: CLUSTER_NAMER,
+    LLMRole.SCRIPT_RSI: SCRIPT_RSI,
 }
 
 

@@ -101,6 +101,10 @@ class CallParamsIn(BaseModel):
     label: str | None = None       # filename / note, shown in the uploads list
 
 
+class CurationIn(BaseModel):
+    curate_training_data: bool
+
+
 class ParamsRequiredIn(BaseModel):
     params_required: bool           # the per-agent gating toggle
 
@@ -125,6 +129,7 @@ class AgentIn(BaseModel):
     audio: AudioConfigIn | None = None  # optional: configure audio at create time
     script: str | None = None  # optional: the script the agent follows (creates v1)
     guardrails: str | None = None  # optional: the agent's guardrails (creates v1)
+    curate_training_data: bool = False  # also turn failed agent turns into training data (extra LLM call)
 
 
 class AgentPatchIn(BaseModel):

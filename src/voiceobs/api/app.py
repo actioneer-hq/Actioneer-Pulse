@@ -21,8 +21,10 @@ from voiceobs.api import (
     ingest_config,
     journeys,
     judge,
+    notifications,
     orgs,
     read,
+    script_rsi,
     settings,
     uploads,
 )
@@ -65,6 +67,8 @@ app.include_router(settings.router)
 app.include_router(backfill.router)
 app.include_router(uploads.router)
 app.include_router(journeys.router)
+app.include_router(notifications.router)
+app.include_router(script_rsi.router)
 
 
 @app.get("/health")

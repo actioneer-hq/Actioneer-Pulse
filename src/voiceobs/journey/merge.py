@@ -1,10 +1,10 @@
 """Combine the stages into what is stored and shown. Plain code, no model calls.
 
-Stage 1 (`merge_decision`): the decision model's yes/no answers -> CallJudgment, with every cause derived
-here (a failed journey item was `not_followed` — it came from the script; only what the script never
-covered is a `script_gap`) and the failures listed without spans.
-Stage 2 (`apply_llm`): the LLM's words (summary, callback time, unscripted moments, wrong values), the
-stage of every agent turn (timeline) and the turn of each stage-1 failure, which give failures their spans.
+`merge_decision`: the decision model's answers -> CallJudgment, with every cause derived here (a failed
+journey item was `not_followed` — it came from the script; only what the script never covered is a
+`script_gap`), the stage of every agent turn (timeline) and the failures listed without spans.
+`apply_llm`: the LLM's words (summary, callback time, unscripted moments, wrong values) plus the turn
+of each failure (decision model, asked once the failures are known), which give failures their spans.
 """
 
 from __future__ import annotations
@@ -23,8 +23,9 @@ from voiceobs.journey.jev import (
     JevJudgment,
     StageReached,
     StandardRules,
+    TimelineEntry,
 )
-from voiceobs.journey.llm import LLMJudgment, TimelineEntry, Unscripted, WrongValue
+from voiceobs.journey.llm import LLMJudgment, Unscripted, WrongValue
 from voiceobs.journey.model import Journey
 from voiceobs.journey.spans import Failure, failures, locate
 from voiceobs.judge.schema import AnsweredBy, Objective, Sentiment
@@ -79,8 +80,9 @@ class CallJudgment(BaseModel):
     failures: list[Failure] = Field(default_factory=list)
 
 
-def merge_decision(j: Journey, version: str, jev: JevJudgment) -> CallJudgment:
-    """Stage 1: the decision model's answers, causes derived, failures listed (no spans yet)."""
+def merge_decision(j: Journey, version: str, jev: JevJudgment,
+                   timeline: list[TimelineEntry] | None = None) -> CallJudgment:
+    """The decision model's answers, causes derived, failures listed (no spans yet)."""
     if jev.answered_by != AnsweredBy.HUMAN:
         # A machine answered (screener, recording, voicemail, IVR): what "the customer" did and which
         # conversation rules held don't apply — keep only the non-human rule and the outcome.
@@ -120,39 +122,34 @@ def merge_decision(j: Journey, version: str, jev: JevJudgment) -> CallJudgment:
         furthest_stage=jev.furthest_stage, stages=jev.stages, branches=branches,
         guardrails_broken=[g.model_copy(update={"cause": "not_followed"}) for g in jev.guardrails if g.broken],
         standard=standard, ended_by=jev.ended_by, objective_achieved=jev.objective_achieved,
-        sentiment=jev.sentiment,
+        sentiment=jev.sentiment, timeline=timeline or [],
     )
     if cj.answered_by == AnsweredBy.HUMAN:
         cj.failures = failures(j, cj)
     return cj
 
 
-def apply_llm(cj: CallJudgment, j: Journey, llm: LLMJudgment, lines: list[dict]) -> CallJudgment:
-    """Stage 2: add the LLM's fields and give every failure its span from the timeline. `lines` are the
-    resolved transcript lines the LLM saw."""
+def apply_llm(cj: CallJudgment, j: Journey, llm: LLMJudgment, at: dict[int, int | None],
+              lines: list[dict]) -> CallJudgment:
+    """Add the LLM's fields and give every failure its span. `at` = the turn of each failure (ids =
+    positions in the failure list, from the decision model); `lines` = the resolved transcript lines."""
     cj = cj.model_copy(deep=True)
+    cj.summary = llm.summary
     if cj.answered_by != AnsweredBy.HUMAN:
-        cj.summary = llm.summary
         return cj
-    keys = [s.stage for s in j.funnel] + ["Opening", "Closing"]
-    timeline = []
-    for e in llm.timeline:
-        item = resolve_ref(e.item, keys)
-        if item:
-            timeline.append(TimelineEntry(turn=e.turn, item=item))
-    cj.summary, cj.wrong_values, cj.timeline = llm.summary, llm.wrong_values, timeline
+    cj.wrong_values = llm.wrong_values
     cj.unscripted = [UnscriptedOut(**u.model_dump()) for u in llm.unscripted]
     if cj.standard.callback_requested:
         cj.standard.callback_time = llm.callback_time
     base = [f for f in cj.failures if f.kind != "unscripted"]
-    cj.failures = locate(j, base, {t.id: t.turn for t in llm.failure_turns}, timeline, lines, cj.unscripted)
+    cj.failures = locate(j, base, at, cj.timeline, lines, cj.unscripted)
     return cj
 
 
-def merge(j: Journey, version: str, jev: JevJudgment, llm: LLMJudgment,
-          lines: list[dict] | None = None) -> CallJudgment:
-    """Both stages at once (offline eval and tests)."""
-    return apply_llm(merge_decision(j, version, jev), j, llm, lines or [])
+def merge(j: Journey, version: str, jev: JevJudgment, llm: LLMJudgment, lines: list[dict] | None = None,
+          timeline: list[TimelineEntry] | None = None, at: dict[int, int | None] | None = None) -> CallJudgment:
+    """Everything at once (offline eval and tests)."""
+    return apply_llm(merge_decision(j, version, jev, timeline), j, llm, at or {}, lines or [])
 
 
 def journey_items(j: Journey) -> dict[str, str]:
@@ -164,7 +161,7 @@ def journey_items(j: Journey) -> dict[str, str]:
 
 
 def resolve_ref(ref: str | None, keys: list[str]) -> str | None:
-    """The journey item an LLM-written `ref` names. LLMs paraphrase slightly ("… (Liquid One)."), so
+    """The journey item an LLM-written `ref` names. LLMs paraphrase slightly (an extra word or a trailing period), so
     match case-insensitively by prefix either way, then by close similarity; None if nothing is close."""
     if not ref:
         return None

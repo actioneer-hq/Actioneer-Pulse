@@ -71,16 +71,20 @@ judgments(
   suggested_fix, summary, judged_at
 )
 
--- Semantic clusters of the analysis prose (recomputed periodically).
-clusters(
-  lever,                                   -- 'root_cause' | 'suggested_fix' | 'summary' | 'guardrail_points' | 'hallucination_detail'
-  cluster_key, label, size, updated_at
+-- Journey failures, one row per located failure of a call: what failed (kind + item), why (cause) and
+-- the line that caused it (the customer's line for branch/standard/unscripted, the agent's otherwise).
+-- embedding = pgvector of text; cluster_key = its cluster inside the failure group (-1 noise, NULL none).
+moments(
+  call_id, agent_id, prompt_id,            -- prompt_id = the script version
+  kind,                                    -- 'stage' | 'branch' | 'guardrail' | 'standard' | 'opening' | 'closing' | 'unscripted'
+  item,                                    -- the journey item that failed (stage / branch / rule), or the unscripted moment
+  cause,                                   -- 'not_followed' (agent didn't do what the script says) | 'script_gap' (script never covers it)
+  turn, text, embedding, cluster_key, created_at
 )
--- Each call's cluster assignment per lever (cluster_key NULL = noise). Join clusters ON (lever, cluster_key).
-call_clusters(call_id, lever, cluster_key, x, y)
-
--- Semantic vectors of the analysis prose (pgvector). field = the lever the vector is for.
-call_embeddings(call_id, field, embedding, model)
+-- Named clusters of moments: variants of one failure group (kind, item, cause) of a script version, or
+-- (kind 'unscripted', item '') themes the script never covers. Join moments ON (agent_id, prompt_id,
+-- kind, item, cause, cluster_key) — for unscripted moments use item '' and cause 'script_gap'.
+moment_clusters(agent_id, prompt_id, kind, item, cause, cluster_key, name, size, updated_at)
 
 -- Registered voice agents (for labelling calls by name).
 agents(id, name, slug)
@@ -97,8 +101,10 @@ SQL guidance (PostgreSQL):
   SELECT date_trunc('day', c.started_at) d, avg(m.value_num)
   FROM metrics m JOIN calls c ON c.id = m.call_id
   WHERE m.name = 'response_latency_p95' GROUP BY d ORDER BY d.
-- Biggest failure theme: SELECT label, size FROM clusters WHERE lever='root_cause' ORDER BY size DESC.
-- Vector similarity over call_embeddings.embedding uses cosine `<=>` — see the pgvector skill below.
+- Most common failures: SELECT kind, item, cause, count(DISTINCT call_id) n FROM moments
+  GROUP BY 1, 2, 3 ORDER BY n DESC.
+- Why a failure happens: SELECT name, size FROM moment_clusters WHERE item = '…' ORDER BY size DESC.
+- Vector similarity over moments.embedding uses cosine `<=>` — see the pgvector skill below.
 
 When a query errors, read the message and fix the SQL (wrong column/enum, missing join) and retry.
 Prefer a small focused query; you can run more than one across turns. Answer the user in prose,
@@ -107,15 +113,15 @@ citing the numbers you found — don't paste raw tables unless asked.
 
 # The pgvector skill, VERBATIM from timescale/pg-aiguide (skills/pgvector-semantic-search/SKILL.md,
 # Apache-2.0). Prefaced with how it maps onto Pulse: the agent is a READ-ONLY client querying the
-# `call_embeddings` view (a plain `vector`, ~1024-dim), so the index-creation / halfvec / quantization
+# `moments` view (a plain `vector`, ~1024-dim), so the index-creation / halfvec / quantization
 # / tuning sections are handled server-side — the agent applies only the query patterns (cosine `<=>`
-# with ORDER BY … LIMIT, filtered by `field`; similarity is call-relative since it can't embed text).
+# with ORDER BY … LIMIT, filtered by kind/item; similarity is moment-relative since it can't embed text).
 _PGVECTOR_PREFACE = """\
 === pgvector skill (from pg-aiguide) — how it maps to Pulse ===
-`call_embeddings.embedding` is a pgvector `vector` (BGE-M3, ~1024-dim) exposed as a read-only view.
+`moments.embedding` is a pgvector `vector` (BGE-M3, ~1024-dim) exposed as a read-only view.
 You CANNOT create tables/indexes, COPY, VACUUM, or SET tuning GUCs — those are server-managed. Apply
-only the QUERY patterns: cosine `<=>` with `ORDER BY … LIMIT`, filtered by `field`. There is no way to
-embed free text in SQL, so similarity is CALL-RELATIVE — compare one call's vector to others'. Ignore
+only the QUERY patterns: cosine `<=>` with `ORDER BY … LIMIT`, filtered by kind/item. There is no way
+to embed free text in SQL, so similarity is MOMENT-RELATIVE — compare one moment's vector to others'. Ignore
 the halfvec/index/DDL parts for writing queries; they're background. The reference doc follows verbatim.
 
 """
@@ -455,7 +461,7 @@ AUDIO_NATIVE_SKILL = (
     "from voice, raised/angry voices, pace or hesitation, background noise or music, audio quality "
     "(clipping, echo, dropouts, distortion), and crosstalk/overlap perception.\n"
     "NEVER use it for anything the tables already answer — transcripts, metrics, latencies, counts, "
-    "durations, disposition/sentiment already judged, cluster labels. Use execute_sql for those.\n"
+    "durations, disposition/sentiment already judged, failure clusters. Use execute_sql for those.\n"
     "It is SLOW and COSTLY. First narrow with SQL to find the specific call(s) in question, then call "
     "audio_native_llm on ONE call. Do not call it speculatively, and never on multiple calls at once."
 )
