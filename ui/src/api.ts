@@ -157,6 +157,54 @@ export type Judgment = {
   hallucination_detail: string | null;
   suggested_fix: string | null;
   summary: string | null;
+  journey?: CallJourney | null;  // journey judge result (decision model + LLM), when available
+  enrich_status?: string | null;  // journey stage 2 (LLM): pending|running|ok|failed|skipped
+  curate_status?: string | null;  // journey stage 3 (training data)
+};
+
+// ---- journey: the script, structured; and per-call / per-project results against it ----
+export type Cause = "script_gap" | "not_followed" | null;
+export type Failure = { kind: string; item: string; cause: Exclude<Cause, null>; turns: number[];
+  target_turn?: number | null };
+export type JourneyBranch = { if: string; then: string; goes_to: string; script_quote?: string | null;
+  standard?: boolean; in_script?: boolean };
+export type Journey = {
+  format: string; objective: string; params: string[];
+  opening?: { agent: string; done_when: string } | null;
+  funnel: { stage: string; agent: string; done_when: string; side: JourneyBranch[] }[];
+  closing?: { agent: string; done_when: string } | null;
+  anytime: JourneyBranch[];
+  guardrails: { rule: string; script_quote?: string | null }[];
+};
+export type JourneyDoc = { status: string; version: number | null; prompt_id?: string;
+  journey: Journey | null; error?: string | null; edited?: boolean; model?: string | null };
+export type CallJourney = {
+  format: "full" | "short";
+  answered_by: string; objective_achieved: string; sentiment: string;
+  // short
+  primary_language?: string; furthest_stage?: string | null;
+  // full
+  opening_done?: boolean | null; closing_done?: boolean | null;
+  language?: { primary: string; secondary: string[] };
+  stages?: { stage: string; reached: boolean; p: number }[];
+  branches?: { stage: string | null; if: string; happened: boolean; handled: boolean | null;
+    cause: Cause; in_script: boolean }[];
+  guardrails_broken?: { rule: string; p: number; cause: Cause }[];
+  standard?: Record<string, boolean | string | null>;
+  unscripted?: { turn: number; what: string; agent_response_ok: boolean }[];
+  wrong_values?: { param: string; expected: string; said: string; turn: number }[];
+  summary?: string | null; ended_by?: string;
+  failures?: Failure[];
+};
+export type JourneyFunnel = {
+  status: string; version?: number; calls: number; human?: number; short?: number;
+  answered_by?: Record<string, number>; objective?: Record<string, number>;
+  stages?: { stage: string; reached: number }[];
+  branches?: ({ stage: string | null; if: string } & Record<string, number>)[];
+  guardrails?: ({ rule: string } & Record<string, number>)[];
+  causes?: Record<string, number>; standard?: Record<string, number>;
+  unscripted?: [string, number][];
+  failures?: { kind: string; item: string; cause: string; calls: number }[];
 };
 
 export type CallDetail = {
@@ -193,7 +241,7 @@ export type Me = {
   user: { id: string; email: string; name: string | null };
   memberships: Membership[];
 };
-export type Agent = { id: string; name: string; slug: string; org_id: string };
+export type Agent = { id: string; name: string; slug: string; org_id: string; curate_training_data?: boolean };
 // A credential input the UI renders dynamically (from the wizard/default field-spec).
 export type CredField = { name: string; label: string; type: string; secret: boolean };
 // Sent to the server. `credentials` secret values are write-only (omit to keep the stored one).
@@ -328,12 +376,36 @@ export type AgentScript = {
 };
 
 export const createAgent = (
-  name: string, audio?: AudioConfigIn, script?: string, guardrails?: string,
-) => req<Agent>("POST", "/v1/agents", { name, audio, script, guardrails });
+  name: string, audio?: AudioConfigIn, script?: string, guardrails?: string, curateTrainingData = false,
+) => req<Agent>("POST", "/v1/agents", { name, audio, script, guardrails,
+  curate_training_data: curateTrainingData });
 export const getAgentScript = (agentId: string) =>
   req<AgentScript>("GET", `/v1/agents/${agentId}/script`);
 export const setAgentScript = (agentId: string, text: string) =>
   req<AgentScript>("PUT", `/v1/agents/${agentId}/script`, { text });
+export const getJourney = (agentId: string) =>
+  req<JourneyDoc>("GET", `/v1/agents/${agentId}/journey`);
+export const setJourney = (agentId: string, journey: unknown) =>
+  req<JourneyDoc>("PUT", `/v1/agents/${agentId}/journey`, journey);
+// ---- script improvement (RSI): improved scripts from the analysis, as runs with variants ----
+export type RsiChange = { change: string; section: string; id: string; at?: string | null; reason?: string | null };
+export type RsiVariant = { text: string; chars: number; changes: RsiChange[]; journey: unknown;
+  ops?: { op: string; reason: string; applied: boolean; rejected?: string }[] };
+export type RsiFinding = { kind: string; item: string; calls: number; reason: string | null; fix: string | null };
+export type RsiRun = {
+  id: string; status: "pending" | "running" | "ready" | "failed"; error?: string | null;
+  approved_variant?: string | null; created_at: string;
+  result?: { variants: Record<string, RsiVariant>; findings: RsiFinding[]; training: RsiFinding[];
+    gaps: number; failures: number } | null;
+};
+export const startScriptRsi = (agentId: string) => req<RsiRun>("POST", `/v1/agents/${agentId}/script-rsi`);
+export const listScriptRsi = (agentId: string) => req<{ items: RsiRun[] }>("GET", `/v1/agents/${agentId}/script-rsi`);
+export const approveScriptRsi = (agentId: string, runId: string, variant: string) =>
+  req<{ version: number; chars: number }>("POST", `/v1/agents/${agentId}/script-rsi/${runId}/approve`, { variant });
+export const regenerateJourney = (agentId: string) =>
+  req<JourneyDoc>("POST", `/v1/agents/${agentId}/journey/regenerate`);
+export const getJourneyFunnel = (agentId: string) =>
+  req<JourneyFunnel>("GET", `/v1/agents/${agentId}/journey/funnel`);
 export const listAgentScripts = (agentId: string) =>
   req<{ items: AgentScript[] }>("GET", `/v1/agents/${agentId}/scripts`).then((d) => d.items);
 
@@ -527,34 +599,30 @@ export function streamBoards(
   return () => ctrl.abort();
 }
 
-// ---- clusters (semantic clustering of analysis prose) ----
-export const CLUSTER_LEVERS: [string, string][] = [
-  ["root_cause", "Failure themes"],
-  ["suggested_fix", "Fix backlog"],
-  ["summary", "Caller intents"],
-  ["guardrail_points", "Guardrail breaches"],
-  ["hallucination_detail", "Hallucinations"],
-];
-export type ClusterFilters = { agent_id?: string; range?: string };
-export type ClusterInfo = { key: number; label: string | null; size: number };
-export type ClusterPoint = { call_id: string; x: number; y: number; cluster_key: number | null };
-export type ClusterView = { lever: string; clusters: ClusterInfo[]; points: ClusterPoint[] };
-export type Archetype = {
-  combo: Record<string, string>; count: number;
-  cause_total: number; consistency: number | null; lift: number | null;
+// ---- analysis: failures ranked by impact, and script-gap themes (clustered unscripted moments) ----
+export type ClusterSample = { call_id: string | null; turn: number; text: string; what?: string | null };
+export type FailureGroup = {
+  kind: string; item: string; cause: "script_gap" | "not_followed";
+  calls: number; share: number; achieved_with: number; achieved_without: number | null; impact: number;
+  samples: ClusterSample[];   // the lines behind this failure
 };
-export type ArchetypeView = { dims: string[]; total: number; archetypes: Archetype[] };
-
-const clusterQuery = (f: ClusterFilters) => {
-  const p = new URLSearchParams();
-  if (f.range) p.set("range", f.range);
-  if (f.agent_id) p.set("agent_id", f.agent_id);
-  return p.toString();
+export type GapPlacement = { category: string | null; match?: string | null; match_p?: number | null;
+  stage?: string | null };
+export type GapTheme = { key: number; name: string | null; calls: number; samples: ClusterSample[];
+  description?: string | null; depth?: number; placement?: GapPlacement | null };
+export type GapPool = { themes: GapTheme[]; other_calls: number; calls: number };
+export type ClustersView = {
+  status: "no_script" | "no_embeddings" | "not_clustered" | "clustered";
+  version?: number; calls: number; human?: number;
+  failures: FailureGroup[];
+  unscripted: { not_handled: GapPool; handled: GapPool };
+  unscripted_total?: number;
 };
-export const getClusters = (lever: string, f: ClusterFilters) =>
-  get<ClusterView>(`/v1/clusters/${lever}?${clusterQuery(f)}`);
-export const getArchetypes = (f: ClusterFilters, minCount = 2) =>
-  get<ArchetypeView>(`/v1/clusters/archetypes?${clusterQuery(f)}&min_count=${minCount}`);
+export const getClusters = (agentId: string, range?: string) => {
+  const p = new URLSearchParams({ agent_id: agentId });
+  if (range) p.set("range", range);
+  return get<ClustersView>(`/v1/clusters?${p.toString()}`);
+};
 
 // ---- training-data export (SFT / DPO JSONL from llm_corrections) ----
 // Fetches the JSONL for the active org (X-Voiceobs-Org) + agent/range and saves it to disk.
@@ -662,11 +730,11 @@ export const getUploadFormat = (agentId?: string) =>
 // queued job; its progress then streams over the backfill SSE endpoint. A rejected upload's
 // problems come back one per line.
 export function uploadCalls(
-  agentId: string, zip: File, side: { mode: UploadMode; file: File }, opts: UploadOptions,
+  agentId: string, zip: File | null, side: { mode: UploadMode; file: File }, opts: UploadOptions,
   onProgress?: (fraction: number) => void,
 ): Promise<BackfillJob> {
   const form = new FormData();
-  form.append("audio", zip);
+  if (zip) form.append("audio", zip);  // optional with a JSON of transcripts (playback only)
   form.append(side.mode === "csv" ? "params_csv" : "manifest", side.file);
   form.append("agent_channel", opts.agentChannel);
   form.append("language", opts.language);
@@ -735,3 +803,22 @@ export function streamBackfill(
   })();
   return () => ctrl.abort();
 }
+
+// ---- analysis notifications: per upload, the progress of each decoupled stage + finished-stage events ----
+export type StageBar = { label: string; done: number; total: number;
+  state: "waiting" | "running" | "done" | "skipped" | "failed" | "off"; note?: string };
+export type AnalysisNote = {
+  id: string; agent_id: string | null; agent: string | null; created_at: string; calls: number; complete: boolean;
+  stages: Record<"decision" | "llm" | "training" | "clustering" | "improve", StageBar>;
+  events: { stage: string; label: string; at: string; note?: string }[];
+};
+export const getNotifications = () => get<{ items: AnalysisNote[] }>("/v1/notifications");
+
+// ---- script library (Prompts tab): saved versions + improved scripts, each with its script journey JSON ----
+export type LibraryVersion = { version: number; active: boolean; prompt_id: string; created_at: string;
+  chars: number; text: string; journey_status: string; journey: unknown };
+export type LibraryImproved = { id: string; created_at: string; status: string; error?: string | null;
+  base_version: number | null; approved_variant: string | null;
+  variants: Record<string, { chars: number; text: string; journey: unknown; changes: RsiChange[] }> };
+export const getScriptLibrary = (agentId: string) =>
+  get<{ versions: LibraryVersion[]; improved: LibraryImproved[] }>(`/v1/agents/${agentId}/script-library`);

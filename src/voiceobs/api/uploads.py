@@ -1,8 +1,10 @@
 """File onboarding API: analyse a project's calls from files.
 
-An upload is an audio ZIP plus exactly one of:
-- a **CSV of call parameters** (`call_id` + one column per script placeholder) — Pulse transcribes;
-- a **JSON `pulse.calls.v1`** (per call: params + transcript, optional script) — no transcription.
+An upload is exactly one of:
+- a **CSV of call parameters** (`call_id` + one column per script placeholder) + the audio ZIP — Pulse
+  transcribes;
+- a **JSON `pulse.calls.v1`** (per call: params + transcript, optional script) — no transcription; the
+  audio ZIP is optional (only for playback), and without it every call needs its transcript.
 
 Everything is checked before anything runs (script present, every call has its audio and a value
 for every `{{placeholder}}`); any problem rejects the upload with the exact list. A valid upload is
@@ -88,7 +90,7 @@ def _reject(errors: list[str], message: str = "the upload has problems") -> HTTP
 @router.post("/agents/{agent_id}/uploads", status_code=201)
 def create_upload(
     agent_id: str,
-    audio: UploadFile = File(..., description="ZIP of call recordings"),
+    audio: UploadFile | None = File(None, description="ZIP of call recordings (optional with a JSON)"),
     params_csv: UploadFile | None = File(None, description="CSV of call parameters (mode 1)"),
     manifest: UploadFile | None = File(None, description="pulse.calls.v1 JSON (mode 2)"),
     agent_channel: str = Form("auto"),
@@ -105,6 +107,9 @@ def create_upload(
     has_json = manifest is not None and bool(manifest.filename)
     if has_csv == has_json:
         raise HTTPException(422, "add the call parameters (CSV) or the transcripts (JSON) — exactly one")
+    has_audio = audio is not None and bool(audio.filename)
+    if has_csv and not has_audio:
+        raise HTTPException(422, "a CSV upload needs the audio ZIP — Pulse transcribes the calls from it")
 
     # Parse the side file into one manifest shape (a CSV becomes params-only calls).
     try:
@@ -130,11 +135,13 @@ def create_upload(
     staging = upload_root() / ".incoming" / uuid.uuid4().hex
     staging.mkdir(parents=True, exist_ok=True)
     try:
-        size = _save(audio, staging / "calls.zip", cfg.max_upload_bytes)
-        try:
-            names = audio_names(staging / "calls.zip")
-        except UploadError as e:
-            raise HTTPException(422, str(e)) from e
+        size, names = 0, None
+        if has_audio:
+            size = _save(audio, staging / "calls.zip", cfg.max_upload_bytes)
+            try:
+                names = audio_names(staging / "calls.zip")
+            except UploadError as e:
+                raise HTTPException(422, str(e)) from e
         required = placeholders(script)
         errors = check_upload(names, parsed.calls, required)
         if errors:
@@ -156,6 +163,6 @@ def create_upload(
     staging.rename(job_dir)
     job.options = {"dir": str(job_dir), "manifest": True, "bytes": size, "mode": "json" if has_json
                    else "csv", "agent_channel": agent_channel, "language": language,
-                   "audio_name": audio.filename}
+                   "audio": has_audio, "audio_name": audio.filename if has_audio else None}
     return {"id": job.id, "status": job.status, "calls": len(parsed.calls),
             "params": required, "transcribe": sum(1 for c in parsed.calls if not c.transcript)}

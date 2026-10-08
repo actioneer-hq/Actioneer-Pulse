@@ -85,3 +85,30 @@ def test_bad_params_400(authed_client) -> None:
     assert authed_client.get("/v1/export/training", params={"format": "grpo"}).status_code == 400
     assert authed_client.get("/v1/export/training",
                              params={"format": "dpo", "dialect": "nope"}).status_code == 400
+
+
+def test_journey_calls_export_curated_samples_with_recorded_history(authed_client, db_sessionmaker) -> None:
+    from voiceobs.db.models import TrainingSample
+
+    with db_sessionmaker() as db:
+        db.add(Prompt(id="p1", template_sha256="sha1", text="SCRIPT"))
+        db.add(Call(id="c1", external_call_id="call-1", source="s", environment="prod",
+                    agent_id="a1", prompt_id="p1", status="ingested", metric_version=1))
+        db.add(Turn(call_id="c1", turn_index=0, turn_id="c1:0", trigger="opening", llm_spoken="Hi there."))
+        db.add(Turn(call_id="c1", turn_index=1, turn_id="c1:1", trigger="endpoint",
+                    caller_transcript="Too expensive.", llm_spoken="Okay, bye."))
+        db.add(Turn(call_id="c1", turn_index=2, turn_id="c1:2", trigger="endpoint",
+                    caller_transcript="Returns?", llm_spoken="Guaranteed!"))
+        db.add(Judgment(call_id="c1", status="ok", disposition="connected", journey={"format": "full"}))
+        for turn, item, observed, corrected in ((1, "Price too high", "Okay, bye.", "It's 270 a month."),
+                                                (2, "No guarantees", "Guaranteed!", "Returns aren't guaranteed.")):
+            db.add(TrainingSample(call_id="c1", turn=turn, item=item, failure_kind="branch",
+                                  observed=observed, corrected=corrected))
+        db.commit()
+    r = authed_client.get("/v1/export/training", params={"format": "dpo", "meta": "true"})
+    first, second = [json.loads(x) for x in r.text.strip().splitlines()]
+    assert first["prompt"][-1] == {"role": "user", "content": "Too expensive."}
+    # the turn-2 sample keeps the original (bad) turn-1 reply in its history — never re-simulated
+    assert {"role": "assistant", "content": "Okay, bye."} in second["prompt"]
+    assert second["rejected"][0]["content"] == "Guaranteed!"
+    assert second["meta"]["gt_source"] == "curated" and second["meta"]["item"] == "No guarantees"

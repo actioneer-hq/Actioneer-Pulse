@@ -1,4 +1,5 @@
-"""Run an upload job: ZIP of call audio (+ optional pulse.calls.v1 JSON) -> analysed calls.
+"""Run an upload job: ZIP of call audio (+ optional pulse.calls.v1 JSON), or a JSON with transcripts and
+no audio -> analysed calls.
 
 Per call: register the audio (upload:// Media), take the transcript from the JSON or produce one
 with Sarvam STT, store the prompt parameters, build a Trace and run the shared analysis, then
@@ -19,7 +20,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from voiceobs.config import get_config
-from voiceobs.db.models import BackfillJob, Call, CallParams, Media
+from voiceobs.db.models import Agent, BackfillJob, Call, CallParams, Media
+from voiceobs.db.purge import purge_calls
 from voiceobs.ingestion import _active_script_prompt
 from voiceobs.onboarding.format import ManifestError, UploadCall, Utterance, parse_manifest
 from voiceobs.onboarding.stt import (
@@ -77,12 +79,20 @@ def audio_names(zip_path: Path) -> list[str]:
     return names
 
 
-def check_upload(names: list[str], calls: list[UploadCall], required: list[str]) -> list[str]:
+def check_upload(names: list[str] | None, calls: list[UploadCall], required: list[str]) -> list[str]:
     """Everything wrong with an upload before it runs: calls with no audio, audio with no row,
-    and calls missing a value for a script placeholder. Empty list = good to go."""
+    and calls missing a value for a script placeholder. `names` None = no audio ZIP (a JSON with
+    transcripts): then every call needs its transcript. Empty list = good to go."""
     def ids(xs: list[str]) -> str:
         return ", ".join(xs[:8]) + (f" … (+{len(xs) - 8})" if len(xs) > 8 else "")
 
+    if names is None:
+        errors = [f"{len(v)} call(s) missing `{p}`: {ids(v)}" for p, v in _missing_params(calls, required).items()]
+        no_text = [c.call_id for c in calls if not c.transcript]
+        if no_text:
+            errors.append(f"{len(no_text)} call(s) have no transcript (add it, or upload the audio ZIP): "
+                          f"{ids(no_text)}")
+        return errors
     audio = set(names)
     by_stem = {Path(n).stem: n for n in names}
     used: set[str] = set()
@@ -104,6 +114,15 @@ def check_upload(names: list[str], calls: list[UploadCall], required: list[str])
     if orphan:
         errors.append(f"{len(orphan)} audio file(s) have no row in the CSV/JSON: {ids(orphan)}")
     return errors
+
+
+def _missing_params(calls: list[UploadCall], required: list[str]) -> dict[str, list[str]]:
+    missing: dict[str, list[str]] = {}
+    for c in calls:
+        for p in required:
+            if c.params.get(p) in (None, ""):
+                missing.setdefault(p, []).append(c.call_id)
+    return missing
 
 
 def extract_audio(zip_path: Path, dest: Path) -> dict[str, Path]:
@@ -166,7 +185,8 @@ def run_upload(db: Session, job: BackfillJob, org: str,
     opts = job.options or {}
     job_dir = Path(opts["dir"])
     try:
-        audio = extract_audio(job_dir / "calls.zip", job_dir / "audio")
+        # no ZIP = a JSON upload with transcripts only (no playback)
+        audio = extract_audio(job_dir / "calls.zip", job_dir / "audio") if opts.get("audio", True) else {}
         manifest = None
         if opts.get("manifest"):
             manifest = parse_manifest((job_dir / "manifest.json").read_bytes())
@@ -237,7 +257,10 @@ def _analyse(db: Session, agent_id: str | None, plan: PlannedCall, stt: SttConfi
         raise UploadError(plan.error)
     existing = db.scalar(select(Call).where(Call.external_call_id == plan.call_id))
     if existing is not None and existing.agent_id != agent_id:
-        raise UploadError("this call_id already belongs to another project")
+        if existing.agent_id and db.get(Agent, existing.agent_id) is not None:
+            raise UploadError("this call_id already belongs to another project")
+        purge_calls(db, [existing.id])  # left behind by a deleted project: reclaim the id
+        db.flush()
 
     data = plan.audio.read_bytes() if plan.audio else None
     wav = read_wav(data) if data else None

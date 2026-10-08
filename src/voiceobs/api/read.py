@@ -281,7 +281,8 @@ def _judgment(db: Session, call: Call) -> dict | None:
     if j is None:
         return None
     return {"disposition": j.disposition, "status": j.status, "error": j.error, "model": j.model,
-            **{f: getattr(j, f) for f in _JUDGE_FIELDS}}
+            **{f: getattr(j, f) for f in _JUDGE_FIELDS}, "journey": j.journey,
+            "enrich_status": j.enrich_status, "curate_status": j.curate_status}
 
 
 def _script(db: Session, call: Call) -> dict | None:

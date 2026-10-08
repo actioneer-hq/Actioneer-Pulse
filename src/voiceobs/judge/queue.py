@@ -23,3 +23,10 @@ def decode_judge(record: Record) -> tuple[str, str]:
     """A judge-request record → (org, external_call_id)."""
     body = json.loads(record.value)
     return body.get("org") or record.headers.get("org") or "default", body["call_id"]
+
+
+def enqueue_curate(producer: Producer, org: str, call_id: str) -> None:
+    """Queue training-data curation for a judged call; same message shape as judging."""
+    producer.send(get_config().kafka_topic_curate, call_id,
+                  json.dumps({"org": org, "call_id": call_id}).encode(), {"org": org})
+    producer.flush()

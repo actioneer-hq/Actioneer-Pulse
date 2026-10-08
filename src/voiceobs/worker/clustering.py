@@ -1,5 +1,6 @@
-"""Semantic-clustering sidecar. Embeds analysis prose and (re)clusters per tenant×lever, labelling
-each cluster. One-shot by default; a loop when VOICEOBS_CLUSTER_INTERVAL_S is set. Run as
+"""Run a clustering pass by hand: embeds journey failure moments and (re)clusters them per project
+script version, naming each cluster (normally the backfill worker does this every `cluster_every_s`).
+One-shot by default; a loop when VOICEOBS_CLUSTER_INTERVAL_S is set. Run as
 `python -m voiceobs.worker.clustering`. Best-effort — no-ops when no embedding model is configured."""
 
 from __future__ import annotations

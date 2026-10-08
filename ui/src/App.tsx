@@ -10,7 +10,8 @@ import Agents from "./pages/Agents";
 import Boards from "./pages/Boards";
 import Calls from "./pages/Calls";
 import Chat from "./pages/Chat";
-import Clusters from "./pages/Clusters";
+import Analysis from "./pages/Analysis";
+import NotificationBell from "./components/NotificationBell";
 import Prompts from "./pages/Prompts";
 import Login from "./pages/Login";
 import Members from "./pages/Members";
@@ -38,8 +39,8 @@ function Shell() {
           <NavLink to="/boards" className={({ isActive }) => (isActive ? "on" : undefined)}>
             Boards
           </NavLink>
-          <NavLink to="/clusters" className={({ isActive }) => (isActive ? "on" : undefined)}>
-            Clusters
+          <NavLink to="/analysis" className={({ isActive }) => (isActive ? "on" : undefined)}>
+            Analysis
           </NavLink>
           <NavLink to="/prompts" className={({ isActive }) => (isActive ? "on" : undefined)}>
             Prompts
@@ -58,6 +59,7 @@ function Shell() {
           )}
         </nav>
         <div className="top-right">
+          <NotificationBell />
           <ProjectSelect />
           {memberships.length > 1 ? (
             <Select value={activeOrg ?? ""} onChange={setActiveOrg} size="sm"
@@ -131,8 +133,10 @@ export default function App() {
         <Route path="/calls" element={<RequireAgent><Calls /></RequireAgent>} />
         <Route path="/chat" element={<RequireAgent><Chat /></RequireAgent>} />
         <Route path="/boards" element={<RequireAgent><Boards /></RequireAgent>} />
-        <Route path="/clusters" element={<RequireAgent><Clusters /></RequireAgent>} />
+        <Route path="/analysis" element={<RequireAgent><Analysis /></RequireAgent>} />
+        <Route path="/clusters" element={<Navigate to="/analysis" replace />} />
         <Route path="/prompts" element={<RequireAgent><Prompts /></RequireAgent>} />
+        <Route path="/journey" element={<Navigate to="/analysis" replace />} />
         <Route path="/settings/agents"
           element={<RequireAdmin><Agents /></RequireAdmin>} />
         <Route path="/settings/members"

@@ -429,65 +429,138 @@ class Judgment(Base):
     # per-turn corrected actions (training data) — only when model_fault is llm
     llm_corrections: Mapped[list | None] = mapped_column(JSON)
     summary: Mapped[str | None] = mapped_column(Text)
+    # journey judge result (journey/merge.CallJudgment or jev.ShortJudgment), when the call's script
+    # version has a journey and a decision model is configured
+    journey: Mapped[dict | None] = mapped_column(JSON)
+    # journey stages after the decision model: 2 = LLM enrichment (summary, timeline, spans),
+    # 3 = training-data curation. pending|running|ok|failed|skipped; None = not a journey judgment.
+    enrich_status: Mapped[str | None] = mapped_column(String(16))
+    curate_status: Mapped[str | None] = mapped_column(String(16))
     judged_at: Mapped[datetime] = created_col()
 
 
-class CallEmbedding(Base):
-    """One embedding per (call, prose lever) — the semantic-clustering source. `field` names the
-    lever (root_cause | suggested_fix | summary | guardrail_points | hallucination_detail). Vector is
-    pgvector on Postgres, float32 blob on SQLite (see db/types.Embedding)."""
+class AgentJourney(Base):
+    """The journey extracted from one script version (keyed by its Prompt), used to judge every call that
+    ran on that version. Extracted asynchronously (status pending -> ready | failed); editable by hand."""
 
-    __tablename__ = "call_embedding"
-    __table_args__ = (
-        UniqueConstraint("call_id", "field", name="uq_call_embedding"),
-        Index("ix_call_embedding_field", "field"),
-    )
+    __tablename__ = "agent_journey"
 
     id: Mapped[str] = pk()
-    call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
-    field: Mapped[str] = mapped_column(String(32), nullable=False)
-    embedding: Mapped[list] = mapped_column(Embedding, nullable=False)
-    model: Mapped[str | None] = mapped_column(String(128))
+    prompt_id: Mapped[str] = mapped_column(ForeignKey("prompt.id"), nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False)
+    journey: Mapped[dict | None] = mapped_column(JSON)   # journey/model.Journey
+    draft: Mapped[dict | None] = mapped_column(JSON)     # raw extraction output (to see what was dropped)
+    model: Mapped[str | None] = mapped_column(String(64))
+    error: Mapped[str | None] = mapped_column(Text)
+    edited: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = created_col()
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TrainingSample(Base):
+    """One curated correction of a failed agent turn (journey stage 3) — an SFT target / DPO pair: at
+    `turn` the agent said `observed`, it should have said `corrected`. Re-curating a call replaces its
+    rows."""
+
+    __tablename__ = "training_sample"
+    __table_args__ = (UniqueConstraint("call_id", "turn", "item", name="uq_training_sample"),)
+
+    id: Mapped[str] = pk()
+    call_id: Mapped[str] = mapped_column(ForeignKey("call.id"), nullable=False, index=True)
+    prompt_id: Mapped[str | None] = mapped_column(String(36))
+    turn: Mapped[int] = mapped_column(Integer, nullable=False)
+    item: Mapped[str] = mapped_column(Text, nullable=False)          # the journey item that failed
+    failure_kind: Mapped[str] = mapped_column(String(16), nullable=False)  # stage|branch|guardrail|…
+    kind: Mapped[str] = mapped_column(String(16), default="response", nullable=False)
+    observed: Mapped[str] = mapped_column(Text, nullable=False)
+    corrected: Mapped[str] = mapped_column(Text, nullable=False)
+    corrected_tool: Mapped[str | None] = mapped_column(String(128))
+    corrected_args: Mapped[dict | None] = mapped_column(JSON)
+    rationale: Mapped[str | None] = mapped_column(Text)
+    model: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = created_col()
 
 
-class Cluster(Base):
-    """A semantic cluster of one prose lever (root_cause | suggested_fix | summary |
-    guardrail_points | hallucination_detail), scoped per AGENT. Clustering runs independently for
-    each agent, so `cluster_key` is unique only within (agent_id, lever). Rewritten each run."""
+class ScriptProposal(Base):
+    """One script-improvement run on a script version: the improved journeys and rendered scripts
+    (additions only / script A / script B) with their diffs, the not-followed RCA, and what to fix with
+    training instead. Runs in the background (pending -> running -> ready | failed); approving a variant
+    mints the next script version."""
 
-    __tablename__ = "cluster"
-    __table_args__ = (
-        UniqueConstraint("agent_id", "lever", "cluster_key", name="uq_cluster"),
-    )
+    __tablename__ = "script_proposal"
 
     id: Mapped[str] = pk()
-    agent_id: Mapped[str] = mapped_column(String(36), nullable=False)  # clusters are per-agent
-    lever: Mapped[str] = mapped_column(String(32), nullable=False)
-    cluster_key: Mapped[int] = mapped_column(Integer, nullable=False)  # >=0 (noise not stored)
-    label: Mapped[str | None] = mapped_column(Text)  # LLM-named theme
-    size: Mapped[int] = mapped_column(Integer, nullable=False)
-    updated_at: Mapped[datetime] = created_col()
+    agent_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    prompt_id: Mapped[str] = mapped_column(String(36), nullable=False)   # the base script version
+    status: Mapped[str] = mapped_column(String(16), default="pending", nullable=False)
+    result: Mapped[dict | None] = mapped_column(JSON)    # journey/rsi/run.improve output
+    error: Mapped[str | None] = mapped_column(Text)
+    approved_variant: Mapped[str | None] = mapped_column(String(16))
+    created_by: Mapped[str | None] = mapped_column(String(36))
+    created_at: Mapped[datetime] = created_col()
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-class CallCluster(Base):
-    """A call's assignment for one lever + its 2D display coords. cluster_key null = HDBSCAN noise.
-    `agent_id` is denormalized from the call so the agent-scoped chat views can filter without a
-    join and clustering stays per-agent."""
+class Moment(Base):
+    """One located failure of a call (journey stage 2): the line that caused it — the customer's line for
+    what the customer did (branch / standard rule / unscripted), the agent's for what the agent did
+    (guardrail / stage / opening / closing). Embedded and clustered per failure group; `cluster_key`
+    null = not clustered yet, -1 = noise. Vector is pgvector on Postgres, float32 blob on SQLite."""
 
-    __tablename__ = "call_cluster"
+    __tablename__ = "moment"
     __table_args__ = (
-        UniqueConstraint("call_id", "lever", name="uq_call_cluster"),
-        Index("ix_call_cluster_lever", "lever"),
+        UniqueConstraint("call_id", "kind", "item", "turn", name="uq_moment"),
+        Index("ix_moment_group", "agent_id", "prompt_id", "kind"),
     )
 
     id: Mapped[str] = pk()
     call_id: Mapped[str] = mapped_column(ForeignKey(_CALL_FK), nullable=False)
     agent_id: Mapped[str] = mapped_column(String(36), nullable=False)
-    lever: Mapped[str] = mapped_column(String(32), nullable=False)
-    cluster_key: Mapped[int | None] = mapped_column(Integer)  # null = noise
-    x: Mapped[float] = mapped_column(Float, nullable=False)
-    y: Mapped[float] = mapped_column(Float, nullable=False)
+    prompt_id: Mapped[str | None] = mapped_column(String(36))
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)   # journey/spans.FailureKind
+    item: Mapped[str] = mapped_column(Text, nullable=False)          # journey item / unscripted moment
+    cause: Mapped[str] = mapped_column(String(16), nullable=False)
+    turn: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    # unscripted only: did the agent's improvised reply work (the LLM's agent_response_ok)
+    handled: Mapped[bool | None] = mapped_column(Boolean)
+    embedding: Mapped[list | None] = mapped_column(Embedding)
+    embed_model: Mapped[str | None] = mapped_column(String(255))  # model|instruct behind `embedding`
+    cluster_key: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = created_col()
+
+
+class MomentCluster(Base):
+    """A named cluster of moments inside one failure group (kind, item, cause) of a script version — a
+    variant of the failure — or, for kind `unscripted`, a theme the script never covers (item =
+    "handled" / "not_handled": whether the agent's improvised reply worked). `size` = distinct calls."""
+
+    __tablename__ = "moment_cluster"
+    __table_args__ = (
+        UniqueConstraint("agent_id", "prompt_id", "kind", "item", "cause", "cluster_key",
+                         name="uq_moment_cluster"),
+    )
+
+    id: Mapped[str] = pk()
+    agent_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    prompt_id: Mapped[str | None] = mapped_column(String(36))
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    item: Mapped[str] = mapped_column(Text, nullable=False)
+    cause: Mapped[str] = mapped_column(String(16), nullable=False)
+    cluster_key: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str | None] = mapped_column(Text)                   # LLM-written, 3-6 words
+    size: Mapped[int] = mapped_column(Integer, nullable=False)
+    members_hash: Mapped[str] = mapped_column(String(64), nullable=False)  # re-name only on change
+    # unscripted pools are a tree (HDBSCAN inside HDBSCAN): parent node, depth (0 = top), leaf flag
+    parent_key: Mapped[int | None] = mapped_column(Integer)
+    depth: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_leaf: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # leaves: the moment closest to the centroid, its description (its `what`), and where it belongs in
+    # the script journey per the decision model ({category, match, match_p, stage, decided})
+    medoid_moment_id: Mapped[str | None] = mapped_column(String(36))
+    description: Mapped[str | None] = mapped_column(Text)
+    placement: Mapped[dict | None] = mapped_column(JSON)
+    updated_at: Mapped[datetime] = created_col()
 
 
 class Tombstone(Base):
@@ -570,6 +643,8 @@ class Agent(Base):
     # When true, the post-call LLM analysis is gated on per-call parameters (CallParams) being present
     # — for agents whose system prompt is a template filled per call. Off by default.
     params_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # turn failed agent turns into training data (journey stage 3, an extra LLM call per failing call)
+    curate_training_data: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = created_col()
 
 

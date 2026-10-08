@@ -5,6 +5,7 @@ import AudioAnalysis from "./AudioAnalysis";
 import CallChat from "./CallChat";
 import Discrepancies from "./Discrepancies";
 import Latency from "./Latency";
+import JourneyResult from "./JourneyResult";
 import LlmAnalysis from "./LlmAnalysis";
 import Metadata from "./Metadata";
 import Recording from "./Recording";
@@ -114,6 +115,7 @@ function Sections({ data }: { data: Detail }) {
       <Transcript turns={data.turns} spans={data.spans} />
       <Latency turns={data.turns} mediaReady={data.trust.media_ready} />
       <Waterfall trace={trace} />
+      <JourneyResult journey={data.judgment?.journey} enrich={data.judgment?.enrich_status} />
       <LlmAnalysis judgment={data.judgment} />
       <Discrepancies discrepancies={data.discrepancies} audioOn={data.trust.audio_analysis} />
       <Metadata data={data} />

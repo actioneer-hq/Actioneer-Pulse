@@ -56,13 +56,18 @@ def _with_backoff(fn: Callable, *, interactive: bool):
 
 
 def _kwargs(resolved: ResolvedLLM) -> dict:
-    return {
+    kw = {
         "provider": resolved.provider,
         "model": resolved.model,
         "api_key": resolved.api_key,
         "api_base": resolved.base_url,
         "max_tokens": resolved.max_tokens,
     }
+    if getattr(resolved, "reasoning_effort", None):
+        kw["reasoning_effort"] = resolved.reasoning_effort
+    if getattr(resolved, "timeout_s", None):
+        kw["timeout"] = resolved.timeout_s
+    return kw
 
 
 def complete(

@@ -84,6 +84,6 @@ def _sanitize(msg: str) -> str:
     low = first.lower()
     if "permission denied" in low or "does not exist" in low:
         return ("query refers to something not available — you may only query the documented "
-                "tables (calls, events, turns, utterances, metrics, judgments, clusters, "
-                "call_clusters, call_embeddings, agents)")
+                "tables (calls, events, turns, utterances, metrics, judgments, moments, "
+                "moment_clusters, agents)")
     return first[:300]
