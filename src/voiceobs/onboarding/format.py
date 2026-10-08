@@ -156,5 +156,22 @@ def format_spec(script: str | None) -> dict:
         "csv": {"columns": ["call_id", *params],
                 "example": ",".join(["call_id", *params]) + "\n"
                            + ",".join(["<audio file name without extension>", *(f"<{p}>" for p in params)])},
-        "json": {"schema": json_schema(params)},
+        "json": {"schema": json_schema(params), "example": json_example(params)},
+    }
+
+
+def json_example(params: list[str]) -> dict:
+    """A fill-in-the-blanks pulse.calls.v1 file with `params` keyed by this project's placeholders."""
+    return {
+        "format": FORMAT_ID,
+        "calls": [{
+            "call_id": "<audio file name without extension>",
+            "audio_file": "<optional: file name inside the ZIP>",
+            "started_at": "<optional: ISO-8601>",
+            "params": {p: f"<{p}>" for p in params},
+            "transcript": [
+                {"speaker": "agent", "text": "<what the agent said>", "start": 0.4, "end": 4.1},
+                {"speaker": "customer", "text": "<what the customer said>", "start": 5.0, "end": 5.9},
+            ],
+        }],
     }
