@@ -167,10 +167,9 @@ def plan_calls(audio: dict[str, Path], manifest_calls: list[UploadCall]) -> list
         p = PlannedCall(call_id=c.call_id, spec=c, audio=audio.get(name) if name else None)
         if name:
             used.add(name)
-        elif c.audio_file:
-            p.error = f"audio_file '{c.audio_file}' is not in the ZIP"
-        if p.audio is None and not c.transcript and not p.error:
-            p.error = "no audio file and no transcript for this call"
+        elif not c.transcript:  # with a transcript, audio is only for playback
+            p.error = (f"audio_file '{c.audio_file}' is not in the ZIP" if c.audio_file
+                       else "no audio file and no transcript for this call")
         plans.append(p)
     known = {c.call_id for c in manifest_calls}
     for name, path in sorted(audio.items()):
