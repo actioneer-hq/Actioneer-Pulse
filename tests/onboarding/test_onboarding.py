@@ -138,6 +138,17 @@ def test_plan_pairs_json_entries_with_audio(tmp_path):
     assert plans["extra"].spec is None  # audio-only file becomes its own call
 
 
+def test_plan_json_only_ignores_audio_file_when_transcribed():
+    m = parse_manifest(json.dumps({"format": "pulse.calls.v1", "calls": [
+        {"call_id": "a1", "audio_file": "a1.mp3",
+         "transcript": [{"speaker": "agent", "text": "hi", "start": 0}]},
+        {"call_id": "b2", "audio_file": "b2.mp3"},  # nothing to analyse
+    ]}).encode())
+    plans = {p.call_id: p for p in plan_calls({}, m.calls)}
+    assert plans["a1"].error is None and plans["a1"].audio is None
+    assert plans["b2"].error == "audio_file 'b2.mp3' is not in the ZIP"
+
+
 # ── end to end ───────────────────────────────────────────────────────────────────────
 def test_upload_job_end_to_end(tmp_path, authed_client, db_sessionmaker, bus, monkeypatch):
     from voiceobs.config import get_config
