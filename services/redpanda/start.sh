@@ -24,7 +24,7 @@ for _ in $(seq 1 90); do
   sleep 1
 done
 
-for spec in "raw-spans 12" "raw-spans.dlq 1" "judge-requests 12" "judge-requests.backfill 12" "judge-requests.dlq 1"; do
+for spec in "raw-spans 12" "raw-spans.dlq 1" "judge-requests 12" "judge-requests.backfill 12" "judge-requests.dlq 1" "journey-curate 12" "journey-llm.dlq 1"; do
   # shellcheck disable=SC2086
   set -- $spec
   /usr/bin/rpk topic create "$1" -p "$2" --brokers 127.0.0.1:9092 || echo "[redpanda] topic create failed: $1"
